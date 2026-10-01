@@ -9,14 +9,28 @@ export interface SecretStore {
 }
 
 const PASSWORD_KEY = 'br.keybase.password';
+const inFlightPasswords = new WeakMap<SecretStore, Promise<string>>();
 
 /** One random password protects every session key in gnonative's keybase; it lives in the secure store. */
 export async function keybasePassword(store: SecretStore, randomHex: (bytes: number) => string): Promise<string> {
-  const have = await store.get(PASSWORD_KEY);
-  if (have) return have;
-  const pw = randomHex(32);
-  await store.set(PASSWORD_KEY, pw);
-  return pw;
+  const existing = inFlightPasswords.get(store);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const have = await store.get(PASSWORD_KEY);
+    if (have) return have;
+    const pw = randomHex(32);
+    await store.set(PASSWORD_KEY, pw);
+    return pw;
+  })();
+
+  inFlightPasswords.set(store, promise);
+  try {
+    return await promise;
+  } catch (e) {
+    inFlightPasswords.delete(store);
+    throw e;
+  }
 }
 
 export async function createSessionKey(

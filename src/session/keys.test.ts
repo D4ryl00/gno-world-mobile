@@ -33,3 +33,20 @@ test('unlockKey activates as a session of the master and sets the password', asy
   await unlockKey(api, store, k);
   expect(api.activated.get(k.keyName)!.master).toBeUndefined();
 });
+
+test('concurrent calls to keybasePassword coalesce to one password', async () => {
+  let setCalls = 0;
+  const store: SecretStore = {
+    get: async () => null,
+    set: async () => { setCalls++; },
+  };
+  let callCount = 0;
+  const randomHex = () => {
+    callCount++;
+    return `password${callCount}`;
+  };
+  const [pw1, pw2] = await Promise.all([keybasePassword(store, randomHex), keybasePassword(store, randomHex)]);
+  expect(pw1).toBe(pw2);
+  expect(pw1).toBe('password1');
+  expect(setCalls).toBe(1);
+});

@@ -92,3 +92,9 @@ test('fragment replies (https callbacks) parse too; junk is null', () => {
   expect(parseReplyURL('https://x.example/cb#status=cancelled&state=s')).toMatchObject({ status: 'cancelled', state: 's' });
   expect(parseReplyURL('bubblerumble://session-callback?status=maybe')).toBeNull();
 });
+
+test('malformed escape sequences in callback URLs return null (attacker-controlled)', () => {
+  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%zz')).toBeNull();
+  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%ff')).toBeNull();
+  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%')).toBeNull();
+});

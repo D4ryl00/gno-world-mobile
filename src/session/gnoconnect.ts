@@ -113,8 +113,13 @@ export function parseReplyEntries(es: [string, string][]): WalletReply | null {
 }
 
 export function parseReplyURL(url: string): WalletReply | null {
-  const { query, fragment } = splitLink(url);
-  return parseReplyEntries([...entries(query), ...entries(fragment)]);
+  try {
+    const { query, fragment } = splitLink(url);
+    return parseReplyEntries([...entries(query), ...entries(fragment)]);
+  } catch (e) {
+    if (e instanceof URIError) return null;
+    throw e;
+  }
 }
 
 /**
