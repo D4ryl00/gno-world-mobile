@@ -1,0 +1,26 @@
+diff --git a/node_modules/@gnolang/gnonative/build/index.js b/node_modules/@gnolang/gnonative/build/index.js
+index 4ed43e2..4016ea4 100644
+--- a/node_modules/@gnolang/gnonative/build/index.js
++++ b/node_modules/@gnolang/gnonative/build/index.js
+@@ -2,7 +2,7 @@ import { EventEmitter, NativeModulesProxy } from 'expo-modules-core';
+ import GnonativeModule from './GnonativeModule';
+ import GnonativeView from './GnonativeView';
+ import 'fast-text-encoding';
+-Symbol.asyncIterator = Symbol.asyncIterator || Symbol.for('Symbol.asyncIterator');
++if (!Symbol.asyncIterator) { Object.defineProperty(Symbol, 'asyncIterator', { value: Symbol.for('Symbol.asyncIterator') }); }
+ const emitter = new EventEmitter(GnonativeModule ?? NativeModulesProxy.Gnonative);
+ export function addChangeListener(listener) {
+     return emitter.addListener('onChange', listener);
+diff --git a/node_modules/@gnolang/gnonative/src/index.ts b/node_modules/@gnolang/gnonative/src/index.ts
+index 1f10f74..ad7ee4a 100644
+--- a/node_modules/@gnolang/gnonative/src/index.ts
++++ b/node_modules/@gnolang/gnonative/src/index.ts
+@@ -7,7 +7,7 @@ import GnonativeModule from './GnonativeModule';
+ import GnonativeView from './GnonativeView';
+ import 'fast-text-encoding';
+ 
+-(Symbol as any).asyncIterator = Symbol.asyncIterator || Symbol.for('Symbol.asyncIterator');
++if (!(Symbol as any).asyncIterator) { Object.defineProperty(Symbol, 'asyncIterator', { value: Symbol.for('Symbol.asyncIterator') }); }
+ 
+ const emitter = new EventEmitter(GnonativeModule ?? NativeModulesProxy.Gnonative);
+ 
