@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import type { AllPools } from '@/chain/game-client';
@@ -12,6 +12,7 @@ import { colors, space } from '@/theme';
 import { flagEmoji } from '@/utils/flag';
 import { gnot } from '@/utils/gnot';
 
+import { createSerialLoader, loadNotice } from './load';
 import { PoolRow } from './pool-row';
 import { sortPools } from './sort';
 
@@ -22,23 +23,36 @@ export function PoolsScreen() {
   const [data, setData] = useState<AllPools | null>(null);
   const [teams, setTeams] = useState<Teams>({});
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const [all, t] = await Promise.all([game.allPools(), game.teams().catch(() => ({}))]);
-      setData(all);
-      setTeams(t);
-      setError(all.pools.length === 0 && all.failed.length ? 'the node did not answer' : '');
-    } catch (e) {
-      setError(String((e as Error).message ?? e));
-    }
-  }, [game]);
+  const mounted = useRef(true);
+  const load = useMemo(
+    () =>
+      createSerialLoader(async () => {
+        try {
+          const [all, t] = await Promise.all([game.allPools(), game.teams().catch(() => ({}))]);
+          if (!mounted.current) return;
+          const r = loadNotice(all);
+          setData(all);
+          setTeams(t);
+          setError(r.error ?? '');
+          setNotice(r.notice ?? '');
+        } catch (e) {
+          if (mounted.current) setError(String((e as Error).message ?? e));
+        }
+      }),
+    [game],
+  );
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    const t = setInterval(() => void load(), 15000);
+    return () => {
+      mounted.current = false;
+      clearInterval(t);
+    };
   }, [load]);
 
   const { live, closed } = sortPools(data?.pools ?? [], now);
@@ -47,12 +61,13 @@ export function PoolsScreen() {
   return (
     <SectionList
       contentContainerStyle={styles.page}
-      refreshControl={<RefreshControl tintColor={colors.fg} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
+      refreshControl={<RefreshControl tintColor={colors.fg} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); if (mounted.current) setRefreshing(false); }} />}
       ListHeaderComponent={
         <View style={{ gap: space.m }}>
           <Text style={styles.lede}>Last boop standing takes the pot. Every boop resets the clock.</Text>
           {blocked ? <Text style={styles.warn}>{NOPLAY_TEXT}</Text> : <Button title="New pool" onPress={() => router.push('/create' as Href)} />}
           {error ? <Text style={styles.warn}>{error}</Text> : null}
+          {notice ? <Text style={styles.warn}>{notice}</Text> : null}
         </View>
       }
       sections={[
