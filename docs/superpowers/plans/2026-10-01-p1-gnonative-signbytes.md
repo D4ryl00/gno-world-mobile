@@ -136,7 +136,7 @@ func activated(t *testing.T, s *gnoNativeService, setPassword bool) keys.Info {
 func TestSignBytes(t *testing.T) {
 	s := newTestService(t)
 	info := activated(t, s, true)
-	data := []byte("gnoconnect-session-v1\nhost=createsession\nstate=ab+c=")
+	data := []byte("gnoconnect-session-v1\nhost=connect\nstate=ab+c=")
 
 	res, err := s.SignBytes(context.Background(), connect.NewRequest(&api_gen.SignBytesRequest{
 		Address: info.GetAddress().Bytes(),

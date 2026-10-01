@@ -2,8 +2,13 @@
 
 - **Date :** 2026-10-01
 - **Statut :** à relire
-- **Référence protocole :** `gnoconnect-session.md` (hosts `createsession`,
-  `replacesession`, `revokesession`), testé sur gnodev (gno `83e0a40ea`).
+- **Référence protocole :** `gnoconnect-session.md` (`connect` étendu avec
+  `pubkey` et `old`, host `disconnect`), comportement de la chaîne testé sur
+  gnodev (gno `83e0a40ea`).
+- **Révision 2026-10-01 :** les trois hosts `createsession`, `replacesession`
+  et `revokesession` sont remplacés par `connect` / `disconnect`. La gestion des
+  sessions reste l'affaire du wallet : la dapp ne fait que se connecter, avec ou
+  sans sa propre clé, et se déconnecter.
 
 ## 1. Objectif
 
@@ -12,10 +17,11 @@ que bubblerumble.net, **hors notifications push**, sans repasser par un wallet �
 chaque transaction.
 
 La dapp détient sa propre clé de session. La session est accordée une fois par
-l'identité de l'utilisateur via gnokey-mobile (hosts de session GnoConnect),
-signée au desktop (option a), avec un budget horaire et une durée longue. Si
-gnokey-mobile est absent ou ne connaît pas ces hosts, la dapp propose elle-même
-la commande desktop (repli intégré).
+l'identité de l'utilisateur via gnokey-mobile (`connect` GnoConnect avec la
+clé publique de la dapp), signée au desktop (option a), avec un budget horaire
+et une durée longue. Si gnokey-mobile est absent, ou s'il répond un `connect`
+sans session pour cette clé, la dapp propose elle-même la commande desktop
+(repli intégré).
 
 **Critères de réussite :**
 
@@ -32,7 +38,7 @@ la commande desktop (repli intégré).
 | # | Sous-projet | Dépôt | Dépend de |
 |---|---|---|---|
 | P1 | `SignBytes` dans gnonative | `~/gnonative` | — |
-| P2 | Hosts de session dans gnokey-mobile | `~/gnokey-mobile` | — |
+| P2 | Sessions GnoConnect dans gnokey-mobile (`connect` avec clé, `disconnect`) | `~/gnokey-mobile` | — |
 | P3 | Dapp Bubble Rumble (Expo + gnonative) | `~/bubblerumble` | P1 (preuve de possession) ; P2 pour la voie gnokey-mobile, le repli fonctionne sans |
 
 P1 et P2 sont indépendants. P3 commence dès que P1 est prêt, avec le repli
@@ -64,44 +70,64 @@ message SignBytesResponse { bytes signature = 1; bytes pub_key = 2; } // pub_key
   `buf`/proto, build du module.
 - **Hors périmètre :** toute autre évolution de gnonative.
 
-## 4. P2 : gnokey-mobile, hosts de session
+## 4. P2 : gnokey-mobile, sessions via `connect` et `disconnect`
 
 Implémentation de `gnoconnect-session.md` sur iOS et Android, avec la logique
-dans `core/` (Go, partagé par les deux plateformes).
+dans `core/` (Go, partagé par les deux plateformes). gnokey-mobile implémente
+déjà `connect` (branche `feat/deeplink-tx`) : P2 l'étend et ajoute le host
+`disconnect`.
 
 **`core/` (Go) :**
 
-- **Parsing et validation** des trois hosts. Paramètres et bornes du spec : 8
+- **Parsing et validation** de `connect` (avec et sans `pubkey`, avec `old`,
+  indications de périmètre) et de `disconnect`. Paramètres et bornes du spec : 8
   entrées maximum, `period` ≤ 30 j, `expires` ≤ ~4 ans, grammaire des allow
-  entries.
+  entries, `old` ≠ `pubkey`, `signer` obligatoire avec `old` et sur
+  `disconnect`.
 - **Preuve de possession :** payload canonique, vérification `sig` / `oldsig`
   (secp256k1 et ed25519), fenêtre `iat`, mémoire anti-rejeu `(pubkey, state)`.
-- **Pré-vérifications sur la chaîne :** session existante / introuvable, slot
-  libre, sessions expirées révocables.
+- **Pré-vérifications sur la chaîne :**
+  - `pubkey` déjà session de l'identité : non expirée → réponse sans
+    transaction, avec la session lue sur la chaîne ; expirée →
+    `session_expired` ;
+  - `old` encore présent ou non (absent : rien à révoquer, la revue le dit) ;
+  - slot libre, sessions expirées révocables ;
+  - `disconnect` : `pubkey` présent, sinon `session_not_found`.
 - **Construction des transactions :**
-  - create : la commande `gnokey maketx session create …` ;
-  - replace et nettoyage : le document de transaction multi-messages, plus la
-    commande `gnokey sign -account-number -account-sequence … && gnokey
-    broadcast -dry-run … && gnokey broadcast …` ;
-  - revoke : la commande `gnokey maketx session revoke …`.
+  - `connect` sans `old` ni nettoyage : la commande `gnokey maketx session
+    create …` ;
+  - `connect` avec `old`, ou avec nettoyage : le document de transaction
+    multi-messages (révocations puis création), plus la commande `gnokey sign
+    -account-number -account-sequence … && gnokey broadcast -dry-run … &&
+    gnokey broadcast …` ;
+  - `disconnect` : la commande `gnokey maketx session revoke …` (ou le
+    document multi-messages s'il y a du nettoyage).
 - **Détection de l'issue** par polling de
-  `auth/accounts/{maître}/session/{adresse}` : présence (create, replace) ou
-  absence (revoke). Le document est régénéré si la séquence du maître bouge.
-- **Construction du callback** : `address`, `session`, `expires_at`, `allow`,
-  `spend`, `period`, `chainid`, `hash` (optionnel), `state` ; codes d'erreur du
+  `auth/accounts/{maître}/session/{adresse}` : présence (`connect`) ou absence
+  (`disconnect`). Le document est régénéré si la séquence du maître bouge.
+- **Construction du callback** : `address`, `chainid`, `features` (avec
+  `sessions`), `session`, `expires_at`, `allow`, `spend`, `period`, `revoked`
+  (si `old` a été révoqué), `hash` (optionnel), `state` ; codes d'erreur du
   spec.
+- **Indications de périmètre** (`connect` sans `pubkey`) : gnokey-mobile ne
+  détient que des clés de session. Il peut s'en servir pour choisir une de ses
+  sessions qui couvre les entrées, ou proposer d'en créer une. Cette partie est
+  facultative dans le standard ; P2 la traite en dernier et peut la reporter.
 - **Pont `mobile/`** : fonctions typées, comme l'existant.
 
 **iOS et Android :**
 
-- Routage des hosts dans `DeepLink.swift` / `DeepLink.kt` et `AppModel` /
-  `AppViewModel`. `unsupported_host` reste la réponse aux hosts inconnus.
+- Routage dans `DeepLink.swift` / `DeepLink.kt` et `AppModel` /
+  `AppViewModel` : `connect` choisit son écran selon la présence de `pubkey` ;
+  `disconnect` est un nouveau host. `unsupported_host` reste la réponse aux
+  hosts inconnus.
 - **Écran de consentement** selon la section Review du spec :
   - hôte du callback, réseau (chain id + endpoint), identité ;
   - entrées autorisées, avec avertissement sur `*`, `vm/exec` nu, `vm/run` et
     `bank/*` ;
   - budget en clair et pire cas sur toute la durée, date d'expiration ;
-  - pour un remplacement, la comparaison ancien / nouveau ;
+  - avec `old`, la comparaison ancien / nouveau, ou la mention que l'ancienne
+    clé n'est plus sur la chaîne ;
   - la possibilité de **restreindre** la demande (durée, budget, période,
     entrées), jamais de l'élargir.
 - **Écran de passage au desktop** : réutilise `HandoffScreen` / `CommandBlock`
@@ -109,14 +135,15 @@ dans `core/` (Go, partagé par les deux plateformes).
   (→ `cancelled`) et garde la requête en attente si l'app passe en arrière-plan.
 - **Sessions expirées** : proposition d'ajouter leur révocation dans la même
   transaction, visible dans la revue.
-- **`connect`** : ajout de `createsession`, `replacesession` et `revokesession`
-  dans `features`.
+- **`connect`** : ajout de `sessions` dans `features`.
 
 **Tests :**
 
 - tests unitaires Go (payload, preuve, validation, construction des documents,
   callbacks) ;
-- test d'intégration Go sur gnodev (create, replace, revoke, nettoyage, rejets) ;
+- test d'intégration Go sur gnodev (`connect` avec clé, `connect` répété sur la
+  même clé, `connect` avec `old` présent et absent, `disconnect`, nettoyage,
+  rejets) ;
 - tests du parseur côté Swift et Kotlin (le `DeepLinkTest.kt` existant sert de
   modèle).
 
@@ -157,23 +184,29 @@ dans `core/` (Go, partagé par les deux plateformes).
      SecureStore).
   2. Elle propose le budget (GNOT par heure, 5 par défaut) et la durée (30 j par
      défaut).
-  3. Elle lance `createsession` vers gnokey-mobile, avec la preuve de
-     possession via `SignBytes`.
+  3. Elle envoie à gnokey-mobile un `connect` avec sa clé publique (`pubkey`),
+     les entrées, le budget et la durée, et la preuve de possession via
+     `SignBytes`.
 - **Entrées autorisées** (7 sur 8) : `vm/exec:` pour bubblerumble5, 4, 3, 2 et
   1, `bubble` et `wbubble`.
-- **Repli** si l'app n'est pas installée, si la réponse est `unsupported_host`,
-  ou en l'absence de réponse après un délai : la dapp affiche elle-même la
-  commande `gnokey maketx session create …` et un QR. Elle demande l'adresse
-  maître (saisie, collage ou `connect` si gnokey-mobile l'implémente), puis
-  détecte la session par polling.
+- **Repli :** la dapp affiche elle-même la commande `gnokey maketx session
+  create …` et un QR, puis détecte la session par polling. Trois cas y mènent :
+  - gnokey-mobile répond au `connect`, mais sans session pour la clé de la dapp
+    (`session` absent ou différent de l'adresse de `pubkey`) : il ne connaît
+    pas encore l'extension. L'adresse maître est celle de la réponse, et le
+    polling démarre tout de suite ;
+  - l'app n'est pas installée : la dapp demande l'adresse maître (saisie ou
+    collage) ;
+  - l'utilisateur choisit « Utiliser un ordinateur » pendant l'attente :
+    adresse saisie ou collée.
 - **Après l'accord :** `ActivateAccount(clé, maître)`. La dapp vérifie sur la
   chaîne (`QuerySessionAccount`) l'expiration, le plafond, la période et les
   entrées autorisées.
 - **Écran Session :**
   - budget restant (règle de remise à zéro), solde du maître, expiration ;
-  - boutons « Renouveler / changer le budget » (`replacesession`, nouvelle
-    clé), « Révoquer » (`revokesession`) et « Recharger » (QR de l'adresse
-    maître) ;
+  - boutons « Renouveler / changer le budget » (`connect` avec une nouvelle
+    clé et `old` = la clé actuelle, une seule transaction), « Révoquer »
+    (`disconnect`) et « Recharger » (QR de l'adresse maître) ;
   - bandeau d'avertissement à J-3 de l'expiration.
 - **Rejets de la chaîne,** traduits en actions :
   - budget épuisé → « rechargé dans mm:ss » ;
@@ -262,6 +295,9 @@ cas de divergence, c'est le comportement du site qui fait foi.
     cours est ignorée ;
   - un callback n'est jamais pris pour une preuve : on vérifie toujours sur la
     chaîne ;
+  - une réponse `connect` n'accorde une session que si son champ `session` est
+    l'adresse de la clé de la dapp ; sinon c'est une réponse d'identité seule,
+    qui mène au repli avec l'adresse maître déjà connue ;
   - une requête sans réponse au bout d'un délai mène au repli.
 
 ### 5.7 Tests
@@ -271,7 +307,8 @@ cas de divergence, c'est le comportement du site qui fait foi.
   restant), parseurs JSON du realm et du serveur.
 - **Intégration** sur gnodev (script) : `bubblerumble5` chargé ; création de
   session par repli ; `CreatePool`, `Bid`, `Claim`, `Withdraw` en session ;
-  `replacesession`, puis `revokesession`.
+  renouvellement (commandes équivalentes à `connect` avec `old`), puis
+  révocation (équivalent de `disconnect`).
 - **Off-chain :** tests du client sur des réponses enregistrées du serveur
   officiel, en lecture seule. Aucun POST vers le serveur de production dans les
   tests automatiques.
@@ -285,13 +322,22 @@ cas de divergence, c'est le comportement du site qui fait foi.
   utilisé : la dapp parle directement au RPC configuré.
 - Store de l'état : zustand, sauf contre-indication pendant le plan.
 - Aucun envoi de données d'analytique.
+- Sessions côté standard (révision du 2026-10-01) : la dapp ne connaît que
+  `connect` et `disconnect`. Elle passe sa clé publique dans `connect` pour une
+  session qu'elle détient ; le renouvellement est un `connect` avec une
+  nouvelle clé et `old`, en une seule transaction, plutôt que `disconnect` puis
+  `connect` (deux passages au desktop avec gnokey-mobile). Les sessions du
+  wallet restent son affaire, la dapp peut toujours utiliser `sendtx` avec la
+  même identité.
 
 ## 7. Ordre de réalisation
 
 1. P1 (`SignBytes`).
 2. P3-M1 avec le repli desktop : la boucle de jeu complète en session.
-3. P2 (hosts de session dans gnokey-mobile), puis branchement de la voie
-   gnokey-mobile dans P3.
+3. P2 (`connect` avec clé et `disconnect` dans gnokey-mobile), puis
+   vérification de l'aller-retour avec P3. P3-M1 envoie déjà ces requêtes et
+   traite leurs réponses ; il ne reste à y faire que les corrections que
+   l'aller-retour révélera.
 4. P3-M2 (social).
 5. P3-M3 (économie et extras).
 6. **Mise à jour du standard GnoConnect,** une fois l'aller-retour P2 ↔ P3
@@ -299,14 +345,15 @@ cas de divergence, c'est le comportement du site qui fait foi.
    ce que l'implémentation aura appris, est intégré dans
    `docs/resources/gnoconnect.md` :
    - de préférence dans `~/gno-external-wallets`
-     (`feat/gnoconnect-external-wallets`, PR #5970), puisque les hosts de
-     session sont des launch links ;
+     (`feat/gnoconnect-external-wallets`, PR #5970), puisque `connect` et
+     `disconnect` y sont définis comme launch links ;
    - puis repris dans `~/gno-inpage-wallets`, qui est basé dessus ;
    - à défaut, directement dans `~/gno-inpage-wallets`, à décider à ce
      moment-là selon l'état des deux branches.
 
-   Cette étape ajoute aussi les hosts à « Known Implementations » et à la liste
-   des `features` de `connect`.
+   Cette étape étend la section `connect` existante, ajoute le host
+   `disconnect` et le token `sessions` dans les `features` de `connect`, et met
+   à jour « Known Implementations ».
 
 Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
@@ -329,17 +376,21 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   `docs/superpowers/plans/2026-10-01-p3-m1-game-loop.md`, puis choisir le mode d'exécution.
   Recommandation : Native pour P1, Subagent-driven pour P3-M1.
 
+**Révision du 2026-10-01 (sessions via `connect` / `disconnect`) :** appliquée à
+`gnoconnect-session.md`, à cette spec et au plan P3-M1 (tâches 7, 9, 15, 16 et 17). Le plan P1
+ne change pas, sauf la donnée de test de `SignBytes` qui prend le nouveau nom de host. L'ancien
+point « adresse maître via `connect` dans le repli desktop » est absorbé dans P3-M1 : une
+réponse `connect` sans session pour la clé de la dapp donne l'adresse maître et lance le repli.
+
 **Sorti volontairement des plans actuels, à ne pas oublier :**
 
-1. **Adresse maître via `connect` dans le repli desktop.** P3-M1 ne propose que la saisie et le
-   collage (tâche 15). `buildConnectLink` existe déjà (tâche 7) mais n'est pas branché :
-   l'enchaînement de la session doit accepter une réponse `connect` (même contrôle de `state`) et
-   l'écran desktop doit proposer « Demander à gnokey-mobile ». À faire pendant le branchement de
-   la voie gnokey-mobile dans P3 (§7, étape 3).
-2. **Plans pas encore écrits,** à rédiger une fois l'étape précédente livrée, pour s'appuyer sur
+1. **Plans pas encore écrits,** à rédiger une fois l'étape précédente livrée, pour s'appuyer sur
    les vraies interfaces :
-   - P2 : hosts de session dans gnokey-mobile (§4), puis branchement dans P3 (avec le point 1) ;
+   - P2 : `connect` avec clé et `disconnect` dans gnokey-mobile (§4), puis vérification de
+     l'aller-retour avec P3 ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6).
+2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : facultatives dans le standard,
+   traitées en dernier dans P2, éventuellement reportées. Bubble Rumble ne s'en sert pas.
