@@ -2,8 +2,9 @@ import type { StateStorage } from 'zustand/middleware';
 
 import { FakeChainApi } from '@/chain/fake-api';
 import type { WalletReply } from '@/session/gnoconnect';
-import { createSessionStore, type SessionDeps } from '@/session/store';
-import { DEFAULT_GRANT } from '@/session/types';
+import { createSessionKey } from '@/session/keys';
+import { createSessionStore, type Pending, type SessionDeps } from '@/session/store';
+import { DEFAULT_GRANT, type ActiveSession } from '@/session/types';
 import { bytesToHex, decodeAddress } from '@/utils/bech32';
 
 const M = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
@@ -230,138 +231,158 @@ test('(b) new begin during identity-only polling: poll A, begin create B, put A 
 });
 
 test('(c) persisted replace whose new key is on chain and old key gone → active is new key, phase active', async () => {
-  const { api, store, deps, onChain } = setup({ openURL: async () => { throw new Error('no app'); } });
-  // create initial session
-  await store.getState().begin('create', DEFAULT_GRANT);
-  onChain(store.getState().pending!.key.address);
-  await store.getState().submitMaster(M);
-  const oldKey = store.getState().active!;
+  const { api, mem, deps, onChain } = setup();
 
-  // start replace
-  await store.getState().begin('replace', { ...DEFAULT_GRANT, spendPerPeriod: 1000000 });
-  const newKey = store.getState().pending!.key;
+  // Create session keys for old and new
+  const oldKey = await createSessionKey(api, deps.secrets, deps.randomHex, deps.now);
+  const newKey = await createSessionKey(api, deps.secrets, deps.randomHex, deps.now);
+
+  // Setup: new key on chain, old key gone
   onChain(newKey.address);
-  await settle();
-  // should now have new key active
-  expect(store.getState().active!.address).toBe(newKey.address);
+  const oldActive: ActiveSession = { ...oldKey, master: M, chainId: 'gnoland-1' };
+  const replacePending: Pending = {
+    op: 'replace', key: newKey, old: oldActive, grant: DEFAULT_GRANT, master: M,
+    chainId: 'gnoland-1', via: 'desktop', createdAt: deps.now(), state: 'replace-state-1',
+  };
 
-  // simulate app restart with new key on chain and old key gone
-  const again = createSessionStore(deps);
-  await again.persist.rehydrate();
-  onChain(newKey.address); // ensure new key is still on chain
-  await again.getState().restore();
+  // Write persisted state directly
+  const persisted = { state: { active: oldActive, pending: replacePending }, version: 0 };
+  mem.set('br.session', JSON.stringify(persisted));
+
+  // Create store from persisted state and restore
+  const store = createSessionStore(deps);
+  await store.persist.rehydrate();
+  await store.getState().restore();
   await settle();
-  // should have new key active, not old
-  expect(again.getState().active!.address).toBe(newKey.address);
-  expect(again.getState().phase).toBe('active');
+
+  // Should have new key active, phase active
+  expect(store.getState().active!.address).toBe(newKey.address);
+  expect(store.getState().phase).toBe('active');
+  expect(store.getState().pending).toBeUndefined();
 });
 
 test('(d) persisted revoke whose key is gone → phase none, no active', async () => {
-  const { api, store, deps, onChain } = setup({ openURL: async () => { throw new Error('no app'); } });
-  // create and activate
-  await store.getState().begin('create', DEFAULT_GRANT);
-  onChain(store.getState().pending!.key.address);
-  await store.getState().submitMaster(M);
-  expect(store.getState().phase).toBe('active');
+  const { mem, deps } = setup();
 
-  // start revoke via wallet (will fail to open URL and fall back to desktop, then immediately start polling)
-  await store.getState().revoke();
-  await settle(); // let useDesktop() and waitForChain start
-  expect(store.getState().phase).toBe('waiting-chain');
-  const revokeKey = store.getState().pending!.key;
+  // Create session key for revoke
+  const key = await createSessionKey(deps.api(), deps.secrets, deps.randomHex, deps.now);
 
-  // simulate app restart with revoke pending but key already gone
-  api.sessions.clear(); // clear all sessions so the key is gone
-  const again = createSessionStore(deps);
-  await again.persist.rehydrate();
-  expect(again.getState().pending?.op).toBe('revoke');
-  expect(again.getState().active).toBeDefined();
+  // Setup: key is absent (not on chain)
+  const activeSession: ActiveSession = { ...key, master: M, chainId: 'gnoland-1' };
+  const revokePending: Pending = {
+    op: 'revoke', key: key, master: M, chainId: 'gnoland-1', via: 'wallet',
+    createdAt: deps.now(), state: 'revoke-state-1',
+  };
 
-  // restore will check active first (finds it gone from chain), then start polling for revoke
-  await again.getState().restore();
-  // After restore completes, waitForChain should have been called asynchronously
-  // With the key already gone, polling should complete quickly
-  for (let i = 0; i < 30; i++) await settle();
+  // Write persisted state directly
+  const persisted = { state: { active: activeSession, pending: revokePending }, version: 0 };
+  mem.set('br.session', JSON.stringify(persisted));
 
-  // should have cleared active and pending when polling found key absent
-  expect(again.getState().phase).toBe('none');
-  expect(again.getState().active).toBeUndefined();
-  expect(again.getState().pending).toBeUndefined();
+  // Create store from persisted state and restore
+  const store = createSessionStore(deps);
+  await store.persist.rehydrate();
+  await store.getState().restore();
+  // Settle many times for polling to complete
+  for (let i = 0; i < 50; i++) await settle();
+
+  // Should have cleared everything, phase none
+  expect(store.getState().phase).toBe('none');
+  expect(store.getState().active).toBeUndefined();
+  expect(store.getState().pending).toBeUndefined();
 });
 
 test('(e) persisted desktop create with pending.master set (killed while waiting on chain) → restore resumes polling without submitMaster', async () => {
-  const { api, store, deps, onChain } = setup({ openURL: async () => { throw new Error('no app'); } });
-  await store.getState().begin('create', DEFAULT_GRANT);
-  onChain(store.getState().pending!.key.address);
-  await store.getState().submitMaster(M);
-  // now pending should be undefined and active set
+  const { mem, deps, onChain } = setup();
 
-  // start a new create (which will fail to open wallet and go desktop)
-  await store.getState().begin('create', DEFAULT_GRANT);
-  const desktopKey = store.getState().pending!.key;
+  // Create session key for desktop create
+  const key = await createSessionKey(deps.api(), deps.secrets, deps.randomHex, deps.now);
+
+  // Setup: key not on chain yet, but master was already typed by user
+  onChain(key.address); // put key on chain for this test
+  const desktopPending: Pending = {
+    op: 'create', key: key, grant: DEFAULT_GRANT, master: M, chainId: 'gnoland-1',
+    via: 'desktop', createdAt: deps.now(), state: 'desktop-state-1',
+  };
+
+  // Write persisted state (no active, just pending with master set)
+  const persisted = { state: { pending: desktopPending }, version: 0 };
+  mem.set('br.session', JSON.stringify(persisted));
+
+  // Create store from persisted state and restore
+  const store = createSessionStore(deps);
+  await store.persist.rehydrate();
   expect(store.getState().phase).toBe('desktop');
-  // simulate app restart before user enters master (but we simulate it being set in pending)
-  const again = createSessionStore(deps);
-  await again.persist.rehydrate();
-  // manually set master in pending to simulate app being killed after user typed it
-  // (actually the test setup should have this from desktopKey submission, but let's simulate the state)
-  const p = again.getState().pending!;
-  expect(p.master).toBeUndefined(); // not yet set from submitMaster
-  // put key on chain first
-  onChain(desktopKey.address);
-  // now submit master through the new store instance
-  await again.getState().submitMaster(M);
-  await settle();
-  // should be active
-  expect(again.getState().phase).toBe('active');
-  expect(again.getState().active!.address).toBe(desktopKey.address);
+  // restore should start polling for the key
+  await store.getState().restore();
+  for (let i = 0; i < 20; i++) await settle();
+
+  // Should be active now that key is on chain
+  expect(store.getState().phase).toBe('active');
+  expect(store.getState().active!.address).toBe(key.address);
 });
 
 test('(f) active session on gnoland-1, switch to dev, restore → active kept, no chain query', async () => {
-  const { api, store, deps, onChain, setNetwork } = setup({ openURL: async () => { throw new Error('no app'); } });
-  // create on gnoland-1
-  await store.getState().begin('create', DEFAULT_GRANT);
-  const keyAddr = store.getState().pending!.key.address;
-  onChain(keyAddr);
-  await store.getState().submitMaster(M);
-  expect(store.getState().active!.chainId).toBe('gnoland-1');
+  const { api, mem, deps, onChain, setNetwork } = setup();
 
-  // switch network to dev
+  // Create session key
+  const key = await createSessionKey(deps.api(), deps.secrets, deps.randomHex, deps.now);
+
+  // Setup: active session on gnoland-1
+  onChain(key.address);
+  const activeSession: ActiveSession = { ...key, master: M, chainId: 'gnoland-1' };
+  const persisted = { state: { active: activeSession }, version: 0 };
+  mem.set('br.session', JSON.stringify(persisted));
+
+  // Switch network to dev and clear sessions
   setNetwork('dev', 'http://127.0.0.1:26657');
-  // clear sessions so any query would fail
-  api.sessions.clear();
+  api.sessions.clear(); // any query would fail now
 
-  // create new store and restore
-  const again = createSessionStore(deps);
-  await again.persist.rehydrate();
-  const queryCountBefore = 0; // we'd need to spy on api.querySessionAccount but this is implicit
-  await again.getState().restore();
-  // active should be kept, still marked as gnoland-1
-  expect(again.getState().active).toBeDefined();
-  expect(again.getState().active!.chainId).toBe('gnoland-1');
-  expect(again.getState().phase).toBe('active');
+  // Create store from persisted state and restore on dev network
+  const store = createSessionStore(deps);
+  await store.persist.rehydrate();
+  await store.getState().restore();
+
+  // Active should be kept even on different chain
+  expect(store.getState().active).toBeDefined();
+  expect(store.getState().active!.chainId).toBe('gnoland-1');
+  expect(store.getState().phase).toBe('active');
 });
 
 test('(g) pending desktop create on gnoland-1, switch to dev, restore → error with message, switch back → polling resumes', async () => {
-  const { store, onChain, setNetwork } = setup({ openURL: async () => { throw new Error('no app'); } });
-  await store.getState().begin('create', DEFAULT_GRANT);
-  const keyAddr = store.getState().pending!.key.address;
-  expect(store.getState().pending!.chainId).toBe('gnoland-1');
+  const { mem, deps, onChain, setNetwork } = setup();
 
-  // switch to dev
+  // Create session key for desktop create on gnoland-1
+  const key = await createSessionKey(deps.api(), deps.secrets, deps.randomHex, deps.now);
+
+  const desktopPending: Pending = {
+    op: 'create', key: key, grant: DEFAULT_GRANT, master: M, chainId: 'gnoland-1',
+    via: 'desktop', createdAt: deps.now(), state: 'desktop-state-g',
+  };
+
+  // Write persisted state (desktop create on gnoland-1, with master)
+  const persisted = { state: { pending: desktopPending }, version: 0 };
+  mem.set('br.session', JSON.stringify(persisted));
+
+  // Create store and switch to dev
+  const store = createSessionStore(deps);
+  await store.persist.rehydrate();
   setNetwork('dev', 'http://127.0.0.1:26657');
-  await store.getState().restore();
-  // should show error about wrong chain
-  expect(store.getState().phase).toBe('error');
-  expect(store.getState().error).toContain('gnoland-1');
-  expect(store.getState().pending).toBeDefined(); // pending is kept so cancel() works
 
-  // switch back to gnoland-1
+  // restore on wrong network should error
+  await store.getState().restore();
+  expect(store.getState().phase).toBe('error');
+  expect(store.getState().error).toBe('This request was started on gnoland-1. Switch back to that network to finish it, or cancel it.');
+  expect(store.getState().pending).toBeDefined();
+
+  // Switch back to gnoland-1 and put key on chain
   setNetwork('gnoland-1', 'https://rpc.gno.land:443');
-  onChain(keyAddr);
-  await store.getState().submitMaster(M);
-  await settle();
-  // should now be active
+  onChain(key.address);
+
+  // restore again on correct network should resume polling
+  await store.getState().restore();
+  for (let i = 0; i < 20; i++) await settle();
+
+  // Should now be active
   expect(store.getState().phase).toBe('active');
 });
 

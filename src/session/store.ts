@@ -200,8 +200,17 @@ export const createSessionStore = (d: SessionDeps) => {
 
           async onReply(r): Promise<void> {
             // Wait for hydration in case reply arrives before state is restored
-            while (!(api.persist as any).hasHydrated?.()) {
-              await new Promise<void>((resolve) => setTimeout(resolve, 1));
+            if (!api.persist.hasHydrated()) {
+              await new Promise<void>((resolve) => {
+                const off = api.persist.onFinishHydration(() => {
+                  off();
+                  resolve();
+                });
+                if (api.persist.hasHydrated()) {
+                  off();
+                  resolve();
+                }
+              });
             }
 
             const p = get().pending;
@@ -271,8 +280,8 @@ export const createSessionStore = (d: SessionDeps) => {
               }
             }
 
-            // Only then resume pending request
-            if (p) {
+            // Only then resume pending request (but re-check it wasn't cancelled/replied during active handling)
+            if (p && get().pending?.state === p.state) {
               // Check network chain before resuming
               if (p.chainId !== d.network().chainId) {
                 set({
