@@ -59,6 +59,24 @@ test('the request timer is always cleared', async () => {
   }
 });
 
+test('a hung server times out and leaves no timer behind', async () => {
+  jest.useFakeTimers();
+  try {
+    const hung: typeof fetch = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    const oc = createOffchain({ baseUrl: () => 'https://x.example', bid: async () => 'b'.repeat(8), fetch: hung, timeoutMs: 1000 });
+    const p = oc.get('/presence');
+    const settled = expect(p).rejects.toMatchObject({ status: 0 });
+    await jest.advanceTimersByTimeAsync(1001);
+    await settled;
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test('the request timer is cleared even on error', async () => {
   // Test that the timer is also cleared when an error occurs (without fake timers)
   const fetchMock = jest.fn(async () => new Response(JSON.stringify({ error: 'failed' }), { status: 500 }));
