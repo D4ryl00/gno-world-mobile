@@ -370,11 +370,24 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 État au 2026-10-01. À mettre à jour à chaque étape livrée.
 
-**En attente de l'utilisateur :**
+**Livré :**
 
-- Relire et valider les plans `docs/superpowers/plans/2026-10-01-p1-gnonative-signbytes.md` et
-  `docs/superpowers/plans/2026-10-01-p3-m1-game-loop.md`, puis choisir le mode d'exécution.
-  Recommandation : Native pour P1, Subagent-driven pour P3-M1.
+- P1 (`SignBytes` dans gnonative) : branche `feat/sign-bytes`, rebasée sur `gnolang/gnonative`
+  main, PR https://github.com/gnolang/gnonative/pull/233. L'archive locale
+  `~/gnonative/expo/gnolang-gnonative-0.1.2.tgz` (construite avant le rebase) sert à P3-M1.
+
+**En cours :** P3-M1, exécuté en subagent-driven sur `main` (ledger
+`.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`, non versionné).
+
+**Suivis gnonative révélés par P3-M1 :**
+
+- `expo/src/index.ts:10` assigne `Symbol.asyncIterator`, en lecture seule sous Hermes avec Expo
+  SDK 57 : l'import plante. La dapp le contourne avec `patch-package`
+  (`patches/@gnolang+gnonative+0.1.2.patch`, voir `patches/README.md`) ; à corriger en amont
+  (PR séparée), puis retirer le patch.
+- Sur iOS, l'erreur de `SignBytes` arrive en `UnexpectedException` (le code `ErrNoActiveAccount`
+  n'est que dans le message). Une archive refaite depuis la branche rebasée, qui contient
+  gnolang/gnonative#232, devrait transmettre le code.
 
 **Révision du 2026-10-01 (sessions via `connect` / `disconnect`) :** appliquée à
 `gnoconnect-session.md`, à cette spec et au plan P3-M1 (tâches 7, 9, 15, 16 et 17). Le plan P1
