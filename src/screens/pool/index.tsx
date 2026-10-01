@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text } from 'react-native';
 
 import type { Pool, RealmInfo } from '@/chain/parse';
@@ -20,6 +20,7 @@ import { shareText, shareUrl } from '@/utils/share';
 import { BoopPanel, type BoopChoice } from './boop-panel';
 import { History, Roster, Rules, Shots, Split } from './sections';
 import { txMessage } from './tx-message';
+import { createTxRunner } from './tx-runner';
 
 export function PoolScreen({ poolKey }: { poolKey: string }) {
   const k = parsePoolKey(poolKey);
@@ -54,23 +55,24 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
     return () => clearInterval(t);
   }, [load]);
 
+  const reloadRef = useRef<() => Promise<unknown>>(async () => undefined);
+  reloadRef.current = () => Promise.all([load(), refresh().catch(() => undefined)]);
+  const runner = useRef<ReturnType<typeof createTxRunner>>(null);
+  runner.current ??= createTxRunner({ setBusy, reload: () => reloadRef.current() });
+
   if (!k) return <Text style={styles.warn}>Unknown pool {poolKey}</Text>;
   if (!pool) return <Text style={styles.muted}>{msg || 'loading…'}</Text>;
 
-  const run = async (label: string, f: () => Promise<unknown>) => {
-    setBusy(true);
-    setMsg(`${label}…`);
-    try {
-      await f();
-      setMsg(`${label} — done`);
-    } catch (e) {
-      setMsg(txMessage(e, now, (await refresh().catch(() => null)) ?? status));
-    } finally {
-      setBusy(false);
-      void load();
-      void refresh().catch(() => undefined);
-    }
-  };
+  const run = (label: string, f: () => Promise<unknown>) =>
+    runner.current!(async () => {
+      setMsg(`${label}…`);
+      try {
+        await f();
+        setMsg(`${label} — done`);
+      } catch (e) {
+        setMsg(txMessage(e, now, (await refresh().catch(() => null)) ?? status));
+      }
+    });
 
   const effectiveRef = ref && ref !== me ? ref : '';
   const onBoop = (c: BoopChoice) =>
