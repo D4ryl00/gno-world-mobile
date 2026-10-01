@@ -63,7 +63,7 @@ export const createSessionStore = (d: SessionDeps) => {
 
   return createStore<SessionState>()(
     persist(
-      (set, get) => {
+      (set, get, api) => {
         const fail = (e: unknown): void => {
           set({ phase: 'error', error: String((e as Error)?.message ?? e) });
         };
@@ -75,7 +75,20 @@ export const createSessionStore = (d: SessionDeps) => {
           return revokeCommand(p.key.pubkey, ctx);
         };
 
+        /** Check if this pending request and poll are still valid (not cancelled/superseded). */
+        const current = (p: Pending, signal: { aborted: boolean }): boolean =>
+          !signal.aborted && get().pending?.state === p.state;
+
         const waitForChain = async (p: Pending, master: string) => {
+          // Check network chain before polling
+          if (p.chainId !== d.network().chainId) {
+            set({
+              phase: 'error',
+              error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
+            });
+            return;
+          }
+
           poll.aborted = true;
           poll = { aborted: false };
           const signal = poll;
@@ -83,11 +96,14 @@ export const createSessionStore = (d: SessionDeps) => {
           try {
             if (p.op === 'revoke') {
               await pollSession(d.api(), master, p.key.address, 'absent', { intervalMs: interval, signal });
+              if (!current(p, signal)) return;
               set({ phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined });
               return;
             }
             const status = await pollSession(d.api(), master, p.key.address, 'present', { intervalMs: interval, signal });
+            if (!current(p, signal)) return;
             await unlockKey(d.api(), d.secrets, p.key, master);
+            if (!current(p, signal)) return;
             set({
               phase: 'active', active: { ...p.key, master, chainId: p.chainId }, status: status ?? undefined,
               pending: undefined, command: undefined, error: undefined,
@@ -101,6 +117,14 @@ export const createSessionStore = (d: SessionDeps) => {
         const desktop = (master?: string): void => {
           const p = get().pending;
           if (!p) return;
+          // Check network chain before showing desktop or polling
+          if (p.chainId !== d.network().chainId) {
+            set({
+              phase: 'error',
+              error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
+            });
+            return;
+          }
           const next = { ...p, via: 'desktop' as const };
           set({ pending: next, phase: 'desktop', command: commandFor(next) });
           const known = master ?? (p.op === 'create' ? undefined : get().active?.master);
@@ -108,6 +132,7 @@ export const createSessionStore = (d: SessionDeps) => {
         };
 
         const send = async (p: Pending, link: string) => {
+          poll.aborted = true; // abort any running poll before setting new pending
           set({ pending: p, phase: 'waiting-wallet', command: commandFor(p), error: undefined });
           try {
             await d.openURL(link);
@@ -174,6 +199,11 @@ export const createSessionStore = (d: SessionDeps) => {
           },
 
           async onReply(r): Promise<void> {
+            // Wait for hydration in case reply arrives before state is restored
+            while (!(api.persist as any).hasHydrated?.()) {
+              await new Promise<void>((resolve) => setTimeout(resolve, 1));
+            }
+
             const p = get().pending;
             if (!p || r.state !== p.state) return; // not ours: forged, stale or duplicated
             if (r.status === 'cancelled') {
@@ -205,30 +235,55 @@ export const createSessionStore = (d: SessionDeps) => {
           async refresh(): Promise<SessionStatus | null> {
             const a = get().active;
             if (!a) return null;
+            // Don't query if on a different chain; return null as if session is gone
+            if (a.chainId !== d.network().chainId) return null;
             const st = await querySession(d.api(), a.master, a.address);
             if (st) set({ status: st });
             return st;
           },
 
           async restore(): Promise<void> {
+            // Read pending and compute master BEFORE anything else
             const p = get().pending;
-            if (p) {
-              const master = p.master ?? (p.op === 'create' ? undefined : get().active?.master);
-              if (master) void waitForChain(p, master);
-              else set({ phase: p.via === 'wallet' ? 'waiting-wallet' : 'desktop', command: commandFor(p) });
-            }
+            const master = p
+              ? p.master ?? p.old?.master ?? (p.op === 'revoke' ? get().active?.master : undefined)
+              : undefined;
+
+            // Handle active first (query + unlock, or clear if gone)
             const a = get().active;
-            if (!a) return;
-            try {
-              const st = await querySession(d.api(), a.master, a.address);
-              if (!st) {
-                set({ active: undefined, status: undefined, phase: get().pending ? get().phase : 'none' });
-                return;
+            if (a) {
+              try {
+                // If on a different chain, keep active but don't query
+                if (a.chainId !== d.network().chainId) {
+                  await unlockKey(d.api(), d.secrets, a, a.master);
+                  set({ status: undefined, phase: get().pending ? get().phase : 'active' });
+                } else {
+                  const st = await querySession(d.api(), a.master, a.address);
+                  if (!st) {
+                    set({ active: undefined, status: undefined, phase: get().pending ? get().phase : 'none' });
+                  } else {
+                    await unlockKey(d.api(), d.secrets, a, a.master);
+                    set({ status: st, phase: get().pending ? get().phase : 'active' });
+                  }
+                }
+              } catch (e) {
+                fail(e);
               }
-              await unlockKey(d.api(), d.secrets, a, a.master);
-              set({ status: st, phase: get().pending ? get().phase : 'active' });
-            } catch (e) {
-              fail(e);
+            }
+
+            // Only then resume pending request
+            if (p) {
+              // Check network chain before resuming
+              if (p.chainId !== d.network().chainId) {
+                set({
+                  phase: 'error',
+                  error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
+                });
+              } else if (master) {
+                void waitForChain(p, master);
+              } else {
+                set({ phase: p.via === 'wallet' ? 'waiting-wallet' : 'desktop', command: commandFor(p) });
+              }
             }
           },
 
