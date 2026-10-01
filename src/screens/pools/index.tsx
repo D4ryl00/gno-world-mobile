@@ -1,4 +1,4 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 
@@ -65,7 +65,7 @@ export function PoolsScreen() {
       ListHeaderComponent={
         <View style={{ gap: space.m }}>
           <Text style={styles.lede}>Last boop standing takes the pot. Every boop resets the clock.</Text>
-          {blocked ? <Text style={styles.warn}>{NOPLAY_TEXT}</Text> : <Button title="New pool" onPress={() => router.push('/create' as Href)} />}
+          {blocked ? <Text style={styles.warn}>{NOPLAY_TEXT}</Text> : <Button title="New pool" onPress={() => router.push('/create')} />}
           {error ? <Text style={styles.warn}>{error}</Text> : null}
           {notice ? <Text style={styles.warn}>{notice}</Text> : null}
         </View>
