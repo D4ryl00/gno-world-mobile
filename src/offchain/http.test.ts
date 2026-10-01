@@ -19,11 +19,29 @@ test('HTTP errors carry the status and the server message', async () => {
   await expect(oc.get('/api/where')).rejects.toEqual(new OffchainError(429, 'slow down'));
 });
 
-test('a hung server times out', async () => {
+test('a hung server times out with status 0', async () => {
   const fetchMock = jest.fn((_u: string, init: RequestInit) =>
     new Promise<Response>((_r, reject) => init.signal!.addEventListener('abort', () => reject(new Error('aborted')))));
   const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never, timeoutMs: 10 });
-  await expect(oc.get('/api/where')).rejects.toBeInstanceOf(OffchainError);
+  await expect(oc.get('/api/where')).rejects.toEqual(expect.objectContaining({ status: 0 }));
+});
+
+test('a rejected bid is an OffchainError with status 0', async () => {
+  const fetchMock = jest.fn(async () => new Response(JSON.stringify({ ok: 1 }), { status: 200 }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => Promise.reject(new Error('secure store failed')), fetch: fetchMock as never });
+  await expect(oc.get('/api/where')).rejects.toEqual(expect.objectContaining({ status: 0 }));
+});
+
+test('a 200 response with non-JSON body resolves to {}', async () => {
+  const fetchMock = jest.fn(async () => new Response('<html>', { status: 200 }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  expect(await oc.get('/api/where')).toEqual({});
+});
+
+test('a 500 response with non-JSON body rejects with status 500', async () => {
+  const fetchMock = jest.fn(async () => new Response('<html>', { status: 500 }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  await expect(oc.get('/api/where')).rejects.toEqual(expect.objectContaining({ status: 500 }));
 });
 
 test('browserId is 16 hex and stable', async () => {

@@ -22,9 +22,10 @@ export function createOffchain(d: {
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), d.timeoutMs ?? 10000);
-    const headers: Record<string, string> = { 'X-Bid': await d.bid() };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
     try {
+      const bid = await d.bid();
+      const headers: Record<string, string> = { 'X-Bid': bid };
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
       const res = await f(d.baseUrl().replace(/\/+$/, '') + path, {
         method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl.signal,
       });
