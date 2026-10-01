@@ -53,14 +53,14 @@ export function AppServices({ children }: PropsWithChildren) {
 
   // keep gnonative on the configured network
   useEffect(() => {
-    void api.setRemote(remote);
-    void api.setChainID(chainId);
+    void api.setRemote(remote).catch(() => undefined);
+    void api.setChainID(chainId).catch(() => undefined);
   }, [api, chainId, remote]);
 
   // resume a pending session request / re-unlock the active key on launch
   useEffect(() => {
     const s = services.session;
-    const go = () => void s.getState().restore();
+    const go = () => void s.getState().restore().catch(() => undefined);
     if (s.persist.hasHydrated()) go();
     else return s.persist.onFinishHydration(go);
   }, [services]);

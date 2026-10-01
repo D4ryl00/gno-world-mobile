@@ -43,7 +43,8 @@ export interface SettingsState extends Settings {
   setRefOnce(addr: string, self?: string): void;
 }
 
-export const createSettingsStore = (storage: StateStorage) =>
+/** onSettled runs once the initial rehydrate is over, whether it succeeded or failed (the store then holds the defaults). */
+export const createSettingsStore = (storage: StateStorage, onSettled?: () => void) =>
   createStore<SettingsState>()(
     persist(
       (set, get) => ({
@@ -58,11 +59,30 @@ export const createSettingsStore = (storage: StateStorage) =>
           if (!get().ref && isAddress(addr) && addr !== self) set({ ref: addr });
         },
       }),
-      { name: 'br.settings', storage: createJSONStorage(() => storage) },
+      {
+        name: 'br.settings',
+        storage: createJSONStorage(() => storage),
+        onRehydrateStorage: () => () => onSettled?.(),
+      },
     ),
   );
 
-export const settingsStore = createSettingsStore(AsyncStorage);
+let settled = false;
+const settledListeners = new Set<() => void>();
+
+/** Ready once the first rehydrate has settled, even if it failed (zustand's hasHydrated stays false then). */
+export const settingsReady = {
+  hasHydrated: () => settled,
+  onFinishHydration: (fn: () => void) => {
+    settledListeners.add(fn);
+    return () => void settledListeners.delete(fn);
+  },
+};
+
+export const settingsStore = createSettingsStore(AsyncStorage, () => {
+  settled = true;
+  settledListeners.forEach((fn) => fn());
+});
 
 /** Calls onDone once hydration is finished, including when it finished before we subscribed. Returns the unsubscribe. */
 export function watchHydration(
@@ -79,7 +99,7 @@ export function useSettings<T>(selector: (s: SettingsState) => T): T {
 }
 
 export function useSettingsHydrated(): boolean {
-  const [done, setDone] = useState(settingsStore.persist.hasHydrated());
-  useEffect(() => watchHydration(settingsStore.persist, () => setDone(true)), []);
+  const [done, setDone] = useState(settingsReady.hasHydrated());
+  useEffect(() => watchHydration(settingsReady, () => setDone(true)), []);
   return done;
 }

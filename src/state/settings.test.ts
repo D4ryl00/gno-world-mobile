@@ -92,3 +92,30 @@ test('watchHydration returns an unsubscribe function', () => {
   const unsubscribe = watchHydration(p, onDone);
   expect(unsubscribe).toBe(unsubscribeMock);
 });
+
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+test('onSettled is called after a successful rehydrate', async () => {
+  const onSettled = jest.fn();
+  createSettingsStore(memory(), onSettled);
+  await settle();
+  expect(onSettled).toHaveBeenCalledTimes(1);
+});
+
+test('onSettled is called and defaults are kept when the storage read rejects', async () => {
+  const onSettled = jest.fn();
+  const failing: StateStorage = { getItem: () => Promise.reject(new Error('disk')), setItem: () => {}, removeItem: () => {} };
+  const st = createSettingsStore(failing, onSettled);
+  await settle();
+  expect(onSettled).toHaveBeenCalledTimes(1);
+  expect(st.getState().chainId).toBe(DEFAULT_SETTINGS.chainId);
+});
+
+test('onSettled is called and defaults are kept when the stored JSON is corrupt', async () => {
+  const onSettled = jest.fn();
+  const corrupt: StateStorage = { getItem: () => '{not json', setItem: () => {}, removeItem: () => {} };
+  const st = createSettingsStore(corrupt, onSettled);
+  await settle();
+  expect(onSettled).toHaveBeenCalledTimes(1);
+  expect(st.getState().remote).toBe(DEFAULT_SETTINGS.remote);
+});
