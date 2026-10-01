@@ -318,3 +318,28 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 | `~/gnokey-mobile` | `feat/session-hosts` | `feat/deeplink-tx` (infrastructure GnoConnect) |
 | `~/bubblerumble` | `main` | nouveau dépôt |
 | `~/gno-external-wallets` ou `~/gno-inpage-wallets` | branche existante | étape 6 |
+
+## 9. Suivi : ce qui reste à faire
+
+État au 2026-10-01. À mettre à jour à chaque étape livrée.
+
+**En attente de l'utilisateur :**
+
+- Relire et valider les plans `docs/superpowers/plans/2026-10-01-p1-gnonative-signbytes.md` et
+  `docs/superpowers/plans/2026-10-01-p3-m1-game-loop.md`, puis choisir le mode d'exécution.
+  Recommandation : Native pour P1, Subagent-driven pour P3-M1.
+
+**Sorti volontairement des plans actuels, à ne pas oublier :**
+
+1. **Adresse maître via `connect` dans le repli desktop.** P3-M1 ne propose que la saisie et le
+   collage (tâche 15). `buildConnectLink` existe déjà (tâche 7) mais n'est pas branché :
+   l'enchaînement de la session doit accepter une réponse `connect` (même contrôle de `state`) et
+   l'écran desktop doit proposer « Demander à gnokey-mobile ». À faire pendant le branchement de
+   la voie gnokey-mobile dans P3 (§7, étape 3).
+2. **Plans pas encore écrits,** à rédiger une fois l'étape précédente livrée, pour s'appuyer sur
+   les vraies interfaces :
+   - P2 : hosts de session dans gnokey-mobile (§4), puis branchement dans P3 (avec le point 1) ;
+   - P3-M2 : social, off-chain (§5.4) ;
+   - P3-M3 : économie et extras (§5.4) ;
+   - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
+     (§7, étape 6).
