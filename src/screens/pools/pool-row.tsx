@@ -1,4 +1,4 @@
-import { Link, type Href } from 'expo-router';
+import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Pool } from '@/chain/parse';
@@ -19,7 +19,7 @@ export function PoolRow({ pool }: { pool: Pool }) {
           ? 'no boops yet'
           : `${flagEmoji(pool.flag)} ${shortAddr(pool.lastBidder)} on top`;
   return (
-    <Link href={`/pool/${pool.key}` as Href} asChild>
+    <Link href={`/pool/${pool.key}`} asChild>
       <Pressable style={styles.row}>
         <View style={styles.top}>
           <Text style={styles.name} numberOfLines={1}>{pool.name}</Text>
