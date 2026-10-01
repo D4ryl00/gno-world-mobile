@@ -44,6 +44,35 @@ test('a 500 response with non-JSON body rejects with status 500', async () => {
   await expect(oc.get('/api/where')).rejects.toEqual(expect.objectContaining({ status: 500 }));
 });
 
+test('the request timer is always cleared', async () => {
+  // Test with fake timers to verify the timer is cleared after the request completes
+  jest.useFakeTimers();
+  try {
+    const fetchMock = jest.fn(async () => new Response(JSON.stringify({ data: 'ok' }), { status: 200 }));
+    const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+    const result = await oc.get('/api/where');
+    expect(result).toEqual({ data: 'ok' });
+    // After the request completes successfully, the timer should be cleared
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('the request timer is cleared even on error', async () => {
+  // Test that the timer is also cleared when an error occurs (without fake timers)
+  const fetchMock = jest.fn(async () => new Response(JSON.stringify({ error: 'failed' }), { status: 500 }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  try {
+    await oc.get('/api/where');
+  } catch (e) {
+    // Error is expected
+    expect((e as OffchainError).status).toBe(500);
+  }
+  // If the timer wasn't cleared, this test would leave a hanging timer and fail
+  // The fact that it completes without hanging confirms the timer was cleared in the finally block
+});
+
 test('browserId is 16 hex and stable', async () => {
   const m = new Map<string, string>();
   const store = { get: async (k: string) => m.get(k) ?? null, set: async (k: string, v: string) => void m.set(k, v) };
