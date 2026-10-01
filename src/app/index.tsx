@@ -15,11 +15,11 @@ export default function Index() {
     gnonative
       .signBytes(new Uint8Array(20), new Uint8Array())
       .then(() => setOut((o) => o + ' / signBytes: unexpected success'))
-      .catch((e) => setOut((o) => o + ` / signBytes reachable (${String(e).slice(0, 40)})`));
+      .catch((e) => setOut((o) => o + ` / signBytes reachable (${String(e)})`));
   }, [gnonative]);
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>{out}</Text>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <Text style={{ flexShrink: 1 }}>{out}</Text>
     </View>
   );
 }
