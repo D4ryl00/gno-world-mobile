@@ -17,21 +17,28 @@ export function Earnings({ session }: { session: ActiveSession }) {
   const [mes, setMes] = useState<Partial<Record<Version, Me>>>({});
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
   const load = useCallback(async () => {
     const out: Partial<Record<Version, Me>> = {};
     await Promise.all(VERSIONS.filter((v) => caps(v).me).map(async (v) => {
       const m = await game.me(v, session.master).catch(() => null);
       if (m && (m.bids || m.owed || m.won)) out[v] = m;
     }));
-    setMes(out);
+    if (mounted.current) setMes(out);
   }, [game, session.master]);
   useEffect(() => void load(), [load]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // One withdraw at a time; the buttons stay disabled until the earnings are reloaded.
   const reloadRef = useRef(load);
   reloadRef.current = load;
   const runner = useRef<ReturnType<typeof createTxRunner>>(null);
-  runner.current ??= createTxRunner({ setBusy, reload: () => reloadRef.current() });
+  runner.current ??= createTxRunner({ setBusy: (b) => mounted.current && setBusy(b), reload: () => reloadRef.current() });
 
   const rows = VERSIONS.filter((v) => mes[v]);
   return (
@@ -53,9 +60,9 @@ export function Earnings({ session }: { session: ActiveSession }) {
                   void runner.current!(async () => {
                     try {
                       await game.withdraw(session, v);
-                      setMsg(`withdrew ${gnot(m.owed)}`);
+                      if (mounted.current) setMsg(`withdrew ${gnot(m.owed)}`);
                     } catch (e) {
-                      setMsg(txMessage(e, Math.floor(Date.now() / 1000)));
+                      if (mounted.current) setMsg(txMessage(e, Math.floor(Date.now() / 1000)));
                     }
                   })
                 }

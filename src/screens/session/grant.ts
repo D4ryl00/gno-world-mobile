@@ -13,3 +13,9 @@ export function grantFromInput(gnotPerHour: string, days: string): { grant?: Gra
     return { error: (e as Error).message };
   }
 }
+
+/** An active session is only read, renewed or revoked on its own chain. */
+export function activeCard(sessionChainId: string, currentChainId: string, hasStatus: boolean): 'live' | 'unreadable' | 'other-chain' {
+  if (sessionChainId !== currentChainId) return 'other-chain';
+  return hasStatus ? 'live' : 'unreadable';
+}

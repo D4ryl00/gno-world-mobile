@@ -12,7 +12,7 @@ export default function SessionCallback() {
       (Array.isArray(v) ? v : [v]).map((x) => [k, String(x)] as [string, string]),
     );
     const reply = parseReplyEntries(entries);
-    if (reply) void session.getState().onReply(reply);
+    if (reply) void session.getState().onReply(reply).catch(() => undefined);
     router.replace('/session');
   }, []);
   return null;

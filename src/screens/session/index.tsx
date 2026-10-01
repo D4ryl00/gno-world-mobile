@@ -11,16 +11,19 @@ import { Field } from '@/components/field';
 import { useNow } from '@/hooks/use-now';
 import { expiresSoon, remaining, resetsIn } from '@/session/status';
 import { useServices, useSession } from '@/state/app-services';
+import { useSettings } from '@/state/settings';
 import { colors, space } from '@/theme';
 import { shortAddr } from '@/utils/address';
 import { decodeAddress } from '@/utils/bech32';
 import { gnot, humanDuration } from '@/utils/gnot';
 
 import { Earnings } from './earnings';
+import { activeCard } from './grant';
 import { GrantForm } from './grant-form';
 
 export function SessionScreen() {
   const { api } = useServices();
+  const chainId = useSettings((x) => x.chainId);
   const s = useSession((x) => x);
   const now = useNow(1000);
   const [master, setMaster] = useState('');
@@ -30,16 +33,22 @@ export function SessionScreen() {
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    if (s.phase !== 'active' || !s.active) return;
+    if (s.phase !== 'active' || !s.active || s.active.chainId !== chainId) return;
+    let alive = true;
+    const master = s.active.master;
     const tick = async () => {
       void s.refresh().catch(() => undefined);
-      const acc = await api.queryAccount(decodeAddress(s.active!.master)).catch(() => null);
-      setBalance(acc ? ugnot(acc.accountInfo?.coins) : null);
+      const acc = await api.queryAccount(decodeAddress(master)).catch(() => null);
+      if (alive) setBalance(acc ? ugnot(acc.accountInfo?.coins) : null);
     };
     void tick();
     const t = setInterval(tick, 15000);
-    return () => clearInterval(t);
-  }, [s.phase, s.active?.address]);
+    return () => {
+      alive = false;
+      clearInterval(t);
+      setBalance(null);
+    };
+  }, [s.phase, s.active?.address, s.active?.chainId, chainId]);
 
   const page = (body: ReactNode) => <ScrollView contentContainerStyle={styles.page}>{body}</ScrollView>;
 
@@ -110,11 +119,22 @@ export function SessionScreen() {
 
   if (s.phase === 'active' && s.active) {
     const st = s.status;
+    const card = activeCard(s.active.chainId, chainId, !!st);
+    if (card === 'other-chain')
+      return page(
+        <Card>
+          <Text style={styles.h}>Session on another network</Text>
+          <Text style={styles.t}>
+            This session was made on {s.active.chainId}. Switch to that network in Settings to use it.
+          </Text>
+        </Card>,
+      );
     return page(
       <>
         <Card>
           <Text style={styles.h}>Session active</Text>
           <Text style={styles.t}>Account {shortAddr(s.active.master)} on {s.active.chainId}</Text>
+          {!st ? <Text style={styles.muted}>Could not read the session from the chain — retrying.</Text> : null}
           {st ? (
             <>
               <Text style={styles.t}>
