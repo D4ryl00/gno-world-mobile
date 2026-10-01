@@ -15,6 +15,8 @@ const RULES: [RegExp, ChainErrorKind][] = [
   [/unknown session|session not found/i, 'unknown-session'],
   [/not permitted by session AllowPaths/i, 'not-allowed'],
   [/insufficient (funds|coins)/i, 'funds'],
+  // gnonative drops the chain's detail for SessionNotAllowedError; for this app's own calls the realistic cause is the spend limit.
+  [/session not allowed error/i, 'budget'],
   [/ECONNREFUSED|unreachable|network request failed|failed to fetch|timed? ?out|unable to connect/i, 'network'],
 ];
 

@@ -7,6 +7,8 @@ test.each([
   ['session expired: expires_at=1790853601, block_time=1790853612', 'expired'],
   ['unknown session', 'unknown-session'],
   ['msg vm/exec (path "gno.land/r/x") not permitted by session AllowPaths [vm/exec:gno.land/r/y]', 'not-allowed'],
+  ['[unknown] session not allowed error', 'budget'],
+  ['session not allowed error: msg vm/exec not permitted by session AllowPaths [x]', 'not-allowed'],
   ['insufficient funds error', 'funds'],
   ['insufficient coins', 'funds'],
   ['unable to connect: ECONNREFUSED 127.0.0.1:26657', 'network'],
