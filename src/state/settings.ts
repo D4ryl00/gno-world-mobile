@@ -64,12 +64,22 @@ export const createSettingsStore = (storage: StateStorage) =>
 
 export const settingsStore = createSettingsStore(AsyncStorage);
 
+/** Calls onDone once hydration is finished, including when it finished before we subscribed. Returns the unsubscribe. */
+export function watchHydration(
+  p: { hasHydrated(): boolean; onFinishHydration(fn: () => void): () => void },
+  onDone: () => void,
+): () => void {
+  const unsubscribe = p.onFinishHydration(onDone);
+  if (p.hasHydrated()) onDone();
+  return unsubscribe;
+}
+
 export function useSettings<T>(selector: (s: SettingsState) => T): T {
   return useStore(settingsStore, selector);
 }
 
 export function useSettingsHydrated(): boolean {
   const [done, setDone] = useState(settingsStore.persist.hasHydrated());
-  useEffect(() => settingsStore.persist.onFinishHydration(() => setDone(true)), []);
+  useEffect(() => watchHydration(settingsStore.persist, () => setDone(true)), []);
   return done;
 }

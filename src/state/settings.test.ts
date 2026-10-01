@@ -51,3 +51,44 @@ test('flags are validated', () => {
   st.getState().setFlag('');
   expect(st.getState().flag).toBe('');
 });
+
+test('watchHydration calls onDone immediately if hydration already finished', () => {
+  const { watchHydration } = require('@/state/settings');
+  const onDone = jest.fn();
+  const p = {
+    hasHydrated: () => true,
+    onFinishHydration: jest.fn(() => () => {}),
+  };
+  watchHydration(p, onDone);
+  expect(onDone).toHaveBeenCalledTimes(1);
+});
+
+test('watchHydration subscribes and calls onDone when hydration finishes', () => {
+  const { watchHydration } = require('@/state/settings');
+  const onDone = jest.fn();
+  let listener: (() => void) | undefined;
+  const p = {
+    hasHydrated: () => false,
+    onFinishHydration: jest.fn((fn: () => void) => {
+      listener = fn;
+      return () => {};
+    }),
+  };
+  watchHydration(p, onDone);
+  expect(onDone).not.toHaveBeenCalled();
+  expect(listener).toBeDefined();
+  if (listener) listener();
+  expect(onDone).toHaveBeenCalledTimes(1);
+});
+
+test('watchHydration returns an unsubscribe function', () => {
+  const { watchHydration } = require('@/state/settings');
+  const onDone = jest.fn();
+  const unsubscribeMock = jest.fn();
+  const p = {
+    hasHydrated: () => false,
+    onFinishHydration: jest.fn(() => unsubscribeMock),
+  };
+  const unsubscribe = watchHydration(p, onDone);
+  expect(unsubscribe).toBe(unsubscribeMock);
+});
