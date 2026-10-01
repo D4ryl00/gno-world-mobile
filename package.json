@@ -41,6 +41,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@connectrpc/connect-node": "^2.2.0",
     "@types/react": "~19.2.2",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
@@ -53,12 +54,15 @@
     "lint": "expo lint",
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "e2e": "bash scripts/e2e.sh"
   },
   "private": true,
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/e2e/"
