@@ -56,6 +56,9 @@ message SignBytesResponse { bytes signature = 1; bytes pub_key = 2; } // pub_key
   par `address`, en réutilisant le chemin de signature existant de `getSigner`.
   Format tm2 : secp256k1 sur SHA-256, 64 octets `R‖S`.
 - **Exposition :** `GnoNativeApi.signBytes(address, data)` dans le module Expo.
+- **`activateAccount(nameOrBech32, master?)` :** le champ `master` existe dans
+  le proto et le service Go, mais pas dans la signature TypeScript. P1
+  l'expose, sans quoi la dapp ne peut pas signer en session.
 - **Tests :** test Go du service (signature vérifiable par
   `PubKey.VerifyBytes`, adresse inconnue → erreur typée), régénération
   `buf`/proto, build du module.
@@ -121,9 +124,14 @@ dans `core/` (Go, partagé par les deux plateformes).
 
 ### 5.1 Stack et structure
 
-- **Framework :** Expo (SDK de boards2-mobile, 54) + expo-router + TypeScript.
-- **gnonative :** dépendance locale (`file:../gnonative/expo`) tant que
-  `SignBytes` n'est pas publié.
+- **Framework :** Expo, dernier SDK (57), créé avec `npx create-expo-app@latest`,
+  + expo-router + TypeScript. Si le module natif gnonative ne compile pas ou ne
+  démarre pas en SDK 57, on se replie sur le SDK 54, déjà validé avec gnonative
+  dans boards2-mobile.
+- **gnonative :** archive locale produite par `npm pack` depuis
+  `~/gnonative/expo` (branche `feat/sign-bytes`), tant que `SignBytes` n'est
+  pas publié. Une archive passe mieux qu'un lien `file:` avec l'autolinking et
+  Metro.
 - **Dépôt :** `~/bubblerumble` (app Expo à la racine, `docs/` à côté).
 - **Couches :**
   - `src/chain/` : gnonative (clés, session, appels, `Render` JSON) ;
@@ -189,7 +197,10 @@ les données.
 | Équipes (drapeaux) | `Render teams` |
 | Parrainage : lien d'invitation `?ref=`, ouverture de la dapp par lien (Universal / App Links en option, schéma `bubblerumble://` sinon), `ref` transmis à `Bid` | lien, `Bid` |
 | Partage d'un pool (X, Telegram, système) | — |
-| Anciens pools v1–v4 : lecture, Claim et Withdraw | realms v1–v4 |
+| Anciens pools v1–v4 : lecture, Claim et Withdraw (Withdraw n'existe qu'à partir de v3) | realms v1–v4 |
+| Présence : battement toutes les 20 s pendant que l'app est au premier plan ; il renvoie le pays du client | `POST /presence?id=<pid>` (`X-Bid`) |
+| **Blocage US**, comme le site : si le pays renvoyé est `US`, boop, création et shots sont désactivés avec le texte du site (« Due to US regulations, play is not offered to visitors from the United States. »). Claim et Withdraw restent possibles, comme sur le site. Si le serveur est injoignable, le jeu reste ouvert, comme sur le site | `/presence` |
+| Liens de partage au format du site (`https://bubblerumble.net/?ref=<addr>#v5-12`), lisibles par le web | — |
 
 **Jalon M2 : social (off-chain)**
 
