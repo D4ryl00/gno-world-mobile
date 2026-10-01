@@ -9,6 +9,8 @@ test('parseJSONLoose accepts Go strconv.Quote escapes', () => {
   expect(parseJSONLoose('"a\\x80b"')).toBe('a\u0080b');
   expect(parseJSONLoose('"\\U0001F600"')).toBe('😀');
   expect(parseJSONLoose('"\\\\x80"')).toBe('\\x80'); // an escaped backslash stays one
+  expect(parseJSONLoose('"a\\vb\\ac"')).toBe('a\u000bb\u0007c');
+  expect(parseJSONLoose('"\\\\v"')).toBe('\\v');
 });
 
 test('parseRealm v5', () => {

@@ -43,7 +43,8 @@ const u4 = (n: number) => '\\u' + n.toString(16).padStart(4, '0');
 
 /**
  * JSON.parse that also accepts the escapes Go's strconv.Quote emits and JSON lacks:
- * \xHH (a raw byte, kept as U+00HH) and \UHHHHHHHH (an astral rune, rewritten as a surrogate pair).
+ * \xHH (a raw byte, kept as U+00HH), \UHHHHHHHH (an astral rune, rewritten as a surrogate pair),
+ * \a (BEL) and \v (VT).
  */
 export function parseJSONLoose(raw: string): unknown {
   let out = '';
@@ -61,6 +62,9 @@ export function parseJSONLoose(raw: string): unknown {
       const cp = hex(raw.slice(i + 2, i + 10)) - 0x10000;
       out += cp < 0 ? u4(cp + 0x10000) : u4(0xd800 + (cp >> 10)) + u4(0xdc00 + (cp & 0x3ff));
       i += 9;
+    } else if (n === 'a' || n === 'v') {
+      out += u4(n === 'a' ? 0x07 : 0x0b);
+      i += 1;
     } else {
       out += c + (n ?? '');
       i += 1;
