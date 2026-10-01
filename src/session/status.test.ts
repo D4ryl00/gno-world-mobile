@@ -36,6 +36,50 @@ test('expiresSoon', () => {
   expect(expiresSoon({ ...s, expiresAt: 0 }, 1000)).toBe(false);
 });
 
+test('querySession handles missing sessions: ErrUnknownAddress, unknown master address, session not found', async () => {
+  const api = new FakeChainApi();
+
+  // Test: [unknown] ErrUnknownAddress format (gnoclient on Android)
+  api.querySessionAccount = async () => {
+    throw new Error('[unknown] ErrUnknownAddress(#118)');
+  };
+  expect(await querySession(api, M, S)).toBeNull();
+
+  // Test: iOS bridge error format
+  api.querySessionAccount = async () => {
+    throw new Error('UnexpectedException: invoke bridge method error: unknown: ErrUnknownAddress(#118) (at ExpoModulesCore/Promise.swift:56)');
+  };
+  expect(await querySession(api, M, S)).toBeNull();
+
+  // Test: unknown master address (gnoclient native format)
+  api.querySessionAccount = async () => {
+    throw new Error(`std.ErrUnknownAddress("unknown master address: ${M} or session address: ${S}")`);
+  };
+  expect(await querySession(api, M, S)).toBeNull();
+
+  // Test: session not found (fake API format)
+  api.querySessionAccount = async () => {
+    throw new Error('session not found');
+  };
+  expect(await querySession(api, M, S)).toBeNull();
+});
+
+test('querySession rethrows unrelated errors', async () => {
+  const api = new FakeChainApi();
+
+  // Test: rpc method not found
+  api.querySessionAccount = async () => {
+    throw new Error('[unavailable] rpc method not found');
+  };
+  await expect(querySession(api, M, S)).rejects.toThrow(/rpc method not found/);
+
+  // Test: network request failed
+  api.querySessionAccount = async () => {
+    throw new Error('network request failed');
+  };
+  await expect(querySession(api, M, S)).rejects.toThrow(/network request failed/);
+});
+
 test('pollSession waits for presence, then for absence, and can be aborted', async () => {
   const api = new FakeChainApi();
   let ticks = 0;

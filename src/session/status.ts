@@ -10,12 +10,15 @@ export interface SessionStatus {
   allowPaths: string[];
 }
 
+/** Gnoclient reports a missing session as an unknown address; "session not found" is the fake API's text. */
+const SESSION_NOT_FOUND = /\bErrUnknownAddress\b|unknown master address|session not found/i;
+
 export async function querySession(api: ChainApi, master: string, session: string): Promise<SessionStatus | null> {
   let res;
   try {
     res = await api.querySessionAccount(decodeAddress(master), decodeAddress(session));
   } catch (e) {
-    if (/session not found|not found/i.test(String((e as Error)?.message ?? e))) return null;
+    if (SESSION_NOT_FOUND.test(String((e as Error)?.message ?? e))) return null;
     throw e;
   }
   const a = res.accountInfo;
