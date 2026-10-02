@@ -576,3 +576,13 @@ test('pause() stops the running poll without dropping the request; restore() res
   await settle();
   expect(store.getState().active?.address).toBe(p.key.address);
 });
+
+test('a wallet with no account (no_signer) leads to the desktop command, where the user gives the address', async () => {
+  const { store } = setup();
+  await store.getState().begin('create', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  await store.getState().onReply(reply({ status: 'error', code: 'no_signer', state: p.state }));
+  expect(store.getState().phase).toBe('desktop');
+  expect(store.getState().pending).toMatchObject({ state: p.state, via: 'desktop' });
+  expect(store.getState().command).toMatch(/^gnokey maketx session create -pubkey gpub1/);
+});

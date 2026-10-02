@@ -239,8 +239,9 @@ export const createSessionStore = (d: SessionDeps) => {
               return;
             }
             if (r.status === 'error') {
-              if (r.code === 'unsupported_host') {
-                desktop(); // a wallet without `disconnect`
+              // a wallet without `disconnect`, or without any account: the user can still sign on a computer
+              if (r.code === 'unsupported_host' || r.code === 'no_signer') {
+                desktop();
                 return;
               }
               set({ phase: 'error', error: r.code || 'the wallet reported an error' });
