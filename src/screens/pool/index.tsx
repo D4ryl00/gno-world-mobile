@@ -36,7 +36,9 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const [realm, setRealm] = useState<RealmInfo | undefined>();
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const me = active?.master ?? '';
+  const chainId = useSettings((s) => s.chainId);
+  // a session made on another network is not "you" here
+  const me = active && active.chainId === chainId ? active.master : '';
 
   const load = useCallback(async () => {
     if (!k) return;

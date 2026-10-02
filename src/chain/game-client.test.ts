@@ -43,7 +43,10 @@ test('a session from another chain is refused before anything is signed', async 
   const api = new FakeChainApi();
   const g = new GameClient(api, () => 'dev');
   const pool = parsePool(fx('v5-pool.json'), 5);
-  await expect(g.claim(session, pool)).rejects.toMatchObject({ kind: 'wrong-chain' });
+  await expect(g.claim(session, pool)).rejects.toMatchObject({
+    kind: 'wrong-chain',
+    message: 'Your session is for gnoland-1. Switch back to it in Settings, or get a session for dev from the Session tab.',
+  });
   expect(api.calls).toHaveLength(0);
 });
 

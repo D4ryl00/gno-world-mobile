@@ -76,7 +76,10 @@ export class GameClient {
     s: ActiveSession, v: Version, fnc: string, args: string[], send: number, gas: { wanted: number; fee: number },
   ): Promise<TxResult> {
     if (s.chainId !== this.chainId())
-      throw new ChainError('wrong-chain', `this session was made on ${s.chainId}; switch back or make one for ${this.chainId()}`);
+      throw new ChainError(
+        'wrong-chain',
+        `Your session is for ${s.chainId}. Switch back to it in Settings, or get a session for ${this.chainId()} from the Session tab.`,
+      );
     try {
       const stream = await this.api.call(
         REALMS[v], fnc, args, `${gas.fee}ugnot`, BigInt(gas.wanted), decodeAddress(s.address),

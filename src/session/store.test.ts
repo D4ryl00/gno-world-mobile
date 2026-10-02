@@ -529,3 +529,17 @@ test('a network switch during a revoke poll does not clear the session; networkC
   expect(store.getState().active).toBeUndefined();
   expect(store.getState().pending).toBeUndefined();
 });
+
+test('a session on another network does not block getting one for the current network; the new one replaces it', async () => {
+  const { store, onChain, setNetwork, activate } = setup();
+  await activate();
+  setNetwork('dev', 'http://127.0.0.1:26657');
+  await store.getState().networkChanged();
+  await store.getState().begin('create', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  expect(p.chainId).toBe('dev');
+  onChain(p.key.address);
+  await store.getState().onReply(reply({ state: p.state, address: M, session: p.key.address, chainid: 'dev' }));
+  expect(store.getState().phase).toBe('active');
+  expect(store.getState().active).toMatchObject({ chainId: 'dev', address: p.key.address });
+});

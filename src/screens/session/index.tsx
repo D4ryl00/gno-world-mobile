@@ -131,6 +131,11 @@ export function SessionScreen() {
           <Text style={styles.t}>
             This session was made on {s.active.chainId}. Switch to that network in Settings to use it.
           </Text>
+          <Text style={styles.muted}>
+            Your session on {s.active.chainId} stays valid on that chain until it expires; this phone will forget it. You
+            can revoke it from your wallet.
+          </Text>
+          <GrantForm submitLabel={`Get a session for ${chainId}`} onSubmit={(g) => void s.begin('create', g)} />
         </Card>,
       );
     return page(
