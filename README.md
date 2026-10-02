@@ -25,17 +25,19 @@ Settings → network: gno.land mainnet (default) or a local gnodev; off-chain se
 ## Play against a local gnodev
 
 ```sh
-npm run gnodev    # RPC on 127.0.0.1:26657; extra flags go to gnodev
+npm run gnodev            # RPC on 127.0.0.1:26657; extra flags go to gnodev
+npm run devchain:update   # only when you want newer code from gno.land
 ```
 
-Then Settings → Local gnodev → Save. The script builds gnodev once (into `.e2e/bin/`) from the gno revision
-gnonative pins — the gno.land mainnet line, so the realms deployed there type-check — using `git archive`, without
-touching your `~/gno` checkout. It loads every Bubble Rumble realm (v1–v5, `bubble`, `wbubble`) and their
-dependencies from gno.land (`-remote gno.land=…`, `-paths …`), so it needs network access at start. Sign the
-desktop session command with a key from `.e2e/gnohome` (e.g. `test1`, created by `npm run e2e`) or your own.
+Then Settings → Local gnodev → Save. `devchain/` holds the code of every Bubble Rumble realm (v1–v5, `bubble`,
+`wbubble`) and of each package they import, as deployed on gno.land (see `devchain/SOURCE.md` for the height).
+gnodev loads only that copy (`-extra-root devchain -no-examples`), so it runs offline. The script builds gnodev
+once (into `.e2e/bin/`) from the gno revision gnonative pins — the gno.land mainnet line, so that code
+type-checks — using `git archive`, without touching your `~/gno` checkout. Sign the desktop session command with a
+key from `.e2e/gnohome` (e.g. `test1`, created by `npm run e2e`) or your own.
 
-If you run gnodev by hand with local copies instead, pass absolute paths: `-C` changes gnodev's directory, so a
-relative realm path loads nothing local and the realm panics on its first call ("unexpected node with location …").
+If you run gnodev by hand with `-C`, pass absolute paths: `-C` changes gnodev's directory, so a relative realm
+path loads nothing local and the realm panics on its first call ("unexpected node with location …").
 
 ## Test
 

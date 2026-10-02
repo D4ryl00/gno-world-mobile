@@ -1,0 +1,7 @@
+module = "gno.land/p/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/governor/v0"
+gno = "0.9"
+
+[addpkg]
+  creator = "g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr"
+  height = 152026
+  max_deposit = "20000000ugnot"

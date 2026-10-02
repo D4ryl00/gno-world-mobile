@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # A local chain to play on (Settings → Local gnodev): gnodev built from the gno revision gnonative pins (the
-# gno.land mainnet line, so the realms deployed there type-check), with every Bubble Rumble realm — v1–v5,
-# bubble, wbubble — and their dependencies fetched from gno.land. RPC on 127.0.0.1:26657.
-# Extra arguments go to gnodev (e.g. -node-rpc-listener 127.0.0.1:46658). Needs network access at start.
+# gno.land mainnet line, so the realms deployed there type-check), loading every Bubble Rumble realm — v1–v5,
+# bubble, wbubble — and their dependencies from devchain/ (a copy of what gno.land runs; refresh it with
+# npm run devchain:update). Works offline once gnodev is built. RPC on 127.0.0.1:26657.
+# Extra arguments go to gnodev (e.g. -node-rpc-listener 127.0.0.1:46658).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 E=$ROOT/.e2e
@@ -25,9 +26,9 @@ if [ ! -x "$BIN" ]; then
   (cd "$SRC/contribs/gnodev" && go build -o "$BIN" .)
 fi
 
-NS=gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr
-PATHS=$NS/bubblerumble,$NS/bubblerumble2,$NS/bubblerumble3,$NS/bubblerumble4,$NS/bubblerumble5,$NS/bubble,$NS/wbubble
+[ -d "$ROOT/devchain/gno.land" ] || { echo "devchain/ is missing: run npm run devchain:update" >&2; exit 1; }
 
+# -C: run from devchain so no other workspace is picked up; -no-examples: everything comes from devchain/
 mkdir -p "$E/gnohome"
-exec "$BIN" local -home "$E/gnohome" -no-web -no-watch -empty-blocks \
-  -remote gno.land=https://rpc.gno.land:443 -paths "$PATHS" "$@"
+exec "$BIN" local -C "$ROOT/devchain" -home "$E/gnohome" -no-web -no-watch -empty-blocks \
+  -no-examples -extra-root "$ROOT/devchain" "$@"

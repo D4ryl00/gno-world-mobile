@@ -1,0 +1,5 @@
+module = "gno.land/r/nt/grc20reg/v0"
+gno = "0.9"
+
+[addpkg]
+  creator = "g1edq4dugw0sgat4zxcw9xardvuydqf6cgleuc8p"
