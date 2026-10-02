@@ -88,12 +88,16 @@ export function AppServices({ children }: PropsWithChildren) {
         presenceStore.getState().update({ reachable: false }); // play stays open
       }
     };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = undefined;
+    };
     const start = () => {
+      stop(); // never two intervals (e.g. 'active' reported twice)
       void beat();
       timer = setInterval(beat, 20000);
     };
-    const stop = () => timer && clearInterval(timer);
-    start();
+    if (AppState.currentState === 'active') start();
     const sub = AppState.addEventListener('change', (st) => (st === 'active' ? start() : stop()));
     return () => {
       stop();
