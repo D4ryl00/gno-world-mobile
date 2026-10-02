@@ -11,4 +11,7 @@ test('each failure kind tells the player what to do', () => {
   expect(txMessage(new ChainError('realm', 'pool is closed'), 0)).toBe('pool is closed');
   expect(txMessage(new ChainError('wrong-chain', 'this session was made on dev'), 0)).toBe('this session was made on dev');
   expect(txMessage(new Error('boom'), 0)).toBe('boom');
+  expect(txMessage(new ChainError('unknown-outcome', 'x'), 0)).toBe(
+    'Sent, but the app could not read the result — check the pool before trying again.',
+  );
 });

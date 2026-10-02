@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState, useRef } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 
+import { ChainError } from '@/chain/errors';
 import { Button } from '@/components/button';
 import { Field } from '@/components/field';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
@@ -19,6 +20,7 @@ export function CreatePoolScreen() {
   const [v, setV] = useState({ name: '', window: '12h', base: '1', life: '', seed: '0' });
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false); // the pool may exist: never offer to create it twice
   const { form, error } = validatePoolForm(v);
   const inFlightRef = useRef(false);
   const set = (k: keyof typeof v) => (t: string) => setV({ ...v, [k]: t });
@@ -34,7 +36,7 @@ export function CreatePoolScreen() {
       <Field label="Seed (GNOT, optional)" value={v.seed} onChangeText={set('seed')} keyboardType="decimal-pad" />
       {error ? <Text style={styles.warn}>{error}</Text> : <Text style={styles.muted}>first boop {gnot(form!.basePrice)}</Text>}
       <Button
-        title={active ? 'create' : 'set up a session first'} disabled={!form || !active || busy}
+        title={active ? 'create' : 'set up a session first'} disabled={!form || !active || busy || sent}
         onPress={async () => {
           if (inFlightRef.current) return;
           inFlightRef.current = true;
@@ -43,7 +45,14 @@ export function CreatePoolScreen() {
             await game.createPool(active!, form!);
             router.back();
           } catch (e) {
-            setMsg(txMessage(e, Math.floor(Date.now() / 1000)));
+            const m = txMessage(e, Math.floor(Date.now() / 1000));
+            setMsg(m);
+            if (e instanceof ChainError && e.kind === 'unknown-outcome') {
+              // probably created: back to the list, where the new pool shows up, with the warning kept on screen
+              setSent(true);
+              router.back();
+              Alert.alert('New pool', m);
+            }
           } finally {
             setBusy(false);
             inFlightRef.current = false;

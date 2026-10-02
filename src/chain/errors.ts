@@ -1,6 +1,6 @@
 export type ChainErrorKind =
   | 'budget' | 'expired' | 'unknown-session' | 'not-allowed' | 'funds'
-  | 'realm' | 'network' | 'wrong-chain' | 'no-session' | 'other';
+  | 'realm' | 'network' | 'wrong-chain' | 'unknown-outcome' | 'other';
 
 export class ChainError extends Error {
   constructor(public kind: ChainErrorKind, message: string, public raw?: unknown) {
@@ -19,6 +19,9 @@ const RULES: [RegExp, ChainErrorKind][] = [
   [/insufficient (funds|coins)/i, 'funds'],
   // gnonative drops the chain's detail for SessionNotAllowedError; for this app's own calls the realistic cause is the spend limit.
   [/session not allowed error/i, 'budget'],
+  // The tx was broadcast but its result could not be decoded (gnonative's gno lacks some event types): it may have
+  // landed, so it must not read as a failure worth a paid retry.
+  [/unrecognized concrete type|failed to decode|unmarshal/i, 'unknown-outcome'],
   [/ECONNREFUSED|unreachable|network request failed|failed to fetch|timed? ?out|unable to connect/i, 'network'],
 ];
 

@@ -21,6 +21,8 @@ export function txMessage(e: unknown, now: number, status?: SessionStatus): stri
       return 'Your account is out of GNOT — top it up from the Session tab.';
     case 'network':
       return 'The node did not answer — try again.';
+    case 'unknown-outcome':
+      return 'Sent, but the app could not read the result — check the pool before trying again.';
     default:
       return e.message;
   }

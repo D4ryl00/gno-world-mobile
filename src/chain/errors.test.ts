@@ -32,3 +32,12 @@ test('anything else is "other" with the first line', () => {
 test("gnonative's ErrNoActiveAccount (a key that was never activated) points to the Session tab", () => {
   expect(classifyError(new Error('[unknown] ErrNoActiveAccount')).kind).toBe('unknown-session');
 });
+
+// gnonative's pinned gno cannot decode some events of a delivered tx (mainnet's bank.TransferEvent): it may have landed.
+test.each([
+  ['amino: unrecognized concrete type full name bank.TransferEvent'],
+  ['failed to decode the tx result: ...'],
+  ['unable to unmarshal ResultBroadcastTxCommit'],
+])('%s → unknown-outcome', (msg) => {
+  expect(classifyError(new Error(msg)).kind).toBe('unknown-outcome');
+});
