@@ -384,14 +384,13 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 1. **Android** : jamais lancé au-delà du smoke screen de la tâche 2 (la liste manuelle n'a été faite
    que sur iOS).
-2. **Correctifs iOS de gnonative à publier** (branche `fix/promise-registry-thread-safety`, partie de
-   `upstream/main`, non poussée) : registre des promesses non protégé contre les accès concurrents
-   (crash dans `PromiseBlock.remove()` quand plusieurs appels finissent ensemble) ; fin de flux `EOF`
-   remontée comme une erreur sur iOS (toute transaction réussie affichée en échec). L'archive utilisée
-   par l'app vient de la branche locale `local/bubblerumble` = PR #233 + ces correctifs.
-3. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+2. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
 
 **Réglé le 2026-10-02 :**
+
+- **Correctifs iOS de gnonative**, ajoutés à la PR #233 (`78531cc`, `f516370`) : registre des
+  promesses protégé contre les accès concurrents (crash dans `PromiseBlock.remove()`), fin de flux
+  `EOF` reconnue sur iOS (toute transaction réussie était affichée en échec).
 
 - **Vérification manuelle sur simulateur iOS 26.5** (idb-companion 1.6.4), contre gnodev ligne
   mainnet et la vraie archive : liste des pools mainnet, passage sur gnodev sans relance, demande de
