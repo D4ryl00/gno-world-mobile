@@ -1,3 +1,4 @@
+import { KEY_LOST_ERROR } from '@/session/store';
 import type { Grant } from '@/session/types';
 import { toUgnot } from '@/utils/gnot';
 
@@ -18,4 +19,9 @@ export function grantFromInput(gnotPerHour: string, days: string): { grant?: Gra
 export function activeCard(sessionChainId: string, currentChainId: string, hasStatus: boolean): 'live' | 'unreadable' | 'other-chain' {
   if (sessionChainId !== currentChainId) return 'other-chain';
   return hasStatus ? 'live' : 'unreadable';
+}
+
+/** The buttons the error card shows besides Back. */
+export function errorActions(error: string | undefined, hasActive: boolean): { forget: boolean } {
+  return { forget: hasActive && error === KEY_LOST_ERROR };
 }

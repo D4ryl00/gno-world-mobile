@@ -432,3 +432,62 @@ test('(h) wallet reply before hydration is waited for → session becomes active
   expect(store2.getState().phase).toBe('active');
   expect(store2.getState().active!.address).toBe(keyAddr);
 });
+
+/** A persisted active session on gnoland-1, made with the setup's secrets (so its password exists). */
+async function persistedActive(s: ReturnType<typeof setup>) {
+  const key = await createSessionKey(s.api, s.deps.secrets, s.deps.randomHex, s.deps.now);
+  s.onChain(key.address);
+  const active: ActiveSession = { ...key, master: M, chainId: 'gnoland-1' };
+  s.mem.set('br.session', JSON.stringify({ state: { active }, version: 0 }));
+  return active;
+}
+
+test('restore unlocks the key first: a transient query error keeps the session, without status or error phase', async () => {
+  const s = setup();
+  const active = await persistedActive(s);
+  s.api.querySessionAccount = async () => { throw new Error('dial tcp: i/o timeout'); };
+  const store = createSessionStore(s.deps);
+  await store.persist.rehydrate();
+  await store.getState().restore();
+  expect(s.api.activated.get(active.keyName)?.master).toBe(bytesToHex(decodeAddress(M)));
+  expect(s.api.activated.get(active.keyName)?.password).toBeDefined();
+  expect(store.getState().phase).toBe('active');
+  expect(store.getState().active).toEqual(active);
+  expect(store.getState().status).toBeUndefined();
+  expect(store.getState().error).toBeUndefined();
+});
+
+test('restore: a key this phone can no longer unlock is an error that keeps the session, and forget() drops it', async () => {
+  const s = setup();
+  const active = await persistedActive(s);
+  // a backup restore: the secure store lost the keybase password
+  const store = createSessionStore({ ...s.deps, secrets: { get: async () => null, set: async () => undefined } });
+  await store.persist.rehydrate();
+  await store.getState().restore();
+  expect(store.getState().phase).toBe('error');
+  expect(store.getState().error).toBe(
+    'This phone can no longer use its session key. Forget it here, then get a new session.',
+  );
+  expect(store.getState().active).toEqual(active);
+
+  store.getState().forget();
+  expect(store.getState()).toMatchObject({
+    phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined, error: undefined,
+  });
+});
+
+test('forget() aborts a running poll and clears everything', async () => {
+  const { store, onChain, activate } = setup();
+  await activate();
+  await store.getState().revoke();
+  const p = store.getState().pending!;
+  await store.getState().onReply(reply({ status: 'error', code: 'unsupported_host', state: p.state }));
+  expect(store.getState().phase).toBe('waiting-chain');
+  store.getState().forget();
+  expect(store.getState()).toMatchObject({
+    phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined, error: undefined,
+  });
+  onChain(p.key.address);
+  await settle();
+  expect(store.getState().phase).toBe('none');
+});

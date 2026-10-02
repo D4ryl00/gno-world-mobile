@@ -13,6 +13,8 @@ const RULES: [RegExp, ChainErrorKind][] = [
   [/session spend limit (would be )?exceeded|session has no spend limit/i, 'budget'],
   [/session expired/i, 'expired'],
   [/unknown session|session not found/i, 'unknown-session'],
+  // gnonative: the signer key was never activated on this phone (restore could not unlock it)
+  [/ErrNoActiveAccount/, 'unknown-session'],
   [/not permitted by session AllowPaths/i, 'not-allowed'],
   [/insufficient (funds|coins)/i, 'funds'],
   // gnonative drops the chain's detail for SessionNotAllowedError; for this app's own calls the realistic cause is the spend limit.

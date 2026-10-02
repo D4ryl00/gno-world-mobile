@@ -18,7 +18,7 @@ import { decodeAddress } from '@/utils/bech32';
 import { gnot, humanDuration } from '@/utils/gnot';
 
 import { Earnings } from './earnings';
-import { activeCard } from './grant';
+import { activeCard, errorActions } from './grant';
 import { GrantForm } from './grant-form';
 
 export function SessionScreen() {
@@ -52,13 +52,16 @@ export function SessionScreen() {
 
   const page = (body: ReactNode) => <ScrollView contentContainerStyle={styles.page}>{body}</ScrollView>;
 
-  if (s.phase === 'error')
+  if (s.phase === 'error') {
+    const can = errorActions(s.error, !!s.active);
     return page(
       <Card>
         <Text style={styles.warn}>{s.error}</Text>
+        {can.forget ? <Button kind="danger" title="Forget this session on this phone" onPress={s.forget} /> : null}
         <Button kind="secondary" title="Back" onPress={s.cancel} />
       </Card>,
     );
+  }
 
   if (s.phase === 'waiting-wallet')
     return page(

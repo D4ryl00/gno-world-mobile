@@ -12,6 +12,9 @@ import { createSessionKey, unlockKey, type SecretStore } from './keys';
 import { pollSession, querySession, type SessionStatus } from './status';
 import type { ActiveSession, Grant, SessionKey } from './types';
 
+/** restore() could not unlock the active key (e.g. the secure store lost the keybase password after a backup restore). */
+export const KEY_LOST_ERROR = 'This phone can no longer use its session key. Forget it here, then get a new session.';
+
 export type Phase = 'none' | 'waiting-wallet' | 'desktop' | 'waiting-chain' | 'active' | 'error';
 
 export interface Pending {
@@ -52,6 +55,8 @@ export interface SessionState {
   refresh(): Promise<SessionStatus | null>;
   restore(): Promise<void>;
   cancel(): void;
+  /** Drop the session and any request from this phone only; the chain keeps the session until it expires or is revoked. */
+  forget(): void;
 }
 
 // gnoconnect-session.md: a grant and a renewal are both a `connect` with the new key (a renewal adds `old`).
@@ -258,25 +263,26 @@ export const createSessionStore = (d: SessionDeps) => {
               ? p.master ?? p.old?.master ?? (p.op === 'revoke' ? get().active?.master : undefined)
               : undefined;
 
-            // Handle active first (query + unlock, or clear if gone)
+            // Handle active first: unlock the key (local, no network), then read it from its own chain.
             const a = get().active;
             if (a) {
               try {
-                // If on a different chain, keep active but don't query
-                if (a.chainId !== d.network().chainId) {
-                  await unlockKey(d.api(), d.secrets, a, a.master);
-                  set({ status: undefined, phase: get().pending ? get().phase : 'active' });
+                await unlockKey(d.api(), d.secrets, a, a.master);
+              } catch {
+                set({ phase: 'error', error: KEY_LOST_ERROR });
+                return; // nothing this phone holds can sign; the error card offers to forget it
+              }
+              const keep = () => (get().pending ? get().phase : 'active');
+              if (a.chainId !== d.network().chainId) {
+                set({ status: undefined, phase: keep() }); // another chain: keep it, never query it here
+              } else {
+                const st = await querySession(d.api(), a.master, a.address).catch(() => undefined);
+                if (st === null) {
+                  set({ active: undefined, status: undefined, phase: get().pending ? get().phase : 'none' });
                 } else {
-                  const st = await querySession(d.api(), a.master, a.address);
-                  if (!st) {
-                    set({ active: undefined, status: undefined, phase: get().pending ? get().phase : 'none' });
-                  } else {
-                    await unlockKey(d.api(), d.secrets, a, a.master);
-                    set({ status: st, phase: get().pending ? get().phase : 'active' });
-                  }
+                  // undefined: the chain did not answer; the session card says so and its refresh retries
+                  set({ status: st, phase: keep() });
                 }
-              } catch (e) {
-                fail(e);
               }
             }
 
@@ -299,6 +305,13 @@ export const createSessionStore = (d: SessionDeps) => {
           cancel(): void {
             poll.aborted = true;
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
+          },
+
+          forget(): void {
+            poll.aborted = true;
+            set({
+              phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined, error: undefined,
+            });
           },
         };
       },

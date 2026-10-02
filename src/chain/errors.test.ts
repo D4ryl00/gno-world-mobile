@@ -28,3 +28,7 @@ test('anything else is "other" with the first line', () => {
   expect(e.kind).toBe('other');
   expect(e.message).toBe('weird failure');
 });
+
+test("gnonative's ErrNoActiveAccount (a key that was never activated) points to the Session tab", () => {
+  expect(classifyError(new Error('[unknown] ErrNoActiveAccount')).kind).toBe('unknown-session');
+});

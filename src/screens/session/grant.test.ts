@@ -16,3 +16,13 @@ test('which active card to show', () => {
   expect(activeCard('dev', 'gnoland-1', true)).toBe('other-chain');
   expect(activeCard('dev', 'gnoland-1', false)).toBe('other-chain');
 });
+
+import { errorActions } from '@/screens/session/grant';
+import { KEY_LOST_ERROR } from '@/session/store';
+
+test('the error card offers to forget a session key this phone can no longer use', () => {
+  expect(errorActions(KEY_LOST_ERROR, true)).toEqual({ forget: true });
+  expect(errorActions(KEY_LOST_ERROR, false)).toEqual({ forget: false });
+  expect(errorActions('rejected', true)).toEqual({ forget: false });
+  expect(errorActions(undefined, true)).toEqual({ forget: false });
+});
