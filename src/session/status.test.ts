@@ -1,5 +1,5 @@
 import { FakeChainApi } from '@/chain/fake-api';
-import { expiresSoon, pollSession, querySession, remaining, resetsIn } from '@/session/status';
+import { expiresSoon, missingPaths, pollSession, querySession, remaining, resetsIn } from '@/session/status';
 import { bytesToHex, decodeAddress } from '@/utils/bech32';
 
 const M = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
@@ -96,8 +96,6 @@ test('pollSession waits for presence, then for absence, and can be aborted', asy
   const p = pollSession(api, M, S, 'present', { intervalMs: 1, signal, sleep: async () => void (signal.aborted = true) });
   await expect(p).rejects.toThrow(/cancelled/);
 });
-
-import { missingPaths } from '@/session/status';
 
 describe('missingPaths', () => {
   const need = ['vm/exec:gno.land/r/a/bubblerumble5', 'vm/exec:gno.land/r/a/bubble'];

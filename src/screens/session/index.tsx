@@ -156,8 +156,7 @@ export function SessionScreen() {
               </Text>
               {missingPaths(st, SESSION_ALLOW_PATHS).length > 0 ? (
                 <Text style={styles.warn}>
-                  This session does not cover all of Bubble Rumble's realms — some actions will be refused. Renew it to
-                  grant them.
+                  {"This session does not cover all of Bubble Rumble's realms — some actions will be refused. Renew it to grant them."}
                 </Text>
               ) : null}
             </>
