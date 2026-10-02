@@ -20,6 +20,7 @@ import { shareText, shareUrl } from '@/utils/share';
 import { BoopPanel, type BoopChoice } from './boop-panel';
 import { History, Roster, Rules, Shots, Split } from './sections';
 import { txMessage } from './tx-message';
+import { flagSuggestions } from './flag-suggestions';
 import { createTxRunner } from './tx-runner';
 
 export function PoolScreen({ poolKey }: { poolKey: string }) {
@@ -87,7 +88,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const canCancel = !!active && pool.creator === me && pool.bids === 0 && !pool.cancelled;
   const live = !pool.over && !pool.cancelled;
   const blocked = isPlayBlocked(country);
-  const suggestions = [country, ...Object.keys(pool.teams)].filter(Boolean);
+  const suggestions = flagSuggestions(country, pool.teams);
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
