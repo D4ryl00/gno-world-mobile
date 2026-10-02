@@ -3,10 +3,16 @@ import type { Pool } from '@/chain/parse';
 import { createSerialLoader, loadNotice } from '@/screens/pools/load';
 
 const all = (pools: number, failed: number[]) =>
-  ({ pools: Array.from({ length: pools }, () => ({}) as Pool), realms: {}, failed }) as unknown as AllPools;
+  // pools only ever come from a version that answered
+  ({ pools: Array.from({ length: pools }, () => ({}) as Pool), realms: pools ? { 5: {} } : {}, failed }) as unknown as AllPools;
 
 test('nothing loaded with failures is an error', () => {
   expect(loadNotice(all(0, [5, 4]))).toEqual({ error: 'the node did not answer' });
+});
+
+test('a version answering with no pools is not "the node did not answer" (gnodev with only v5)', () => {
+  const onlyV5 = { pools: [], realms: { 5: {} }, failed: [4, 3, 2, 1] } as unknown as AllPools;
+  expect(loadNotice(onlyV5)).toEqual({ notice: 'Could not load v4, v3, v2, v1 — pull to retry.' });
 });
 
 test('some loaded with failures is a notice naming the versions', () => {
