@@ -24,14 +24,18 @@ Settings → network: gno.land mainnet (default) or a local gnodev; off-chain se
 
 ## Play against a local gnodev
 
-After `npm run e2e` has built the tools and fetched the realm into `.e2e/`:
-
 ```sh
-E=$PWD/.e2e
-$E/bin/gnodev local -home $E/gnohome -no-web -no-watch -empty-blocks -C $E/realms $E/realms/br5
+npm run gnodev    # RPC on 127.0.0.1:26657; extra flags go to gnodev
 ```
 
-Then Settings → Local gnodev → Save. Use absolute paths: `-C` changes gnodev's directory, so a relative realm path loads nothing local, and the realm then panics on its first call ("unexpected node with location …"). For the closest match to mainnet, build gnodev from the gno revision gnonative pins (`go.mod`), from `contribs/gnodev`.
+Then Settings → Local gnodev → Save. The script builds gnodev once (into `.e2e/bin/`) from the gno revision
+gnonative pins — the gno.land mainnet line, so the realms deployed there type-check — using `git archive`, without
+touching your `~/gno` checkout. It loads every Bubble Rumble realm (v1–v5, `bubble`, `wbubble`) and their
+dependencies from gno.land (`-remote gno.land=…`, `-paths …`), so it needs network access at start. Sign the
+desktop session command with a key from `.e2e/gnohome` (e.g. `test1`, created by `npm run e2e`) or your own.
+
+If you run gnodev by hand with local copies instead, pass absolute paths: `-C` changes gnodev's directory, so a
+relative realm path loads nothing local and the realm panics on its first call ("unexpected node with location …").
 
 ## Test
 

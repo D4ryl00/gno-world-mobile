@@ -55,7 +55,8 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
-    "e2e": "bash scripts/e2e.sh"
+    "e2e": "bash scripts/e2e.sh",
+    "gnodev": "bash scripts/gnodev.sh"
   },
   "private": true,
   "jest": {
