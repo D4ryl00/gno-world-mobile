@@ -380,11 +380,12 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   tâche puis revue finale de la branche ; 147 tests unitaires, 5 tests de bout en bout sur gnodev.
   Ledger (non versionné) : `.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`.
 
-**À faire avant d'utiliser l'app sur mainnet :**
-
-1. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+**À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
+
+- **Licence** : Apache 2.0, comme gnokey-mobile (`LICENSE` copié de gnokey-mobile, `"license"` dans
+  `package.json`), à la place du MIT du template Expo.
 
 - **Vérification manuelle sur émulateur Android 17** (`Medium_Phone`, `adb reverse` 26657/8081), même
   liste que sur iOS : pools mainnet puis gnodev, icônes Material des onglets, demande de session
