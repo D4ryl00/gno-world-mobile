@@ -27,6 +27,11 @@ export function SessionScreen() {
   const { api } = useServices();
   const chainId = useSettings((x) => x.chainId);
   const s = useSession((x) => x);
+  const refresh = useSession((x) => x.refresh);
+  const walletError = useSession((x) => x.walletError);
+  const takeWalletError = useSession((x) => x.takeWalletError);
+  // the account whose balance is shown: only while its session is active on this network
+  const shown = s.phase === 'active' && s.active?.chainId === chainId ? s.active.master : '';
   const now = useNow(1000);
   const [master, setMaster] = useState('');
   const [masterErr, setMasterErr] = useState('');
@@ -35,12 +40,11 @@ export function SessionScreen() {
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    if (s.phase !== 'active' || !s.active || s.active.chainId !== chainId) return;
+    if (!shown) return;
     let alive = true;
-    const master = s.active.master;
     const tick = async () => {
-      void s.refresh().catch(() => undefined);
-      const acc = await api.queryAccount(decodeAddress(master)).catch(() => null);
+      void refresh().catch(() => undefined);
+      const acc = await api.queryAccount(decodeAddress(shown)).catch(() => null);
       if (alive) setBalance(acc ? ugnot(acc.accountInfo?.coins) : null);
     };
     void tick();
@@ -50,16 +54,16 @@ export function SessionScreen() {
       clearInterval(t);
       setBalance(null);
     };
-  }, [s.phase, s.active?.address, s.active?.chainId, chainId]);
+  }, [shown, api, refresh]);
 
   // the wallet answered with an error: the request is over (the store is back on the form or the session);
   // tell the user once, in words
   useEffect(() => {
-    const w = s.walletError && s.takeWalletError(); // taken once, even if this effect runs twice
+    const w = walletError && takeWalletError(); // taken once, even if this effect runs twice
     if (!w) return;
     const { title, message } = walletErrorText(w.code, w.op, chainId);
     Alert.alert(title, message);
-  }, [s.walletError]);
+  }, [walletError, takeWalletError, chainId]);
 
   const page = (body: ReactNode) => <ScrollView contentContainerStyle={styles.page}>{body}</ScrollView>;
 

@@ -1,5 +1,5 @@
 import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text } from 'react-native';
 
 import type { Pool, RealmInfo } from '@/chain/parse';
@@ -24,7 +24,7 @@ import { flagSuggestions } from './flag-suggestions';
 import { createTxRunner } from './tx-runner';
 
 export function PoolScreen({ poolKey }: { poolKey: string }) {
-  const k = parsePoolKey(poolKey);
+  const k = useMemo(() => parsePoolKey(poolKey), [poolKey]);
   const { game } = useServices();
   const active = useSession((s) => s.active);
   const status = useSession((s) => s.status);
@@ -50,7 +50,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
     } catch (e) {
       setMsg(String((e as Error).message ?? e));
     }
-  }, [game, k?.version, k?.id]);
+  }, [game, k]);
 
   // every 10 s while the screen is shown, and at once on coming back to it
   useFocusEffect(

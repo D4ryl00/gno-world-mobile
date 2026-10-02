@@ -1,6 +1,6 @@
 import type { StateStorage } from 'zustand/middleware';
 
-import { createSettingsStore, DEFAULT_SETTINGS, validateOffchainUrl, validateRemote } from '@/state/settings';
+import { createSettingsStore, DEFAULT_SETTINGS, validateOffchainUrl, validateRemote, watchHydration } from '@/state/settings';
 
 const memory = (): StateStorage => {
   const m = new Map<string, string>();
@@ -53,7 +53,6 @@ test('flags are validated', () => {
 });
 
 test('watchHydration calls onDone immediately if hydration already finished', () => {
-  const { watchHydration } = require('@/state/settings');
   const onDone = jest.fn();
   const p = {
     hasHydrated: () => true,
@@ -64,7 +63,6 @@ test('watchHydration calls onDone immediately if hydration already finished', ()
 });
 
 test('watchHydration subscribes and calls onDone when hydration finishes', () => {
-  const { watchHydration } = require('@/state/settings');
   const onDone = jest.fn();
   let listener: (() => void) | undefined;
   const p = {
@@ -82,7 +80,6 @@ test('watchHydration subscribes and calls onDone when hydration finishes', () =>
 });
 
 test('watchHydration returns an unsubscribe function', () => {
-  const { watchHydration } = require('@/state/settings');
   const onDone = jest.fn();
   const unsubscribeMock = jest.fn();
   const p = {

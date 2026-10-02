@@ -24,18 +24,18 @@ export function BoopPanel({
   const c = caps(pool.version);
   const bid = pool.nextPrice * BOOSTS[boostIdx];
 
-  const inputs: ShotInputs = {
+  const inputs = useMemo<ShotInputs>(() => ({
     version: pool.version, pot: pool.pot, bids: pool.bids, liveBps: pool.liveBps,
     roster: pool.roster.map((m) => ({ addr: m.addr, paid: m.paid })), me, hasRef,
     revealTip: realm?.split.revealTip ?? 20000, minShot: realm?.split.minShot ?? 100000,
-  };
+  }), [pool, me, hasRef, realm]);
   const pause = c.shots && realm
     ? shotPause(inputs, {
         shotsOn: realm.shotsOn, commitsFree: realm.commitsFree, keeperSeen: realm.keeperSeen,
         keeperFresh: realm.split.keeperFresh ?? 300, liveFloor: realm.split.liveFloor ?? 2500, now: realm.now,
       })
     : 'shots are not sold on this bubble';
-  const shot = useMemo(() => (shotBps && !pause ? shotFor(inputs, shotBps, bid) : 0), [shotBps, pause, bid, pool]);
+  const shot = useMemo(() => (shotBps && !pause ? shotFor(inputs, shotBps, bid) : 0), [shotBps, pause, bid, inputs]);
   const odds = shot ? oddsBps(inputs, bid, shot) : 0;
   const gas = gasFor('Bid', pool);
   const clock = clockFor(pool.window, pool.nextPrice, bid);

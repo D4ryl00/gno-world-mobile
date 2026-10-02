@@ -14,6 +14,8 @@ export default function SessionCallback() {
     const reply = parseReplyEntries(entries);
     if (reply) void session.getState().onReply(reply).catch(() => undefined);
     router.replace('/session');
+    // a reply is handled once, on arrival; this screen leaves at once and never sees new params
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 }
