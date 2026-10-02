@@ -439,7 +439,10 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
 1. **Plans pas encore écrits,** à rédiger une fois l'étape précédente livrée, pour s'appuyer sur
    les vraies interfaces :
    - P2 : `connect` avec clé et `disconnect` dans gnokey-mobile (§4), puis vérification de
-     l'aller-retour avec P3 ;
+     l'aller-retour avec P3. Découpé en jalons : P2-M1, `core/` et pont `mobile/`, plan
+     `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md` ; P2-M2 (iOS) et P2-M3
+     (Android), à écrire une fois M1 livré. gnokey-mobile est sur gno `v1.5.0`
+     (`0a7c4d5`), qui signe comme la ligne mainnet de gnonative (`5cdbc25fc`) : compatibles ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
