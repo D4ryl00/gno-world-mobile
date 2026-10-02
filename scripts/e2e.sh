@@ -12,7 +12,7 @@ mkdir -p "$E/gnohome" "$E/goroot"
 
 (cd "$GNO" && go build -o "$E/bin/gnokey" ./gno.land/cmd/gnokey)
 (cd "$GNO/contribs/gnodev" && go build -o "$E/bin/gnodev" .)
-# gnonative pins an older gno; build the goserver against $GNO so it decodes the node's events (bank.TransferEvent).
+# Build the goserver against $GNO so client and node share one gno commit (same amino types, e.g. bank.TransferEvent).
 # A throwaway modfile keeps ~/gnonative untouched.
 cp "$GNONATIVE/go.mod" "$E/goserver.mod"; cp "$GNONATIVE/go.sum" "$E/goserver.sum"
 (cd "$GNONATIVE" && go mod edit -modfile="$E/goserver.mod" -replace "github.com/gnolang/gno=$GNO" \

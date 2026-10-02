@@ -382,18 +382,18 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 **À faire avant d'utiliser l'app sur mainnet :**
 
-1. **Bloquant — gnonative et `bank.TransferEvent`.** gnonative épingle gno
-   `v0.0.0-20260623134700-0c17a9a5852a`, antérieur à gno#6120 (événements de transfert), que
-   `chain/mainnet` contient : l'app ne sait pas décoder le résultat de ses transactions sur mainnet.
-   L'app l'affiche comme « envoyé, résultat illisible » (pas de nouvel essai), mais il faut monter
-   gno dans gnonative, refaire l'archive et la réinstaller.
-2. **Course au changement de réseau (résidu de la revue finale).** `networkChanged()` s'exécute avant
-   que gnonative ait appliqué `setRemote` / `setChainID` : une session vivante peut être lue comme
-   absente sur l'ancien réseau et oubliée par l'app. Correctif proposé : attendre `setRemote` et
-   `setChainID`, puis appeler `networkChanged()` (même ordre pour le `restore()` au lancement).
-3. **Vérification manuelle sur appareil,** jamais faite (le simulateur ne pouvait pas être piloté) :
+1. **Vérification manuelle sur appareil,** jamais faite (le simulateur ne pouvait pas être piloté) :
    liste dans le rapport de la tâche 17 du ledger, à reprendre dans `README.md`.
-4. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+2. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+
+**Réglé le 2026-10-02 :**
+
+- **gnonative et `bank.TransferEvent`** : gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) dans
+  la PR #233 (`09ddd60`, avec `NewSnapshot` refusé par le DB natif) ; archive refaite et réinstallée
+  dans l'app. Le test Go `TestDecodeBankTransferEvent` épingle le décodage.
+- **Course au changement de réseau** : `src/state/network-sync.ts` (`2ab43eb`) ; le store de session
+  et `GameClient` lisent le réseau sur lequel gnonative est réellement, mis à jour seulement après
+  `setRemote` / `setChainID`.
 
 **Suivis gnonative révélés par P3-M1 :**
 
@@ -405,8 +405,8 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   (`patches/@gnolang+gnonative+0.1.2.patch`, voir `patches/README.md`) ; à corriger en amont
   (PR séparée), puis retirer le patch.
 - Sur iOS, l'erreur de `SignBytes` arrive en `UnexpectedException` (le code `ErrNoActiveAccount`
-  n'est que dans le message). Une archive refaite depuis la branche rebasée, qui contient
-  gnolang/gnonative#232, devrait transmettre le code.
+  n'est que dans le message). L'archive refaite le 2026-10-02 depuis la branche rebasée contient
+  gnolang/gnonative#232, qui devrait transmettre le code : à vérifier sur appareil.
 
 **Révision du 2026-10-01 (sessions via `connect` / `disconnect`) :** appliquée à
 `gnoconnect-session.md`, à cette spec et au plan P3-M1 (tâches 7, 9, 15, 16 et 17). Le plan P1

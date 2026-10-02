@@ -9,7 +9,7 @@ your computer. Renewing is a new `connect` naming the current key in `old`; logg
 ## Requirements
 
 - Node 22+, Xcode, Android SDK + NDK, Go (for gnonative and the e2e suite)
-- `~/gnonative` on branch `feat/sign-bytes`, packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
+- `~/gnonative` on branch `feat/sign-bytes` ([gnolang/gnonative#233](https://github.com/gnolang/gnonative/pull/233): `SignBytes`, and gno on the mainnet line so transaction results carrying `bank.TransferEvent` decode), packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
 - `~/gno` (gnodev and gnokey for the e2e suite)
 
 ## Run
@@ -51,5 +51,4 @@ The `patches/` directory contains patch-package patches applied postinstall.
 
 ## Known issues
 
-- On gno.land mainnet, gnonative 0.1.2 cannot decode transaction results that carry `bank.TransferEvent` (its pinned gno predates it): transactions land but the app reports them as failed until gnonative is rebuilt against a newer gno.
 - gnonative's Go service reports a session refusal without the chain's detail, so every refusal is shown as a budget problem.
