@@ -1,6 +1,7 @@
-export function createTxRunner({ setBusy, reload }: { setBusy: (busy: boolean) => void; reload: () => Promise<unknown> }) {
+/** One transaction at a time; `reload` comes with each run so a screen can create this once and pass its latest one. */
+export function createTxRunner(setBusy: (busy: boolean) => void) {
   let inFlight = false;
-  return async (action: () => Promise<unknown>): Promise<void> => {
+  return async (action: () => Promise<unknown>, reload: () => Promise<unknown>): Promise<void> => {
     if (inFlight) return;
     inFlight = true;
     setBusy(true);

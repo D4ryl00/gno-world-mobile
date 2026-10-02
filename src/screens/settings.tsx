@@ -36,7 +36,7 @@ export function SettingsScreen() {
       </Card>
       <Card>
         <Text style={styles.h}>Off-chain server</Text>
-        <Text style={styles.muted}>Chat, presence and the rest of the site's services. The official server is bubblerumble.net.</Text>
+        <Text style={styles.muted}>Chat, presence and the rest of the site&apos;s services. The official server is bubblerumble.net.</Text>
         <Field label="Server URL" value={offchain} onChangeText={setOffchain} error={offchainErr} />
       </Card>
       <Button

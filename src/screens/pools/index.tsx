@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import type { AllPools } from '@/chain/game-client';
@@ -12,7 +12,7 @@ import { colors, space } from '@/theme';
 import { flagEmoji } from '@/utils/flag';
 import { gnot } from '@/utils/gnot';
 
-import { createSerialLoader, loadNotice } from './load';
+import { createSerial, loadNotice } from './load';
 import { PoolRow } from './pool-row';
 import { sortPools } from './sort';
 
@@ -27,9 +27,10 @@ export function PoolsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const mounted = useRef(true);
-  const load = useMemo(
+  const [serial] = useState(createSerial);
+  const load = useCallback(
     () =>
-      createSerialLoader(async () => {
+      serial(async () => {
         try {
           const [all, t] = await Promise.all([game.allPools(), game.teams().catch(() => ({}))]);
           if (!mounted.current) return;
@@ -42,7 +43,7 @@ export function PoolsScreen() {
           if (mounted.current) setError(String((e as Error).message ?? e));
         }
       }),
-    [game],
+    [serial, game],
   );
 
   useEffect(() => {

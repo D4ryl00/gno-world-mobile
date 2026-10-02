@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text } from 'react-native';
 
 import type { Pool, RealmInfo } from '@/chain/parse';
@@ -52,22 +52,24 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
     }
   }, [game, k?.version, k?.id]);
 
-  useEffect(() => {
-    void load();
-    const t = setInterval(load, 10000);
-    return () => clearInterval(t);
-  }, [load]);
+  // every 10 s while the screen is shown, and at once on coming back to it
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      const t = setInterval(load, 10000);
+      return () => clearInterval(t);
+    }, [load]),
+  );
 
-  const reloadRef = useRef<() => Promise<unknown>>(async () => undefined);
-  reloadRef.current = () => Promise.all([load(), refresh().catch(() => undefined)]);
-  const runner = useRef<ReturnType<typeof createTxRunner>>(null);
-  runner.current ??= createTxRunner({ setBusy, reload: () => reloadRef.current() });
+  // one runner for the screen's life: it keeps the transaction in flight across renders
+  const [runner] = useState(() => createTxRunner(setBusy));
+  const reload = () => Promise.all([load(), refresh().catch(() => undefined)]);
 
   if (!k) return <Text style={styles.warn}>Unknown pool {poolKey}</Text>;
   if (!pool) return <Text style={styles.muted}>{msg || 'loading…'}</Text>;
 
   const run = (label: string, f: () => Promise<unknown>) =>
-    runner.current!(async () => {
+    runner(async () => {
       setMsg(`${label}…`);
       try {
         await f();
@@ -75,7 +77,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
       } catch (e) {
         setMsg(txMessage(e, now, (await refresh().catch(() => null)) ?? status));
       }
-    });
+    }, reload);
 
   const effectiveRef = ref && ref !== me ? ref : '';
   const onBoop = (c: BoopChoice) =>
@@ -102,7 +104,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
           <Text style={styles.t}>{flagEmoji(pool.flag)} {pool.lastBidder === me ? 'you are' : `${shortAddr(pool.lastBidder)} is`} on top</Text>
         ) : null}
         {live && pool.bids > 0 ? <Countdown until={pool.deadline} /> : null}
-        {pool.life && pool.bids > 0 ? <Text style={styles.muted}>winner's share {(pool.liveBps / 100).toFixed(0)}%</Text> : null}
+        {pool.life && pool.bids > 0 ? <Text style={styles.muted}>winner&apos;s share {(pool.liveBps / 100).toFixed(0)}%</Text> : null}
         {pool.cancelled ? <Text style={styles.warn}>cancelled</Text> : null}
         {pool.over ? <Text style={styles.t}>{pool.popped ? 'popped' : 'won'} by {shortAddr(pool.lastBidder)}{pool.paid ? '' : ' — unclaimed'}</Text> : null}
       </Card>

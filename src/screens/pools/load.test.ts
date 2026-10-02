@@ -1,6 +1,6 @@
 import type { AllPools } from '@/chain/game-client';
 import type { Pool } from '@/chain/parse';
-import { createSerialLoader, loadNotice } from '@/screens/pools/load';
+import { createSerial, loadNotice } from '@/screens/pools/load';
 
 const all = (pools: number, failed: number[]) =>
   // pools only ever come from a version that answered
@@ -24,10 +24,11 @@ test('no failures is neither', () => {
   expect(loadNotice(all(0, []))).toEqual({});
 });
 
-test('serial loader coalesces concurrent calls and runs again after settling', async () => {
+test('serial coalesces concurrent calls and runs again after settling', async () => {
   let release!: () => void;
   const fn = jest.fn(() => new Promise<void>((r) => { release = r; }));
-  const load = createSerialLoader(fn);
+  const serial = createSerial();
+  const load = () => serial(fn);
   const a = load();
   const b = load();
   expect(a).toBe(b);
@@ -40,9 +41,10 @@ test('serial loader coalesces concurrent calls and runs again after settling', a
   await c;
 });
 
-test('serial loader frees the slot when the load rejects', async () => {
+test('serial frees the slot when the load rejects', async () => {
   const fn = jest.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValueOnce(undefined);
-  const load = createSerialLoader(fn);
+  const serial = createSerial();
+  const load = () => serial(fn);
   await expect(load()).rejects.toThrow('x');
   await expect(load()).resolves.toBeUndefined();
 });

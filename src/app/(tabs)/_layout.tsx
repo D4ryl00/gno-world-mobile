@@ -4,9 +4,10 @@ import type { ColorValue } from 'react-native';
 
 import { colors } from '@/theme';
 
-const icon =
-  (name: SymbolViewProps['name']) =>
-  ({ color, size }: { color: ColorValue; size: number }) => <SymbolView name={name} tintColor={color} size={size} />;
+const icon = (name: SymbolViewProps['name']) =>
+  function TabIcon({ color, size }: { color: ColorValue; size: number }) {
+    return <SymbolView name={name} tintColor={color} size={size} />;
+  };
 
 export default function TabsLayout() {
   return (

@@ -7,10 +7,13 @@ export function loadNotice(all: AllPools): { error?: string; notice?: string } {
   return { notice: `Could not load ${all.failed.map((v) => `v${v}`).join(', ')} — pull to retry.` };
 }
 
-/** Concurrent calls join the running promise instead of starting another. */
-export function createSerialLoader(fn: () => Promise<void>): () => Promise<void> {
+/**
+ * Concurrent calls join the running promise instead of starting another. The work is passed on each call, so a
+ * screen can create this once and still run its latest closure.
+ */
+export function createSerial(): (fn: () => Promise<void>) => Promise<void> {
   let running: Promise<void> | null = null;
-  return () => {
+  return (fn) => {
     if (!running) {
       running = fn().finally(() => {
         running = null;

@@ -35,10 +35,7 @@ export function Earnings({ session }: { session: ActiveSession }) {
   }, []);
 
   // One withdraw at a time; the buttons stay disabled until the earnings are reloaded.
-  const reloadRef = useRef(load);
-  reloadRef.current = load;
-  const runner = useRef<ReturnType<typeof createTxRunner>>(null);
-  runner.current ??= createTxRunner({ setBusy: (b) => mounted.current && setBusy(b), reload: () => reloadRef.current() });
+  const [runner] = useState(() => createTxRunner(setBusy)); // setBusy after unmount is a no-op
 
   const rows = VERSIONS.filter((v) => mes[v]);
   return (
@@ -57,14 +54,14 @@ export function Earnings({ session }: { session: ActiveSession }) {
                 title={`withdraw ${gnot(m.owed)}`}
                 disabled={busy}
                 onPress={() =>
-                  void runner.current!(async () => {
+                  void runner(async () => {
                     try {
                       await game.withdraw(session, v);
                       if (mounted.current) setMsg(`withdrew ${gnot(m.owed)}`);
                     } catch (e) {
                       if (mounted.current) setMsg(txMessage(e, Math.floor(Date.now() / 1000)));
                     }
-                  })
+                  }, load)
                 }
               />
             ) : null}

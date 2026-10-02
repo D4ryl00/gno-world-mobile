@@ -41,7 +41,7 @@ export function Roster({ pool, me }: { pool: Pool; me: string }) {
   if (!pool.roster.length) return null;
   return (
     <Card>
-      <Text style={styles.h}>Boopers · what they've earned here</Text>
+      <Text style={styles.h}>Boopers · what they&apos;ve earned here</Text>
       {[...pool.roster].sort((a, b) => b.earned - a.earned).map((m) => (
         <Text key={m.addr} style={styles.t}>
           {flagEmoji(m.flag)} {m.addr === me ? 'you' : shortAddr(m.addr)} · put in {gnot(m.paid)} · earned {gnot(m.earned)}
@@ -72,7 +72,7 @@ export function Rules({ pool }: { pool: Pool }) {
       <Text style={styles.h}>Rules</Text>
       <Text style={styles.t}>
         Every boop feeds the pot and resets the {humanDuration(pool.window)} clock. The Nth boop costs {gnot(pool.basePrice)}·√N.
-        Pay k× the price and your boop's clock is only 1/k of the window (down to a tenth, never under five minutes).
+        Pay k× the price and your boop&apos;s clock is only 1/k of the window (down to a tenth, never under five minutes).
         When the clock runs out, the last booper takes the pot.
         {pool.life ? ` The pool's last day is ${humanDuration(pool.life)} after its first boop.` : ''}
       </Text>

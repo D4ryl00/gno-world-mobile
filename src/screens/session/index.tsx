@@ -96,7 +96,7 @@ export function SessionScreen() {
       <Card>
         <Text style={styles.h}>Run this on your computer</Text>
         <Text style={styles.muted}>
-          With gnokey and your account's key (YOUR_KEY is its name).
+          With gnokey and your account&apos;s key (YOUR_KEY is its name).
           {s.pending.master ? ` Account ${shortAddr(s.pending.master)}.` : ''}
         </Text>
         <CommandBlock command={s.command ?? ''} />

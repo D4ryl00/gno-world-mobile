@@ -10,24 +10,23 @@ const deferred = () => {
 test('a second run while one is in flight does nothing', async () => {
   const gate = deferred();
   const action = jest.fn(() => gate.promise);
-  const run = createTxRunner({ setBusy: jest.fn(), reload: async () => undefined });
-  const first = run(action);
-  await run(action);
+  const run = createTxRunner(jest.fn());
+  const reload = async () => undefined;
+  const first = run(action, reload);
+  await run(action, reload);
   expect(action).toHaveBeenCalledTimes(1);
   gate.resolve();
   await first;
-  await run(action);
+  await run(action, reload);
   expect(action).toHaveBeenCalledTimes(2);
 });
 
 test('busy is released only after the reload resolved', async () => {
   const gate = deferred();
   const calls: string[] = [];
-  const run = createTxRunner({
-    setBusy: (b) => calls.push(`busy:${b}`),
-    reload: async () => { calls.push('reload'); await gate.promise; calls.push('reloaded'); },
-  });
-  const done = run(async () => { calls.push('action'); });
+  const run = createTxRunner((b) => calls.push(`busy:${b}`));
+  const reload = async () => { calls.push('reload'); await gate.promise; calls.push('reloaded'); };
+  const done = run(async () => { calls.push('action'); }, reload);
   await Promise.resolve();
   await Promise.resolve();
   expect(calls).toEqual(['busy:true', 'action', 'reload']);
@@ -39,11 +38,11 @@ test('busy is released only after the reload resolved', async () => {
 test('busy is released when the action or the reload rejects', async () => {
   const setBusy = jest.fn();
   const reload = jest.fn().mockRejectedValue(new Error('down'));
-  const run = createTxRunner({ setBusy, reload });
-  await run(async () => { throw new Error('boom'); }).catch(() => undefined);
+  const run = createTxRunner(setBusy);
+  await run(async () => { throw new Error('boom'); }, reload).catch(() => undefined);
   expect(setBusy).toHaveBeenLastCalledWith(false);
   setBusy.mockClear();
-  await run(async () => undefined);
+  await run(async () => undefined, reload);
   expect(reload).toHaveBeenCalledTimes(2);
   expect(setBusy).toHaveBeenLastCalledWith(false);
 });

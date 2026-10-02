@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGnoNativeContext } from '@gnolang/gnonative';
 import * as Linking from 'expo-linking';
-import { createContext, useContext, useEffect, useMemo, useRef, type PropsWithChildren } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
 import { useStore } from 'zustand';
 
@@ -57,7 +57,7 @@ export function AppServices({ children }: PropsWithChildren) {
       storage: AsyncStorage,
       openURL: (url) => Linking.openURL(url).then(() => undefined),
       randomHex,
-      now: () => Date.now(),
+      now: Date.now,
       network: () => net.current(),
     });
     return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net };
@@ -84,7 +84,7 @@ export function AppServices({ children }: PropsWithChildren) {
   }, [services]);
 
   // presence heartbeat: every 20 s while in the foreground
-  const pid = useRef(randomHex(8)).current;
+  const [pid] = useState(() => randomHex(8));
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
     const beat = async () => {
