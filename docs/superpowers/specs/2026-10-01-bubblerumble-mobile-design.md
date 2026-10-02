@@ -382,11 +382,18 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 **À faire avant d'utiliser l'app sur mainnet :**
 
-1. **Android** : jamais lancé au-delà du smoke screen de la tâche 2 (la liste manuelle n'a été faite
-   que sur iOS).
-2. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+1. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
 
 **Réglé le 2026-10-02 :**
+
+- **Vérification manuelle sur émulateur Android 17** (`Medium_Phone`, `adb reverse` 26657/8081), même
+  liste que sur iOS : pools mainnet puis gnodev, icônes Material des onglets, demande de session
+  (gnokey-mobile propose de passer de `10.0.2.2` à `127.0.0.1` — même chaîne `dev` —, `connect`
+  d'identité seule → commande desktop), session détectée sur la chaîne, kill/relance (session
+  reprise), création de pool, boops, budget épuisé (« Session budget used up — it refills in … »).
+  Aucun bug propre à Android. Trouvé en chemin, valable aussi sur iOS : la liste des pools ne se
+  rechargeait qu'au tick de 15 s, un pool créé n'apparaissait pas au retour (`d966e81`, rechargement
+  au focus).
 
 - **Correctifs iOS de gnonative**, ajoutés à la PR #233 (`78531cc`, `f516370`) : registre des
   promesses protégé contre les accès concurrents (crash dans `PromiseBlock.remove()`), fin de flux
