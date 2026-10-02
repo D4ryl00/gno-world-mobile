@@ -442,6 +442,5 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
 4. **Mineurs vus sur simulateur :** le bouton retour de l'écran d'un pool affiche « (tabs) » ; le
-   preset réseau choisi n'est pas mis en évidence ; « the node did not answer » s'affiche quand aucun
-   pool n'existe et que seules d'anciennes versions du realm échouent (cas gnodev) ; sur le runtime
+   preset réseau choisi n'est pas mis en évidence ; sur le runtime
    iOS 26.2, UIKit tue l'app au rendu du clavier logiciel (environnement, pas l'app).
