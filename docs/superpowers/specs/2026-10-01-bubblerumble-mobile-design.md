@@ -368,7 +368,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-01. À mettre à jour à chaque étape livrée.
+État au 2026-10-02. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -376,10 +376,29 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   main, PR https://github.com/gnolang/gnonative/pull/233. L'archive locale
   `~/gnonative/expo/gnolang-gnonative-0.1.2.tgz` (construite avant le rebase) sert à P3-M1.
 
-**En cours :** P3-M1, exécuté en subagent-driven sur `main` (ledger
-`.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`, non versionné).
+- P3-M1 (session + boucle de jeu) : 17 tâches sur `main` (`8ca8ed3`..`85ef882`), revue de chaque
+  tâche puis revue finale de la branche ; 147 tests unitaires, 5 tests de bout en bout sur gnodev.
+  Ledger (non versionné) : `.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`.
+
+**À faire avant d'utiliser l'app sur mainnet :**
+
+1. **Bloquant — gnonative et `bank.TransferEvent`.** gnonative épingle gno
+   `v0.0.0-20260623134700-0c17a9a5852a`, antérieur à gno#6120 (événements de transfert), que
+   `chain/mainnet` contient : l'app ne sait pas décoder le résultat de ses transactions sur mainnet.
+   L'app l'affiche comme « envoyé, résultat illisible » (pas de nouvel essai), mais il faut monter
+   gno dans gnonative, refaire l'archive et la réinstaller.
+2. **Course au changement de réseau (résidu de la revue finale).** `networkChanged()` s'exécute avant
+   que gnonative ait appliqué `setRemote` / `setChainID` : une session vivante peut être lue comme
+   absente sur l'ancien réseau et oubliée par l'app. Correctif proposé : attendre `setRemote` et
+   `setChainID`, puis appeler `networkChanged()` (même ordre pour le `restore()` au lancement).
+3. **Vérification manuelle sur appareil,** jamais faite (le simulateur ne pouvait pas être piloté) :
+   liste dans le rapport de la tâche 17 du ledger, à reprendre dans `README.md`.
+4. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
 
 **Suivis gnonative révélés par P3-M1 :**
+
+- `getGrpcError` n'a pas de cas pour `std.SessionNotAllowedError` : le détail de la chaîne (« session
+  spend limit exceeded … ») est perdu ; l'app classe donc tout refus de session comme un budget épuisé.
 
 - `expo/src/index.ts:10` assigne `Symbol.asyncIterator`, en lecture seule sous Hermes avec Expo
   SDK 57 : l'import plante. La dapp le contourne avec `patch-package`
@@ -407,3 +426,6 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      (§7, étape 6).
 2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : facultatives dans le standard,
    traitées en dernier dans P2, éventuellement reportées. Bubble Rumble ne s'en sert pas.
+3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
+   mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
+   injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
