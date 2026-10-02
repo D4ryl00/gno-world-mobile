@@ -4,12 +4,13 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { ugnot } from '@/chain/api';
+import { SESSION_ALLOW_PATHS } from '@/chain/realms';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { CommandBlock } from '@/components/command-block';
 import { Field } from '@/components/field';
 import { useNow } from '@/hooks/use-now';
-import { expiresSoon, remaining, resetsIn } from '@/session/status';
+import { expiresSoon, missingPaths, remaining, resetsIn } from '@/session/status';
 import { useServices, useSession } from '@/state/app-services';
 import { useSettings } from '@/state/settings';
 import { colors, space } from '@/theme';
@@ -153,6 +154,12 @@ export function SessionScreen() {
               <Text style={expiresSoon(st, now) ? styles.warn : styles.muted}>
                 {st.expiresAt ? `expires in ${humanDuration(st.expiresAt - now)}` : 'no expiry'}
               </Text>
+              {missingPaths(st, SESSION_ALLOW_PATHS).length > 0 ? (
+                <Text style={styles.warn}>
+                  This session does not cover all of Bubble Rumble's realms — some actions will be refused. Renew it to
+                  grant them.
+                </Text>
+              ) : null}
             </>
           ) : null}
           {balance !== null ? <Text style={styles.muted}>account balance {gnot(balance)}</Text> : null}

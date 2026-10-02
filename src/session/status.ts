@@ -40,6 +40,19 @@ export const resetsIn = (s: SessionStatus, now: number) =>
 export const expiresSoon = (s: SessionStatus, now: number, days = 3) =>
   s.expiresAt > 0 && s.expiresAt - now <= days * 86400;
 
+/** Does a session allow entry cover `need` (a `vm/exec:<path>` entry)? The chain's grammar: `*`, `<route>/<type>`, or
+ *  `vm/exec:<path>` matching that path and everything under it. */
+const covers = (entry: string, need: string): boolean => {
+  if (entry === '*' || entry === need) return true;
+  const [type, path] = need.split(/:(.*)/s);
+  if (entry === type) return true;
+  return path !== undefined && entry.startsWith(`${type}:`) && path.startsWith(`${entry.slice(type.length + 1)}/`);
+};
+
+/** The entries of `need` that the session's allowed paths do not cover. */
+export const missingPaths = (s: SessionStatus, need: readonly string[]): string[] =>
+  need.filter((n) => !s.allowPaths.some((e) => covers(e, n)));
+
 export async function pollSession(
   api: ChainApi, master: string, session: string, want: 'present' | 'absent',
   opts: { intervalMs: number; signal: { aborted: boolean }; sleep?: (ms: number) => Promise<void> },

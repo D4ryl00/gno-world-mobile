@@ -72,6 +72,7 @@ const HOST: Record<Pending['op'], SessionHost> = { create: 'connect', replace: '
 
 export const createSessionStore = (d: SessionDeps) => {
   let poll = { aborted: false };
+  let starting = false; // a begin/revoke is between its start and its send (a double tap)
   const interval = d.pollIntervalMs ?? 3000;
 
   return createStore<SessionState>()(
@@ -166,6 +167,8 @@ export const createSessionStore = (d: SessionDeps) => {
           phase: 'none',
 
           async begin(op, grant): Promise<void> {
+            if (starting || get().pending) return;
+            starting = true;
             try {
               const old = get().active;
               if (op === 'replace' && !old) throw new Error('no session to replace');
@@ -178,10 +181,14 @@ export const createSessionStore = (d: SessionDeps) => {
               await send(p, await linkFor(p));
             } catch (e) {
               fail(e);
+            } finally {
+              starting = false;
             }
           },
 
           async revoke(): Promise<void> {
+            if (starting || get().pending) return;
+            starting = true;
             try {
               const active = get().active;
               if (!active) throw new Error('no session to revoke');
@@ -191,6 +198,8 @@ export const createSessionStore = (d: SessionDeps) => {
               await send(p, await linkFor(p));
             } catch (e) {
               fail(e);
+            } finally {
+              starting = false;
             }
           },
 

@@ -210,7 +210,7 @@ test('(a) cancel during identity-only polling: polling for A, cancel, put A on c
   expect(store.getState().active).toBeUndefined();
 });
 
-test('(b) new begin during identity-only polling: poll A, begin create B, put A on chain, wait → pending.state is B, no active', async () => {
+test('(b) new begin during identity-only polling: poll A, begin create B (ignored while A is pending, then after cancelling A), put A on chain, wait → pending.state is B, no active', async () => {
   const { store, onChain } = setup();
   await store.getState().begin('create', DEFAULT_GRANT);
   const pA = store.getState().pending!;
@@ -218,7 +218,10 @@ test('(b) new begin during identity-only polling: poll A, begin create B, put A 
   // identity-only reply triggers polling for A
   await store.getState().onReply(reply({ state: pA.state, address: M, session: OTHER }));
   expect(store.getState().phase).toBe('waiting-chain');
-  // new begin with fresh grant triggers new request B
+  // a begin while A is pending does nothing (a double tap); once A is cancelled, a new begin starts request B
+  await store.getState().begin('create', DEFAULT_GRANT);
+  expect(store.getState().pending!.state).toBe(pA.state);
+  store.getState().cancel();
   await store.getState().begin('create', DEFAULT_GRANT);
   const pB = store.getState().pending!;
   expect(pB.state).not.toBe(pA.state);
@@ -542,4 +545,18 @@ test('a session on another network does not block getting one for the current ne
   await store.getState().onReply(reply({ state: p.state, address: M, session: p.key.address, chainid: 'dev' }));
   expect(store.getState().phase).toBe('active');
   expect(store.getState().active).toMatchObject({ chainId: 'dev', address: p.key.address });
+});
+
+test('a double tap on "Get a session" creates one key and opens one link', async () => {
+  const { api, store, opened } = setup();
+  await Promise.all([store.getState().begin('create', DEFAULT_GRANT), store.getState().begin('create', DEFAULT_GRANT)]);
+  expect(api.keys.size).toBe(1);
+  expect(opened).toHaveLength(1);
+});
+
+test('a double tap on Revoke opens one link', async () => {
+  const { store, opened, activate } = setup();
+  await activate();
+  await Promise.all([store.getState().revoke(), store.getState().revoke()]);
+  expect(opened).toHaveLength(2); // the grant, then one revoke
 });

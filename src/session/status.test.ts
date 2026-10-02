@@ -96,3 +96,21 @@ test('pollSession waits for presence, then for absence, and can be aborted', asy
   const p = pollSession(api, M, S, 'present', { intervalMs: 1, signal, sleep: async () => void (signal.aborted = true) });
   await expect(p).rejects.toThrow(/cancelled/);
 });
+
+import { missingPaths } from '@/session/status';
+
+describe('missingPaths', () => {
+  const need = ['vm/exec:gno.land/r/a/bubblerumble5', 'vm/exec:gno.land/r/a/bubble'];
+  const st = (allowPaths: string[]) => ({ expiresAt: 0, spendLimit: 0, spendUsed: 0, spendReset: 0, spendPeriod: 0, allowPaths });
+  test('lists the needed entries the session does not cover', () => {
+    expect(missingPaths(st(need), need)).toEqual([]);
+    expect(missingPaths(st(['vm/exec:gno.land/r/a/bubblerumble5']), need)).toEqual(['vm/exec:gno.land/r/a/bubble']);
+    expect(missingPaths(st(['bank/send']), need)).toEqual(need);
+  });
+  test('follows the chain grammar: *, a bare vm/exec, and path prefixes on a "/" boundary', () => {
+    expect(missingPaths(st(['*']), need)).toEqual([]);
+    expect(missingPaths(st(['vm/exec']), need)).toEqual([]);
+    expect(missingPaths(st(['vm/exec:gno.land/r/a']), need)).toEqual([]);
+    expect(missingPaths(st(['vm/exec:gno.land/r/a/bubble']), need)).toEqual(['vm/exec:gno.land/r/a/bubblerumble5']);
+  });
+});
