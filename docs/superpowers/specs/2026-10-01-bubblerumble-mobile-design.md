@@ -110,9 +110,17 @@ déjà `connect` (branche `feat/deeplink-tx`) : P2 l'étend et ajoute le host
   (si `old` a été révoqué), `hash` (optionnel), `state` ; codes d'erreur du
   spec.
 - **Indications de périmètre** (`connect` sans `pubkey`) : gnokey-mobile ne
-  détient que des clés de session. Il peut s'en servir pour choisir une de ses
-  sessions qui couvre les entrées, ou proposer d'en créer une. Cette partie est
-  facultative dans le standard ; P2 la traite en dernier et peut la reporter.
+  détient que des clés de session. Il lit les indications et vérifie si la
+  session du compte choisi les couvre ; sinon l'écran de consentement propose
+  d'en créer une, via le constructeur existant pré-rempli. Facultatif dans le
+  standard, retenu dans P2 (décision du 2026-10-02) : le `core` dans P2-M1,
+  l'écran dans P2-M2/M3.
+- **Clé déjà session de l'identité, droits différents de la demande** : succès
+  avec les valeurs de la chaîne, sans erreur ; la dapp compare et renouvelle
+  avec `old` si elle a besoin d'autre chose (décision du 2026-10-02).
+- **`spend` reste facultatif** à la création, comme dans le standard ; la revue
+  dit clairement qu'une session sans `spend` ne peut rien dépenser, pas même
+  ses frais.
 - **Pont `mobile/`** : fonctions typées, comme l'existant.
 
 **iOS et Android :**
@@ -440,15 +448,15 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    les vraies interfaces :
    - P2 : `connect` avec clé et `disconnect` dans gnokey-mobile (§4), puis vérification de
      l'aller-retour avec P3. Découpé en jalons : P2-M1, `core/` et pont `mobile/`, plan
-     `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md` ; P2-M2 (iOS) et P2-M3
-     (Android), à écrire une fois M1 livré. gnokey-mobile est sur gno `v1.5.0`
-     (`0a7c4d5`), qui signe comme la ligne mainnet de gnonative (`5cdbc25fc`) : compatibles ;
+     `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md`, sur la branche
+     `feat/deeplink-tx` (PR #138), gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) comme
+     gnonative ; P2-M2 (iOS) et P2-M3 (Android), à écrire une fois M1 livré ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6).
-2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : facultatives dans le standard,
-   traitées en dernier dans P2, éventuellement reportées. Bubble Rumble ne s'en sert pas.
+2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : retenues dans P2 (tâche 11 de
+   P2-M1, écran dans P2-M2/M3). Bubble Rumble ne s'en sert pas.
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).

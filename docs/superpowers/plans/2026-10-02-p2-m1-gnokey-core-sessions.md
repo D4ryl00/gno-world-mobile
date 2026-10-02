@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** gnokey-mobile's shared Go layer (`core/` + the gomobile bridge `mobile/`) can take a signed GnoConnect session request — `connect` with `pubkey` (optionally `old`) or `disconnect` — verify it, decide on chain what it does, compose the transaction as a desktop `gnokey` command, watch the chain for the outcome and produce the callback answer. iOS and Android screens are not part of this milestone (P2-M2, P2-M3).
+**Goal:** gnokey-mobile's shared Go layer (`core/` + the gomobile bridge `mobile/`) can take a signed GnoConnect session request — `connect` with `pubkey` (optionally `old`) or `disconnect` — verify it, decide on chain what it does, compose the transaction as a desktop `gnokey` command, watch the chain for the outcome and produce the callback answer; and for a `connect` without a key, read its scope hints and tell whether a session of the wallet already covers them. iOS and Android screens are not part of this milestone (P2-M2, P2-M3).
 
 **Architecture:** Pure functions do the protocol work (payload, parsing, proof, grant narrowing, planning from a session list, transaction composition, replies) and are unit-tested without a node. Thin `Service` methods add the chain reads (`auth/accounts/{addr}/sessions`, `auth/accounts/{addr}`, gas price) and the clock. The bridge re-parses the original link on every call, so nothing the native side holds can change what the producer signed. A build-tagged integration test drives every flow against gnodev, signing as the identity in-process, and optionally runs the generated commands through a real `gnokey`.
 
-**Tech Stack:** Go 1.25, `github.com/gnolang/gno v1.5.0` (tm2 `crypto`, `std`, `sdk/auth`, `amino`; `gno.land/pkg/gnoland`, `gnoclient`), gomobile-bound package `mobile`.
+**Tech Stack:** Go 1.25, `github.com/gnolang/gno v1.5.1-0.20260928125126-5cdbc25fcde0` — the gno.land `chain/mainnet` line, the revision gnonative pins (tm2 `crypto`, `std`, `sdk/auth`, `amino`; `gno.land/pkg/gnoland`, `gnoclient`), gomobile-bound package `mobile`.
 
 **Spec:** `~/bubblerumble/docs/superpowers/specs/2026-10-01-bubblerumble-mobile-design.md` §4, and the protocol `~/bubblerumble/gnoconnect-session.md` (sections Parameters, Proof of possession, `connect` with a key, Renewal and rotation, `disconnect`, Obtaining the identity's signature, Callback results, Wallet housekeeping).
 
 ## Global Constraints
 
-- Repository `~/gnokey-mobile`. Create branch `feat/gnoconnect-sessions` from `feat/deeplink-tx` (commit `01cf1da`, PR #138); this work is stacked on #138 and goes in its own PR later. Do not touch `feat/deeplink-tx`.
-- gno stays at `v1.5.0` (`go.mod`); no new module dependencies.
+- Repository `~/gnokey-mobile`, branch `feat/deeplink-tx` (PR #138), committing on top of `01cf1da`. No new branch.
+- gno is `github.com/gnolang/gno v1.5.1-0.20260928125126-5cdbc25fcde0` (the `chain/mainnet` line, as in gnonative) from Task 0 on; no other new module dependency.
 - Every error is a `*core.CodedError` (`"[code] message"`). The GnoConnect protocol codes double as `CodedError` codes so native code can answer the callback with them verbatim: `invalid_request`, `invalid_proof`, `stale_request`, `signer_unavailable`, `session_expired`, `session_not_found`, `session_limit`. `replayed` is internal: native code must **not** answer a replayed request (its first copy is already being handled).
 - Chain bounds come from `std`: `std.MaxSessionsPerAccount` (16), `std.MaxAllowPathsPerSession` (8), `std.MaxSessionDuration` (126144000 s), `std.MaxSpendPeriod` (2592000 s). Convert with `int64(...)` / `int(...)` where types differ.
 - Payload: prefix line `gnoconnect-session-v1`, then `host=<lowercased host>`, then every query parameter except `sig` and `oldsig`, strictly percent-decoded (`+` is a literal plus), sorted by key then value bytewise, joined with `\n`, no trailing newline. A control character (`< 0x20` or `0x7f`) in a key or value is `invalid_request`.
@@ -21,6 +21,8 @@
 - `iat` window: at most 10 minutes old, at most 1 minute in the future. Replay memory: `(pubkey, state)` pairs for 11 minutes.
 - `state` is at most 256 characters.
 - Callback `features` for a session-capable wallet: `sendtx,signtx,sessions`.
+- A `connect` naming a key that is already a live session of the identity answers success with the grant **as the chain stores it**, whatever the request asked: the producer compares, and renews with `old` and a fresh key if it needs something else (sessions cannot be updated on chain). No new error code.
+- `spend` stays optional on creation, as in the standard (absent = the session cannot spend, not even its gas); the review screens of P2-M2/M3 must say so.
 - Gas for a session transaction: `gasWanted = 1_000_000 + 1_000_000 × messages`; fee from `Service.MinGasFee(gasWanted)` (chain gas price + configured buffer).
 - The multi-message document is written by the command to `gnoconnect-session.json` in the user's current directory.
 - gomobile surface (`mobile/`): fields are only `string`, `bool`, `int64`, `[]byte`; lists and nested values cross as JSON strings (fields suffixed `JSON`).
@@ -39,6 +41,7 @@
 
 ## File Structure
 
+- `go.mod`, `go.sum` — modify: gno on the `chain/mainnet` line (Task 0).
 - `core/errors.go` — modify: add the protocol codes.
 - `core/gnoconnect_payload.go` — create: link splitting, strict query decoding, `CanonicalPayload`.
 - `core/gnoconnect_request.go` — create: `SessionRequest`, `ParseSessionRequest`.
@@ -50,9 +53,49 @@
 - `core/gnoconnect_plan.go` — create: `SessionPlan`, `planSessionRequest`, `Service.PlanSessionRequest`.
 - `core/gnoconnect_tx.go` — create: `SessionTx`, `composeSessionTx`, `Service.BuildSessionTx`.
 - `core/gnoconnect_outcome.go` — create: `SessionOutcome`, `Service.PollSessionOutcome`.
-- `mobile/sessions.go` — create: bridge types and methods.
+- `core/gnoconnect_hints.go` — create: `ScopeHints`, `ParseScopeHints`, `SessionCovers`, `Service.SessionCoversHints`.
+- `mobile/sessions.go` — create: bridge types and methods (Task 9), plus the hints (Task 11).
 - Tests next to each file (`*_test.go`); `core/gnoconnect_integration_test.go` (build tag `integration`).
 - `Makefile` — modify: build a matching `gnokey` for the integration test.
+
+---
+
+### Task 0: gno on the `chain/mainnet` line
+
+**Files:**
+- Modify: `go.mod`, `go.sum`
+
+**Interfaces:**
+- Produces: the gno revision every later task builds against (`5cdbc25fcde0`, the one gnonative and Bubble Rumble's `npm run gnodev` use).
+
+- [ ] **Step 1: Start from the PR branch**
+
+```bash
+cd ~/gnokey-mobile
+git checkout feat/deeplink-tx && git pull --ff-only
+git status --short   # only the untracked notes (DEMO*, GNOCONNECT_*.md, hub-api-bugs.md) may show
+```
+
+- [ ] **Step 2: Move gno**
+
+```bash
+go get github.com/gnolang/gno@v1.5.1-0.20260928125126-5cdbc25fcde0
+go mod tidy
+```
+
+Expected: `go.mod` requires `github.com/gnolang/gno v1.5.1-0.20260928125126-5cdbc25fcde0`; only `go.mod` and `go.sum` change.
+
+- [ ] **Step 3: Build and test**
+
+Run: `go build ./... && go vet ./... && go test ./core/... ./mobile/...`
+Expected: `ok  github.com/gnolang/gnokey-mobile2/core` (checked on 2026-10-02: the three commits after `v1.5.0` change nothing gnokey-mobile uses).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add go.mod go.sum
+git commit -m "chore: use gno's chain/mainnet line (5cdbc25fc), as gnonative does"
+```
 
 ---
 
@@ -66,14 +109,7 @@
 **Interfaces:**
 - Produces: constants `CodeInvalidRequest`, `CodeInvalidProof`, `CodeStaleRequest`, `CodeSignerUnavailable`, `CodeSessionExpired`, `CodeSessionNotFound`, `CodeSessionLimit`, `CodeReplayed`; `func CanonicalPayload(rawURL string) (string, error)`; unexported `type queryParam struct{ Key, Value string }`, `func splitLaunchLink(rawURL string) (host, rawQuery string, err error)`, `func decodeQuery(rawQuery string) ([]queryParam, error)`, `func canonicalPayload(host string, params []queryParam) string`; test helper `func requireCode(t *testing.T, err error, code string)`; test constants `vectorGPub`, `vectorLink`, `vectorPayload`.
 
-- [ ] **Step 1: Create the branch**
-
-```bash
-cd ~/gnokey-mobile
-git checkout feat/deeplink-tx && git checkout -b feat/gnoconnect-sessions
-```
-
-- [ ] **Step 2: Write the failing test**
+- [ ] **Step 1: Write the failing test**
 
 `core/gnoconnect_payload_test.go`:
 
@@ -172,12 +208,12 @@ func TestCanonicalPayloadRefusesMalformedLinks(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [ ] **Step 2: Run it to verify it fails**
 
 Run: `go test ./core/ -run CanonicalPayload`
 Expected: FAIL — `undefined: CanonicalPayload` (and `CodeInvalidRequest`).
 
-- [ ] **Step 4: Add the protocol codes**
+- [ ] **Step 3: Add the protocol codes**
 
 In `core/errors.go`, inside the existing `const ( … )` block, after `CodeInternal = "internal"`:
 
@@ -197,7 +233,7 @@ In `core/errors.go`, inside the existing `const ( … )` block, after `CodeInter
 	CodeReplayed = "replayed"
 ```
 
-- [ ] **Step 5: Write the payload code**
+- [ ] **Step 4: Write the payload code**
 
 `core/gnoconnect_payload.go`:
 
@@ -309,12 +345,12 @@ func canonicalPayload(host string, params []queryParam) string {
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `go test ./core/ -run CanonicalPayload -v`
 Expected: PASS (4 tests).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 go vet ./... && go test ./core/... ./mobile/...
@@ -1360,6 +1396,8 @@ func planSessionRequest(r *SessionRequest, identity string, sessions []*SessionS
 func (s *Service) PlanSessionRequest(r *SessionRequest, identity string) (*SessionPlan, error)
 ```
 
+Test helpers (in `gnoconnect_plan_test.go`, used by Tasks 7, 8, 10): `planNow`, `type testSession`, `func session(expiresIn time.Duration) testSession`, `func statuses(...testSession) []*SessionStatus`, `func connectFor(key, old crypto.PrivKey) *SessionRequest`, `func live(n int) []testSession`, `func grantRequest(key, old crypto.PrivKey) *SessionRequest`, `func replyValue(reply [][2]string, key string) string`.
+
 - [ ] **Step 1: Write the failing test**
 
 `core/gnoconnect_plan_test.go`:
@@ -1467,6 +1505,35 @@ func TestPlanAKeyAlreadyGranted(t *testing.T) {
 	if p.Reply[4] != [2]string{"session", s.st.SessionAddress} {
 		t.Errorf("reply = %v", p.Reply)
 	}
+	// The request asked for something else (a grant on gno.land/r/demo/a, 5 GNOT an
+	// hour): the answer is still success, with what the chain holds — the producer
+	// renews with `old` if it needs more.
+	r := grantRequest(s.key, nil)
+	p, err = planSessionRequest(r, testIdentity, statuses(s), planNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replyValue(p.Reply, "status") != "success" || replyValue(p.Reply, "allow") != "bank/send" || replyValue(p.Reply, "spend") != "1ugnot" {
+		t.Errorf("an existing session answers with the chain's grant: %v", p.Reply)
+	}
+}
+
+// replyValue is the first value of key in a reply.
+func replyValue(reply [][2]string, key string) string {
+	for _, kv := range reply {
+		if kv[0] == key {
+			return kv[1]
+		}
+	}
+	return ""
+}
+
+// grantRequest is a connect for key asking for the standard test grant.
+func grantRequest(key, old crypto.PrivKey) *SessionRequest {
+	r := connectFor(key, old)
+	r.Allow = []string{"vm/exec:gno.land/r/demo/a", "bank/send"}
+	r.Spend, r.Period, r.Expires = "5000000ugnot", 3600, 2592000
+	return r
 }
 
 func TestPlanAnExpiredKey(t *testing.T) {
@@ -1660,7 +1727,8 @@ type SessionPlan struct {
 	SessionAddress string // the address of the request's key
 
 	// connect: the key is already a live session of Identity. Nothing to sign:
-	// Reply answers with the grant as the chain stores it.
+	// Reply answers success with the grant as the chain stores it, even when it
+	// differs from the request — the producer compares and renews with `old`.
 	Existing *SessionStatus
 	Reply    [][2]string
 
@@ -1781,7 +1849,7 @@ git commit -m "feat(sessions): read the identity's sessions and plan a request b
 - Test: `core/gnoconnect_tx_test.go`
 
 **Interfaces:**
-- Consumes: `SessionRequest` (Task 2), `Grant`, `CheckNarrowing` (Task 4), `SessionPlan`, `planSessionRequest`, `Service.PlanSessionRequest` (Task 6), test helpers `session`, `statuses`, `connectFor`, `live`, `planNow` (Task 6); `shellQuote`, `parseCoinsOrEmpty`, `Service.MinGasFee`, `Service.QueryAccount` (existing).
+- Consumes: `SessionRequest` (Task 2), `Grant`, `CheckNarrowing` (Task 4), `SessionPlan`, `planSessionRequest`, `Service.PlanSessionRequest` (Task 6), test helpers `session`, `statuses`, `connectFor`, `live`, `planNow`, `grantRequest` (Task 6); `shellQuote`, `parseCoinsOrEmpty`, `Service.MinGasFee`, `Service.QueryAccount` (existing).
 - Produces:
 
 ```go
@@ -1827,14 +1895,6 @@ func txInput(t *testing.T, r *SessionRequest, sessions []*SessionStatus) session
 		Remote: "http://127.0.0.1:26657", ChainID: "dev", GasFee: "2000ugnot",
 		AccountNumber: 7, Sequence: 42, Now: planNow,
 	}
-}
-
-// grantRequest is a connect for key asking for the standard test grant.
-func grantRequest(key, old crypto.PrivKey) *SessionRequest {
-	r := connectFor(key, old)
-	r.Allow = []string{"vm/exec:gno.land/r/demo/a", "bank/send"}
-	r.Spend, r.Period, r.Expires = "5000000ugnot", 3600, 2592000
-	return r
 }
 
 func decodeDoc(t *testing.T, doc string) std.Tx {
@@ -2262,7 +2322,7 @@ git commit -m "feat(sessions): compose a session transaction as a desktop gnokey
 - Test: `core/gnoconnect_outcome_test.go`
 
 **Interfaces:**
-- Consumes: `SessionRequest` (Task 2), `sessionReply`, `sessionAddressOf` (Task 5), `SessionTx` (Task 7); `QuerySession`, `QueryAccount` (existing).
+- Consumes: `SessionRequest` (Task 2), `sessionReply`, `sessionAddressOf` (Task 5), `grantRequest` test helper (Task 6), `SessionTx` (Task 7); `QuerySession`, `QueryAccount` (existing).
 - Produces: `type SessionOutcome struct { Done bool; Stale bool; Reply [][2]string }`; `func sessionDone(r *SessionRequest, st *SessionStatus) bool`; `func outcomeReply(r *SessionRequest, identity, sessionAddress string, tx *SessionTx, st *SessionStatus) [][2]string`; `func (s *Service) PollSessionOutcome(r *SessionRequest, identity string, tx *SessionTx) (*SessionOutcome, error)`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2834,10 +2894,10 @@ git commit -m "feat(sessions): bridge session requests to iOS and Android"
 - Modify: `Makefile` (the `test.integration` target)
 
 **Interfaces:**
-- Consumes: everything above; `integrationRemote`, `integrationChainID`, `masterSeed`, `masterAddr` (existing, `core/integration_test.go`, same build tag).
+- Consumes: everything above, including the test helpers `launchLink`, `connectParams`, `withParam`, `withoutParam` (Task 2), `requireCode` (Task 1), `replyValue` (Task 6); `integrationRemote`, `integrationChainID`, `masterSeed`, `masterAddr` (existing, `core/integration_test.go`, same build tag).
 - Produces: `make test.integration` runs the session flows; with `GNOKEY` set, the generated commands also run through a real `gnokey`.
 
-Prerequisite: a gnodev on `127.0.0.1:26657`, chain id `dev`, from a gno revision that signs like `v1.5.0` — for example `npm run gnodev` in `~/bubblerumble` (gno `5cdbc25fc`, the mainnet line, which descends from `v1.5.0` and changes nothing in signing). The test makes a fresh funded identity per run, so it never touches test1's own sessions.
+Prerequisite: a gnodev on `127.0.0.1:26657`, chain id `dev`, at the gno revision in `go.mod` — `npm run gnodev` in `~/bubblerumble` builds exactly that one (`5cdbc25fc`). The test makes a fresh funded identity per run, so it never touches test1's own sessions.
 
 - [ ] **Step 1: Write the integration test**
 
@@ -2963,15 +3023,6 @@ func waitOutcome(t *testing.T, svc *Service, r *SessionRequest, id identity, tx 
 		}
 		time.Sleep(time.Second)
 	}
-}
-
-func replyValue(reply [][2]string, key string) string {
-	for _, kv := range reply {
-		if kv[0] == key {
-			return kv[1]
-		}
-	}
-	return ""
 }
 
 func newIntegrationService(t *testing.T) *Service {
@@ -3216,9 +3267,8 @@ func TestIntegrationSessionCommandsRunInGnokey(t *testing.T) {
 In `Makefile`, replace the `test.integration` block with:
 
 ```make
-# expects a local gnodev at 127.0.0.1:26657, chain id "dev", from a gno revision
-# that signs like the one in go.mod (v1.5.0, or its mainnet line — e.g.
-# `npm run gnodev` in bubblerumble). The session tests also run the generated
+# expects a local gnodev at 127.0.0.1:26657, chain id "dev", at the gno revision
+# in go.mod (`npm run gnodev` in bubblerumble builds that one). The session tests also run the generated
 # desktop commands through a gnokey built from go.mod's gno.
 gnokey_bin := build/gnokey
 
@@ -3245,7 +3295,354 @@ git commit -m "test(sessions): every session flow against gnodev, and the comman
 
 ---
 
+### Task 11: Scope hints on a `connect` without a key
+
+**Files:**
+- Create: `core/gnoconnect_hints.go`
+- Modify: `mobile/sessions.go`
+- Test: `core/gnoconnect_hints_test.go`, `mobile/sessions_test.go`
+
+**Interfaces:**
+- Consumes: `splitLaunchLink`, `decodeQuery`, codes (Task 1); `HostConnect`, `launchLink` test helper (Task 2); `Grant` (Task 4); `SessionStatus`, `QuerySession`, `ValidateAllowPaths`, `allowPathsCover`, `pathBearingRouteType`, `parseCoinsOrEmpty` (existing); `newTestBridge` (Task 9).
+- Produces (consumed by P2-M2/M3, which offer "Create a session for this app" when the chosen account's session does not cover the hints, through the existing builder pre-filled from them):
+
+```go
+type ScopeHints struct { Allow []string; Spend string; Period int64; Expires int64 }
+func ParseScopeHints(rawURL string) (*ScopeHints, error) // nil, nil when the connect carries no hint
+func SessionCovers(st *SessionStatus, h *ScopeHints, now time.Time) bool
+func (s *Service) SessionCoversHints(masterAddress, sessionAddress string, h *ScopeHints) (bool, error)
+// mobile
+type ScopeHints struct { Present bool; AllowJSON, Spend string; Period, Expires int64 }
+func (b *Bridge) ParseScopeHints(url string) (*ScopeHints, error)
+func (b *Bridge) SessionCoversHints(masterAddress, sessionAddress string, hints *ScopeHints) (bool, error)
+```
+
+Hints are what the producer intends to send through the wallet (gnoconnect-session.md, "`connect` without a key: scope hints"). Every hint is optional and validated with the grant rules, so the grammar is the same in both modes. A session covers the hints when it is live, outlives `expires`, permits every hinted entry, and — when `spend` is hinted — allows at least that much in a window that resets at least as often as the hinted `period`.
+
+- [ ] **Step 1: Write the failing test**
+
+`core/gnoconnect_hints_test.go`:
+
+```go
+package core
+
+import (
+	"testing"
+	"time"
+)
+
+func TestParseScopeHints(t *testing.T) {
+	h, err := ParseScopeHints(launchLink(HostConnect,
+		"allow", "vm/exec:gno.land/r/demo/a", "allow", "bank/send", "spend", "5000000ugnot", "period", "3600",
+		"expires", "2592000", "chainid", "dev", "callback", "app://cb", "state", "s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(h.Allow) != 2 || h.Spend != "5000000ugnot" || h.Period != 3600 || h.Expires != 2592000 {
+		t.Errorf("hints = %+v", h)
+	}
+
+	none, err := ParseScopeHints(launchLink(HostConnect, "chainid", "dev", "callback", "app://cb"))
+	if err != nil || none != nil {
+		t.Errorf("a connect without hints: %+v, %v", none, err)
+	}
+
+	only, err := ParseScopeHints(launchLink(HostConnect, "allow", "bank/send", "callback", "app://cb"))
+	if err != nil || only == nil || only.Spend != "" || only.Expires != 0 {
+		t.Errorf("hints are each optional: %+v, %v", only, err)
+	}
+}
+
+func TestParseScopeHintsRefusesBadHints(t *testing.T) {
+	for name, kv := range map[string][]string{
+		"bad entry":        {"allow", "vm/call"},
+		"bad spend":        {"spend", "five"},
+		"period too long":  {"period", "2592001"},
+		"expires 0":        {"expires", "0"},
+		"expires too long": {"expires", "126144001"},
+		"duplicate spend":  {"spend", "1ugnot", "spend", "2ugnot"},
+		"a key, not hints": {"pubkey", vectorGPub, "allow", "bank/send"},
+	} {
+		_, err := ParseScopeHints(launchLink(HostConnect, append(kv, "callback", "app://cb")...))
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+			continue
+		}
+		requireCode(t, err, CodeInvalidRequest)
+	}
+}
+
+func TestSessionCovers(t *testing.T) {
+	now := time.Unix(1790841600, 0)
+	st := &SessionStatus{Found: true, ExpiresAt: now.Unix() + 7*86400,
+		AllowPaths: []string{"vm/exec:gno.land/r/demo", "bank/send"}, SpendLimit: "10000000ugnot", SpendPeriod: 3600}
+	hints := &ScopeHints{Allow: []string{"vm/exec:gno.land/r/demo/a", "bank/send"}, Spend: "5000000ugnot", Period: 86400, Expires: 86400}
+	if !SessionCovers(st, hints, now) {
+		t.Fatal("a parent path, a bigger hourly budget and a longer life cover the hints")
+	}
+	for name, h := range map[string]*ScopeHints{
+		"another realm":        {Allow: []string{"vm/exec:gno.land/r/other"}},
+		"another route":        {Allow: []string{"vm/run"}},
+		"bare vm/exec":         {Allow: []string{"vm/exec"}},
+		"bigger budget":        {Spend: "20000000ugnot"},
+		"another denomination": {Spend: "1foo"},
+		"faster reset needed":  {Spend: "1ugnot", Period: 60},
+		"longer life":          {Expires: 30 * 86400},
+	} {
+		if SessionCovers(st, h, now) {
+			t.Errorf("%s: covered", name)
+		}
+	}
+	lifetimeCap := *st
+	lifetimeCap.SpendPeriod = 0
+	if SessionCovers(&lifetimeCap, &ScopeHints{Spend: "1ugnot", Period: 3600}, now) {
+		t.Error("a lifetime cap does not serve a per-hour budget")
+	}
+	wildcard := &SessionStatus{Found: true, AllowPaths: []string{"*"}}
+	if !SessionCovers(wildcard, &ScopeHints{Allow: []string{"*", "vm/run"}}, now) {
+		t.Error("* covers everything")
+	}
+	expired := *st
+	expired.ExpiresAt = now.Unix() - 1
+	if SessionCovers(&expired, &ScopeHints{}, now) || SessionCovers(&SessionStatus{}, &ScopeHints{}, now) {
+		t.Error("an expired or missing session covers nothing")
+	}
+}
+```
+
+Append to `mobile/sessions_test.go`:
+
+```go
+func TestScopeHintsCrossTheBridge(t *testing.T) {
+	b := newTestBridge(t)
+	h, err := b.ParseScopeHints("land.gno.gnokey://connect?allow=bank%2Fsend&spend=1ugnot&callback=app%3A%2F%2Fcb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.Present || h.AllowJSON != `["bank/send"]` || h.Spend != "1ugnot" || h.Period != 0 || h.Expires != 0 {
+		t.Errorf("hints = %+v", h)
+	}
+	none, err := b.ParseScopeHints("land.gno.gnokey://connect?callback=app%3A%2F%2Fcb")
+	if err != nil || none.Present {
+		t.Errorf("no hints: %+v, %v", none, err)
+	}
+	if _, err := b.SessionCoversHints("g1", "g1", nil); err == nil {
+		t.Error("nil hints accepted")
+	}
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `go test ./core/ -run 'ScopeHints|SessionCovers' && go test ./mobile/ -run ScopeHints`
+Expected: FAIL — `undefined: ParseScopeHints`, `undefined: SessionCovers`, `b.ParseScopeHints undefined`.
+
+- [ ] **Step 3: Write the hints code**
+
+`core/gnoconnect_hints.go`:
+
+```go
+package core
+
+import (
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gnolang/gno/tm2/pkg/std"
+)
+
+// ScopeHints are what a connect without a key says the producer will send
+// through the wallet. Every field is optional; they create no obligation, and
+// the producer learns nothing of what the wallet does with them.
+type ScopeHints struct {
+	Allow   []string // allow entries
+	Spend   string   // coins per period
+	Period  int64    // seconds; 0 = lifetime
+	Expires int64    // seconds the producer expects to keep sending
+}
+
+// ParseScopeHints reads the hints of a connect without a key: nil when it
+// carries none. They are validated like a grant, so a producer meets the same
+// grammar in both modes.
+func ParseScopeHints(rawURL string) (*ScopeHints, error) {
+	host, rawQuery, err := splitLaunchLink(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if host != HostConnect {
+		return nil, Errf(CodeInvalidRequest, "%q is not connect", host)
+	}
+	params, err := decodeQuery(rawQuery)
+	if err != nil {
+		return nil, err
+	}
+	h, hinted, seen := &ScopeHints{}, false, map[string]bool{}
+	for _, p := range params {
+		switch p.Key {
+		case "pubkey":
+			return nil, Errf(CodeInvalidRequest, "a connect with a key carries a grant, not hints")
+		case "allow":
+			h.Allow, hinted = append(h.Allow, p.Value), true
+			continue
+		case "spend", "period", "expires":
+		default:
+			continue
+		}
+		if seen[p.Key] {
+			return nil, Errf(CodeInvalidRequest, "%s appears more than once", p.Key)
+		}
+		seen[p.Key], hinted = true, true
+		switch p.Key {
+		case "spend":
+			if _, err := std.ParseCoins(p.Value); err != nil {
+				return nil, Errf(CodeInvalidRequest, "spend %q: %v", p.Value, err)
+			}
+			h.Spend = p.Value
+		case "period":
+			if h.Period, err = strconv.ParseInt(p.Value, 10, 64); err != nil || h.Period < 0 || h.Period > int64(std.MaxSpendPeriod) {
+				return nil, Errf(CodeInvalidRequest, "period %q: want 0 to %d seconds", p.Value, int64(std.MaxSpendPeriod))
+			}
+		case "expires":
+			if h.Expires, err = strconv.ParseInt(p.Value, 10, 64); err != nil || h.Expires < 1 || h.Expires > int64(std.MaxSessionDuration) {
+				return nil, Errf(CodeInvalidRequest, "expires %q: want 1 to %d seconds", p.Value, int64(std.MaxSessionDuration))
+			}
+		}
+	}
+	if !hinted {
+		return nil, nil
+	}
+	if len(h.Allow) > 0 {
+		if err := ValidateAllowPaths(h.Allow); err != nil {
+			return nil, Errf(CodeInvalidRequest, "allow: %v", err.(*CodedError).Msg)
+		}
+	}
+	return h, nil
+}
+
+// SessionCovers reports whether a session already serves the hints, so the
+// wallet has nothing to offer: live and outliving `expires`, permitting every
+// hinted entry, and with a hinted budget, at least that much in a window that
+// resets at least as often as the hinted period.
+func SessionCovers(st *SessionStatus, h *ScopeHints, now time.Time) bool {
+	if st == nil || !st.Found {
+		return false
+	}
+	if st.ExpiresAt != 0 && (st.ExpiresAt <= now.Unix() || st.ExpiresAt < now.Unix()+h.Expires) {
+		return false
+	}
+	for _, entry := range h.Allow {
+		if !allowEntryCovered(st.AllowPaths, entry) {
+			return false
+		}
+	}
+	if h.Spend != "" {
+		want, err := parseCoinsOrEmpty(h.Spend, "hinted spend")
+		if err != nil {
+			return false
+		}
+		have, err := parseCoinsOrEmpty(st.SpendLimit, "session spend limit")
+		if err != nil {
+			return false
+		}
+		for _, c := range want {
+			if have.AmountOf(c.Denom) < c.Amount {
+				return false
+			}
+		}
+		if h.Period > 0 && (st.SpendPeriod == 0 || st.SpendPeriod > h.Period) {
+			return false
+		}
+	}
+	return true
+}
+
+// allowEntryCovered reports whether a session holding paths may do everything
+// entry permits.
+func allowEntryCovered(paths []string, entry string) bool {
+	if slices.Contains(paths, "*") {
+		return true
+	}
+	if entry == "*" {
+		return false
+	}
+	if pkgPath, ok := strings.CutPrefix(entry, pathBearingRouteType+":"); ok {
+		return allowPathsCover(paths, pkgPath)
+	}
+	return slices.Contains(paths, entry)
+}
+
+// SessionCoversHints reads one session and checks it against the hints.
+func (s *Service) SessionCoversHints(masterAddress, sessionAddress string, h *ScopeHints) (bool, error) {
+	st, err := s.QuerySession(masterAddress, sessionAddress)
+	if err != nil {
+		return false, err
+	}
+	return SessionCovers(st, h, s.now()), nil
+}
+```
+
+Append to `mobile/sessions.go`:
+
+```go
+// ScopeHints are a connect's hints (see core.ScopeHints). Present is false when
+// the connect carries none.
+type ScopeHints struct {
+	Present   bool
+	AllowJSON string
+	Spend     string
+	Period    int64
+	Expires   int64
+}
+
+// ParseScopeHints reads the hints of a connect without a key.
+func (b *Bridge) ParseScopeHints(url string) (*ScopeHints, error) {
+	h, err := core.ParseScopeHints(url)
+	if err != nil {
+		return nil, err
+	}
+	if h == nil {
+		return &ScopeHints{}, nil
+	}
+	return &ScopeHints{Present: true, AllowJSON: encodeStringArray(h.Allow), Spend: h.Spend, Period: h.Period, Expires: h.Expires}, nil
+}
+
+// SessionCoversHints reports whether the session already serves the hints.
+func (b *Bridge) SessionCoversHints(masterAddress, sessionAddress string, hints *ScopeHints) (bool, error) {
+	if hints == nil {
+		return false, invalidSpecErr("hints must not be nil")
+	}
+	allow, err := decodeStringArray("hint allow", hints.AllowJSON)
+	if err != nil {
+		return false, err
+	}
+	return b.svc.SessionCoversHints(masterAddress, sessionAddress,
+		&core.ScopeHints{Allow: allow, Spend: hints.Spend, Period: hints.Period, Expires: hints.Expires})
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `go test ./core/ -run 'ScopeHints|SessionCovers' -v && go test ./mobile/ -v`
+Expected: PASS.
+
+- [ ] **Step 5: Check the gomobile binding still builds**
+
+Run: `make build.android`
+Expected: success.
+
+- [ ] **Step 6: Commit**
+
+```bash
+gofmt -w core/gnoconnect_hints.go core/gnoconnect_hints_test.go mobile/sessions.go mobile/sessions_test.go
+go vet ./... && go test ./core/... ./mobile/...
+git add core/gnoconnect_hints.go core/gnoconnect_hints_test.go mobile/sessions.go mobile/sessions_test.go
+git commit -m "feat(sessions): read a connect's scope hints and tell whether a session covers them"
+```
+
+---
+
 ## After this milestone
 
-- P2-M2 (iOS) and P2-M3 (Android) plans are written once this lands, from the bridge as it is: routing (`connect` with `pubkey` → `AcceptSessionRequest`, `disconnect` host), the consent screen (Review section), the handoff screen reusing `HandoffScreen`/`CommandBlock` with `Stale` regeneration, cancel → `cancelled`, `sessions` added to the identity-only `connect`'s `features`, and the Swift/Kotlin parser tests. Then the BR ↔ gnokey-mobile round trip on both platforms.
-- Scope hints on an identity-only `connect` stay deferred (spec §9, item 2).
+- P2-M2 (iOS) and P2-M3 (Android) plans are written once this lands, from the bridge as it is: routing (`connect` with `pubkey` → `AcceptSessionRequest`, `disconnect` host), the consent screen (Review section, including "this session cannot spend anything, not even its fees" when `spend` is absent), the handoff screen reusing `HandoffScreen`/`CommandBlock` with `Stale` regeneration, cancel → `cancelled`, `sessions` added to the identity-only `connect`'s `features`, and the Swift/Kotlin parser tests. For an identity-only `connect` with hints: when `SessionCoversHints` says the chosen account's session falls short, the consent sheet offers "Create a session for this app" through the existing builder pre-filled from the hints (allow entries, spend, period, `<expires>s`), then answers the `connect` with the new session. Then the BR ↔ gnokey-mobile round trip on both platforms.
