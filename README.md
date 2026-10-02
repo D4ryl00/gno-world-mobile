@@ -1,56 +1,55 @@
-# Welcome to your Expo app 👋
+# Bubble Rumble mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Play [Bubble Rumble](https://bubblerumble.net) on iOS and Android with a gno **session key**: your account
+authorises this app's own key once (budget per hour, expiry, Bubble Rumble realms only), then every boop is
+signed in the app. The authorisation goes through [gnokey-mobile](../gnokey-mobile) (a GnoConnect
+`connect` carrying the app's key, see `gnoconnect-session.md`) or, without it, a `gnokey` command run on
+your computer. Renewing is a new `connect` naming the current key in `old`; logging out is a `disconnect`.
 
-## Get started
+## Requirements
 
-1. Install dependencies
+- Node 22+, Xcode, Android SDK + NDK, Go (for gnonative and the e2e suite)
+- `~/gnonative` on branch `feat/sign-bytes`, packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
+- `~/gno` (gnodev and gnokey for the e2e suite)
 
-   ```bash
-   npm install
-   ```
+## Run
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+npm install ~/gnonative/expo/gnolang-gnonative-0.1.2.tgz
+npm install
+npx expo run:ios      # or: npx expo run:android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Settings → network: gno.land mainnet (default) or a local gnodev; off-chain server: bubblerumble.net (default).
 
-### Other setup steps
+## Test
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```sh
+npm test          # unit tests
+npm run typecheck
+npm run e2e       # gnodev + gnonative goserver + gnokey, end to end
+```
 
-## Learn more
+The e2e suite builds `gnokey` and `gnodev` from `~/gno`, and the gnonative goserver against `~/gno` (using a throwaway modfile in `.e2e/`) to ensure the goserver can decode events from the node. It uses ports 46657 (node RPC) and 46660 (goserver TCP), and needs network access once to fetch the realm from gno.land.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Layout
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- `src/app` — routes (expo-router)
+- `src/chain` — realm table, JSON parsing, `GameClient`, error classification
+- `src/components` — UI components
+- `src/game` — prices, clocks, gas and shot odds (ported from the site)
+- `src/hooks` — custom React hooks
+- `src/offchain` — the official server: identity, presence (and the US gate)
+- `src/screens` — screens and UI layouts
+- `src/session` — session keys, GnoConnect links, desktop commands, on-chain status, state machine
+- `src/state` — state management
+- `src/utils` — utility functions
+- `e2e` — end-to-end tests
+- `scripts` — build and test scripts
 
-## Join the community
+The `patches/` directory contains patch-package patches applied postinstall.
 
-Join our community of developers creating universal apps.
+## Known issues
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- On gno.land mainnet, gnonative 0.1.2 cannot decode transaction results that carry `bank.TransferEvent` (its pinned gno predates it): transactions land but the app reports them as failed until gnonative is rebuilt against a newer gno.
+- gnonative's Go service reports a session refusal without the chain's detail, so every refusal is shown as a budget problem.
