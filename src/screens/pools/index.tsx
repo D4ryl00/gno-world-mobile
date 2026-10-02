@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import type { AllPools } from '@/chain/game-client';
@@ -47,13 +47,18 @@ export function PoolsScreen() {
 
   useEffect(() => {
     mounted.current = true;
-    void load();
-    const t = setInterval(() => void load(), 15000);
     return () => {
       mounted.current = false;
-      clearInterval(t);
     };
-  }, [load]);
+  }, []);
+  // on every return to the list (e.g. after creating a pool), and every 15 s while it is shown
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      const t = setInterval(() => void load(), 15000);
+      return () => clearInterval(t);
+    }, [load]),
+  );
 
   const { live, closed } = sortPools(data?.pools ?? [], now);
   const topTeams = Object.entries(teams).sort(([, a], [, b]) => b.won - a.won || b.paid - a.paid).slice(0, 10);
