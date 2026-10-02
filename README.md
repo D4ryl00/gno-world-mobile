@@ -22,6 +22,17 @@ npx expo run:ios      # or: npx expo run:android
 
 Settings → network: gno.land mainnet (default) or a local gnodev; off-chain server: bubblerumble.net (default).
 
+## Play against a local gnodev
+
+After `npm run e2e` has built the tools and fetched the realm into `.e2e/`:
+
+```sh
+E=$PWD/.e2e
+$E/bin/gnodev local -home $E/gnohome -no-web -no-watch -empty-blocks -C $E/realms $E/realms/br5
+```
+
+Then Settings → Local gnodev → Save. Use absolute paths: `-C` changes gnodev's directory, so a relative realm path loads nothing local, and the realm then panics on its first call ("unexpected node with location …"). For the closest match to mainnet, build gnodev from the gno revision gnonative pins (`go.mod`), from `contribs/gnodev`.
+
 ## Test
 
 ```sh

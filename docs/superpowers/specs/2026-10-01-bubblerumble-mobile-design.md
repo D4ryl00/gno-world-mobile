@@ -382,11 +382,24 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 **À faire avant d'utiliser l'app sur mainnet :**
 
-1. **Vérification manuelle sur appareil,** jamais faite (le simulateur ne pouvait pas être piloté) :
-   liste dans le rapport de la tâche 17 du ledger, à reprendre dans `README.md`.
-2. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
+1. **Android** : jamais lancé au-delà du smoke screen de la tâche 2 (la liste manuelle n'a été faite
+   que sur iOS).
+2. **Correctifs iOS de gnonative à publier** (branche `fix/promise-registry-thread-safety`, partie de
+   `upstream/main`, non poussée) : registre des promesses non protégé contre les accès concurrents
+   (crash dans `PromiseBlock.remove()` quand plusieurs appels finissent ensemble) ; fin de flux `EOF`
+   remontée comme une erreur sur iOS (toute transaction réussie affichée en échec). L'archive utilisée
+   par l'app vient de la branche locale `local/bubblerumble` = PR #233 + ces correctifs.
+3. **`LICENSE`** : celui du template Expo (650 Industries), à remplacer par la licence choisie.
 
 **Réglé le 2026-10-02 :**
+
+- **Vérification manuelle sur simulateur iOS 26.5** (idb-companion 1.6.4), contre gnodev ligne
+  mainnet et la vraie archive : liste des pools mainnet, passage sur gnodev sans relance, demande de
+  session (gnokey-mobile en `connect` d'identité seule → commande desktop avec l'adresse connue ;
+  gnokey-mobile sans compte → `no_signer` → commande desktop), détection de la session sur la chaîne,
+  survie d'une demande en cours à un kill de l'app, création de pool, boop (« you are on top »),
+  budget de session épuisé refusé avec un message clair, budget restant et gains à jour. Corrigé en
+  route dans l'app : `no_signer` sans issue (`ef7f893`), drapeau proposé deux fois (`c108cf5`).
 
 - **gnonative et `bank.TransferEvent`** : gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) dans
   la PR #233 (`09ddd60`, avec `NewSnapshot` refusé par le DB natif) ; archive refaite et réinstallée
@@ -429,3 +442,7 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
+4. **Mineurs vus sur simulateur :** le bouton retour de l'écran d'un pool affiche « (tabs) » ; le
+   preset réseau choisi n'est pas mis en évidence ; « the node did not answer » s'affiche quand aucun
+   pool n'existe et que seules d'anciennes versions du realm échouent (cas gnodev) ; sur le runtime
+   iOS 26.2, UIKit tue l'app au rendu du clavier logiciel (environnement, pas l'app).
