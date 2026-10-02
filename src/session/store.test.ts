@@ -491,3 +491,41 @@ test('forget() aborts a running poll and clears everything', async () => {
   await settle();
   expect(store.getState().phase).toBe('none');
 });
+
+test('a network switch during a revoke poll does not clear the session; networkChanged pauses and resumes the request', async () => {
+  const s = setup();
+  const { api, store, setNetwork, deps } = s;
+  // sessions live on gnoland-1 only: on dev every key is absent
+  const onGnoland = api.querySessionAccount.bind(api);
+  api.querySessionAccount = async (m, k) => {
+    if (deps.network().chainId !== 'gnoland-1') throw new Error('session not found');
+    return onGnoland(m, k);
+  };
+  const key = await s.activate();
+  await store.getState().revoke();
+  const p = store.getState().pending!;
+  void store.getState().onReply(reply({ state: p.state, address: M, chainid: 'gnoland-1' })); // resolves when the poll ends
+  await settle();
+  expect(store.getState().phase).toBe('waiting-chain');
+
+  setNetwork('dev', 'http://127.0.0.1:26657');
+  await settle();
+  expect(store.getState().active?.address).toBe(key.address);
+  expect(store.getState().pending?.state).toBe(p.state);
+
+  await store.getState().networkChanged();
+  expect(store.getState().phase).toBe('error');
+  expect(store.getState().error).toBe('This request was started on gnoland-1. Switch back to that network to finish it, or cancel it.');
+  expect(store.getState().active?.address).toBe(key.address);
+
+  setNetwork('gnoland-1', 'https://rpc.gno.land:443');
+  await store.getState().networkChanged();
+  await settle();
+  expect(store.getState().phase).toBe('waiting-chain');
+  expect(store.getState().active?.address).toBe(key.address);
+  api.sessions.clear(); // the revoke lands on gnoland-1
+  await settle();
+  expect(store.getState().phase).toBe('none');
+  expect(store.getState().active).toBeUndefined();
+  expect(store.getState().pending).toBeUndefined();
+});

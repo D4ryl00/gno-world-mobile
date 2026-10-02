@@ -15,6 +15,12 @@ import type { ActiveSession, Grant, SessionKey } from './types';
 /** restore() could not unlock the active key (e.g. the secure store lost the keybase password after a backup restore). */
 export const KEY_LOST_ERROR = 'This phone can no longer use its session key. Forget it here, then get a new session.';
 
+const OTHER_CHAIN_REQUEST = /^This request was started on \S+\. Switch back to that network/;
+const otherChainRequestError = (chainId: string) =>
+  `This request was started on ${chainId}. Switch back to that network to finish it, or cancel it.`;
+/** The error shown while a pending request belongs to another network than the settings' one. */
+export const isOtherChainRequest = (error?: string) => !!error && OTHER_CHAIN_REQUEST.test(error);
+
 export type Phase = 'none' | 'waiting-wallet' | 'desktop' | 'waiting-chain' | 'active' | 'error';
 
 export interface Pending {
@@ -55,6 +61,8 @@ export interface SessionState {
   refresh(): Promise<SessionStatus | null>;
   restore(): Promise<void>;
   cancel(): void;
+  /** The settings' network changed: stop watching the old one and resume or pause what is pending. */
+  networkChanged(): Promise<void>;
   /** Drop the session and any request from this phone only; the chain keeps the session until it expires or is revoked. */
   forget(): void;
 }
@@ -80,17 +88,14 @@ export const createSessionStore = (d: SessionDeps) => {
           return revokeCommand(p.key.pubkey, ctx);
         };
 
-        /** Check if this pending request and poll are still valid (not cancelled/superseded). */
+        /** Check if this pending request and poll are still valid (not cancelled/superseded, still on its network). */
         const current = (p: Pending, signal: { aborted: boolean }): boolean =>
-          !signal.aborted && get().pending?.state === p.state;
+          !signal.aborted && get().pending?.state === p.state && d.network().chainId === p.chainId;
 
         const waitForChain = async (p: Pending, master: string) => {
           // Check network chain before polling
           if (p.chainId !== d.network().chainId) {
-            set({
-              phase: 'error',
-              error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
-            });
+            set({ phase: 'error', error: otherChainRequestError(p.chainId) });
             return;
           }
 
@@ -114,7 +119,7 @@ export const createSessionStore = (d: SessionDeps) => {
               pending: undefined, command: undefined, error: undefined,
             });
           } catch (e) {
-            if (!signal.aborted) fail(e);
+            if (current(p, signal)) fail(e);
           }
         };
 
@@ -124,10 +129,7 @@ export const createSessionStore = (d: SessionDeps) => {
           if (!p) return;
           // Check network chain before showing desktop or polling
           if (p.chainId !== d.network().chainId) {
-            set({
-              phase: 'error',
-              error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
-            });
+            set({ phase: 'error', error: otherChainRequestError(p.chainId) });
             return;
           }
           const next = { ...p, via: 'desktop' as const };
@@ -290,10 +292,7 @@ export const createSessionStore = (d: SessionDeps) => {
             if (p && get().pending?.state === p.state) {
               // Check network chain before resuming
               if (p.chainId !== d.network().chainId) {
-                set({
-                  phase: 'error',
-                  error: `This request was started on ${p.chainId}. Switch back to that network to finish it, or cancel it.`,
-                });
+                set({ phase: 'error', error: otherChainRequestError(p.chainId) });
               } else if (master) {
                 void waitForChain(p, master);
               } else {
@@ -305,6 +304,11 @@ export const createSessionStore = (d: SessionDeps) => {
           cancel(): void {
             poll.aborted = true;
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
+          },
+
+          async networkChanged(): Promise<void> {
+            poll.aborted = true;
+            await get().restore();
           },
 
           forget(): void {

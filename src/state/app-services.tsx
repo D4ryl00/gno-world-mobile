@@ -10,7 +10,7 @@ import { GameClient } from '@/chain/game-client';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
 import { presenceStore, sendPresence } from '@/offchain/presence';
 import { createSessionStore, type SessionState } from '@/session/store';
-import { settingsStore, useSettings } from '@/state/settings';
+import { settingsStore, useSettings, watchHydration } from '@/state/settings';
 import { randomHex } from '@/utils/random';
 import { secureStore } from '@/utils/secure';
 
@@ -57,12 +57,23 @@ export function AppServices({ children }: PropsWithChildren) {
     void api.setChainID(chainId).catch(() => undefined);
   }, [api, chainId, remote]);
 
-  // resume a pending session request / re-unlock the active key on launch
+  // resume a pending session request / re-unlock the active key on launch; then follow network switches
   useEffect(() => {
     const s = services.session;
-    const go = () => void s.getState().restore().catch(() => undefined);
-    if (s.persist.hasHydrated()) go();
-    else return s.persist.onFinishHydration(go);
+    let offNetwork: (() => void) | undefined;
+    const go = () => {
+      if (offNetwork) return;
+      void s.getState().restore().catch(() => undefined);
+      offNetwork = settingsStore.subscribe((now, before) => {
+        if (now.chainId !== before.chainId || now.remote !== before.remote)
+          void s.getState().networkChanged().catch(() => undefined);
+      });
+    };
+    const offHydration = watchHydration(s.persist, go);
+    return () => {
+      offHydration();
+      offNetwork?.();
+    };
   }, [services]);
 
   // presence heartbeat: every 20 s while in the foreground

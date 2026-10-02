@@ -58,6 +58,7 @@ export function SessionScreen() {
       <Card>
         <Text style={styles.warn}>{s.error}</Text>
         {can.forget ? <Button kind="danger" title="Forget this session on this phone" onPress={s.forget} /> : null}
+        {can.retry ? <Button title="Retry" onPress={() => void s.restore().catch(() => undefined)} /> : null}
         <Button kind="secondary" title="Back" onPress={s.cancel} />
       </Card>,
     );

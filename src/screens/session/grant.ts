@@ -1,4 +1,4 @@
-import { KEY_LOST_ERROR } from '@/session/store';
+import { isOtherChainRequest, KEY_LOST_ERROR } from '@/session/store';
 import type { Grant } from '@/session/types';
 import { toUgnot } from '@/utils/gnot';
 
@@ -22,6 +22,6 @@ export function activeCard(sessionChainId: string, currentChainId: string, hasSt
 }
 
 /** The buttons the error card shows besides Back. */
-export function errorActions(error: string | undefined, hasActive: boolean): { forget: boolean } {
-  return { forget: hasActive && error === KEY_LOST_ERROR };
+export function errorActions(error: string | undefined, hasActive: boolean): { forget: boolean; retry: boolean } {
+  return { forget: hasActive && error === KEY_LOST_ERROR, retry: isOtherChainRequest(error) };
 }
