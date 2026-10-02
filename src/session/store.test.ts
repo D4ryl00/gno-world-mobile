@@ -586,3 +586,27 @@ test('a wallet with no account (no_signer) leads to the desktop command, where t
   expect(store.getState().pending).toMatchObject({ state: p.state, via: 'desktop' });
   expect(store.getState().command).toMatch(/^gnokey maketx session create -pubkey gpub1/);
 });
+
+test('a wallet error ends the request and returns to the form, keeping the code for an alert', async () => {
+  const { store } = setup();
+  await store.getState().begin('create', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  await store.getState().onReply(reply({ status: 'error', code: 'network_declined', state: p.state }));
+  expect(store.getState().phase).toBe('none');
+  expect(store.getState().pending).toBeUndefined();
+  expect(store.getState().error).toBeUndefined();
+  expect(store.getState().walletError).toEqual({ code: 'network_declined', op: 'create' });
+  store.getState().clearWalletError();
+  expect(store.getState().walletError).toBeUndefined();
+});
+
+test('a wallet error on a revoke keeps the active session on screen', async () => {
+  const { store, activate } = setup();
+  await activate();
+  await store.getState().revoke();
+  const p = store.getState().pending!;
+  await store.getState().onReply(reply({ status: 'error', code: 'signer_unavailable', state: p.state }));
+  expect(store.getState().phase).toBe('active');
+  expect(store.getState().active).toBeDefined();
+  expect(store.getState().walletError).toEqual({ code: 'signer_unavailable', op: 'revoke' });
+});

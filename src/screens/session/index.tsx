@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { ugnot } from '@/chain/api';
@@ -21,6 +21,7 @@ import { gnot, humanDuration } from '@/utils/gnot';
 import { Earnings } from './earnings';
 import { activeCard, errorActions } from './grant';
 import { GrantForm } from './grant-form';
+import { walletErrorText } from './wallet-error';
 
 export function SessionScreen() {
   const { api } = useServices();
@@ -50,6 +51,16 @@ export function SessionScreen() {
       setBalance(null);
     };
   }, [s.phase, s.active?.address, s.active?.chainId, chainId]);
+
+  // the wallet answered with an error: the request is over (the store is back on the form or the session);
+  // tell the user once, in words
+  useEffect(() => {
+    const w = s.walletError;
+    if (!w) return;
+    const { title, message } = walletErrorText(w.code, w.op, chainId);
+    s.clearWalletError();
+    Alert.alert(title, message);
+  }, [s.walletError]);
 
   const page = (body: ReactNode) => <ScrollView contentContainerStyle={styles.page}>{body}</ScrollView>;
 

@@ -61,6 +61,9 @@ export interface SessionState {
   refresh(): Promise<SessionStatus | null>;
   restore(): Promise<void>;
   cancel(): void;
+  /** The wallet answered a request with an error: the request is over, the screen shows this once. */
+  walletError?: { code: string; op: Pending['op'] };
+  clearWalletError(): void;
   /** The network is about to change: stop reading the chain, keep everything else (restore() resumes). */
   pause(): void;
   /** gnonative is now on the new network: stop watching the old one and resume or pause what is pending. */
@@ -244,7 +247,11 @@ export const createSessionStore = (d: SessionDeps) => {
                 desktop();
                 return;
               }
-              set({ phase: 'error', error: r.code || 'the wallet reported an error' });
+              // the request is over: back to where the user was, with the answer for an alert
+              set({
+                pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none',
+                walletError: { code: r.code, op: p.op },
+              });
               return;
             }
             const master = p.op === 'create' ? r.address : get().active?.master;
@@ -316,6 +323,10 @@ export const createSessionStore = (d: SessionDeps) => {
           cancel(): void {
             poll.aborted = true;
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
+          },
+
+          clearWalletError(): void {
+            set({ walletError: undefined });
           },
 
           pause(): void {
