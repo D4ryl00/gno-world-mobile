@@ -63,7 +63,8 @@ export interface SessionState {
   cancel(): void;
   /** The wallet answered a request with an error: the request is over, the screen shows this once. */
   walletError?: { code: string; op: Pending['op'] };
-  clearWalletError(): void;
+  /** Returns the wallet error and clears it in one step, so only one reader ever shows it. */
+  takeWalletError(): { code: string; op: Pending['op'] } | undefined;
   /** The network is about to change: stop reading the chain, keep everything else (restore() resumes). */
   pause(): void;
   /** gnonative is now on the new network: stop watching the old one and resume or pause what is pending. */
@@ -325,8 +326,10 @@ export const createSessionStore = (d: SessionDeps) => {
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
           },
 
-          clearWalletError(): void {
-            set({ walletError: undefined });
+          takeWalletError() {
+            const w = get().walletError;
+            if (w) set({ walletError: undefined });
+            return w;
           },
 
           pause(): void {

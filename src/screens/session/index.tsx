@@ -55,10 +55,9 @@ export function SessionScreen() {
   // the wallet answered with an error: the request is over (the store is back on the form or the session);
   // tell the user once, in words
   useEffect(() => {
-    const w = s.walletError;
+    const w = s.walletError && s.takeWalletError(); // taken once, even if this effect runs twice
     if (!w) return;
     const { title, message } = walletErrorText(w.code, w.op, chainId);
-    s.clearWalletError();
     Alert.alert(title, message);
   }, [s.walletError]);
 

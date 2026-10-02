@@ -596,7 +596,9 @@ test('a wallet error ends the request and returns to the form, keeping the code 
   expect(store.getState().pending).toBeUndefined();
   expect(store.getState().error).toBeUndefined();
   expect(store.getState().walletError).toEqual({ code: 'network_declined', op: 'create' });
-  store.getState().clearWalletError();
+  // taken once: a second reader (React StrictMode re-running the effect, a second mounted screen) gets nothing
+  expect(store.getState().takeWalletError()).toEqual({ code: 'network_declined', op: 'create' });
+  expect(store.getState().takeWalletError()).toBeUndefined();
   expect(store.getState().walletError).toBeUndefined();
 });
 
