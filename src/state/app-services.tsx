@@ -10,7 +10,8 @@ import { GameClient } from '@/chain/game-client';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
 import { presenceStore, sendPresence } from '@/offchain/presence';
 import { createSessionStore, type SessionState } from '@/session/store';
-import { settingsStore, useSettings, watchHydration } from '@/state/settings';
+import { createNetworkSync } from '@/state/network-sync';
+import { settingsStore, watchHydration } from '@/state/settings';
 import { randomHex } from '@/utils/random';
 import { secureStore } from '@/utils/secure';
 
@@ -21,17 +22,31 @@ interface Services {
   game: GameClient;
   offchain: Offchain;
   session: SessionStore;
+  net: ReturnType<typeof createNetworkSync>;
 }
 
 const Ctx = createContext<Services | null>(null);
 
 export function AppServices({ children }: PropsWithChildren) {
   const { gnonative } = useGnoNativeContext();
-  const api: ChainApi = gnonative; // GnoNativeApi satisfies ChainApi (guarded by _Check in src/chain/api.ts)
-  const chainId = useSettings((s) => s.chainId);
-  const remote = useSettings((s) => s.remote);
+  const api: ChainApi = gnonative; // GnoNativeApi satisfies ChainApi (guarded by gnoNativeSatisfiesChainApi in src/chain/api.ts)
 
   const services = useMemo<Services>(() => {
+    // The network gnonative is actually on. GnoNativeProvider starts on the settings' network; later
+    // switches become current only once gnonative has applied them (see network-sync.ts).
+    const { chainId, remote } = settingsStore.getState();
+    const net = createNetworkSync({
+      initial: { chainId, remote },
+      pause: () => session.getState().pause(),
+      apply: async (n) => {
+        await api.setRemote(n.remote);
+        await api.setChainID(n.chainId);
+      },
+      changed: async () => {
+        // before hydration, the launch-time restore() picks up the current network itself
+        if (session.persist.hasHydrated()) await session.getState().networkChanged();
+      },
+    });
     const offchain = createOffchain({
       baseUrl: () => settingsStore.getState().offchainUrl,
       bid: () => browserId(secureStore, randomHex),
@@ -43,37 +58,29 @@ export function AppServices({ children }: PropsWithChildren) {
       openURL: (url) => Linking.openURL(url).then(() => undefined),
       randomHex,
       now: () => Date.now(),
-      network: () => {
-        const s = settingsStore.getState();
-        return { chainId: s.chainId, remote: s.remote };
-      },
+      network: () => net.current(),
     });
-    return { api, game: new GameClient(api, () => settingsStore.getState().chainId), offchain, session };
+    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net };
   }, [api]);
 
-  // keep gnonative on the configured network
-  useEffect(() => {
-    void api.setRemote(remote).catch(() => undefined);
-    void api.setChainID(chainId).catch(() => undefined);
-  }, [api, chainId, remote]);
-
-  // resume a pending session request / re-unlock the active key on launch; then follow network switches
-  useEffect(() => {
-    const s = services.session;
-    let offNetwork: (() => void) | undefined;
-    const go = () => {
-      if (offNetwork) return;
-      void s.getState().restore().catch(() => undefined);
-      offNetwork = settingsStore.subscribe((now, before) => {
+  // follow network switches from Settings: gnonative first, then the session store
+  useEffect(
+    () =>
+      settingsStore.subscribe((now, before) => {
         if (now.chainId !== before.chainId || now.remote !== before.remote)
-          void s.getState().networkChanged().catch(() => undefined);
-      });
-    };
-    const offHydration = watchHydration(s.persist, go);
-    return () => {
-      offHydration();
-      offNetwork?.();
-    };
+          void services.net.set({ chainId: now.chainId, remote: now.remote });
+      }),
+    [services],
+  );
+
+  // resume a pending session request / re-unlock the active key on launch
+  useEffect(() => {
+    let done = false;
+    return watchHydration(services.session.persist, () => {
+      if (done) return;
+      done = true;
+      void services.session.getState().restore().catch(() => undefined);
+    });
   }, [services]);
 
   // presence heartbeat: every 20 s while in the foreground

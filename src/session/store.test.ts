@@ -560,3 +560,19 @@ test('a double tap on Revoke opens one link', async () => {
   await Promise.all([store.getState().revoke(), store.getState().revoke()]);
   expect(opened).toHaveLength(2); // the grant, then one revoke
 });
+
+test('pause() stops the running poll without dropping the request; restore() resumes it', async () => {
+  const { store, onChain } = setup();
+  await store.getState().begin('create', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  await store.getState().onReply(reply({ state: p.state, address: M, session: OTHER }));
+  expect(store.getState().phase).toBe('waiting-chain');
+  store.getState().pause();
+  onChain(p.key.address);
+  await settle();
+  expect(store.getState().active).toBeUndefined(); // the paused poll did not act
+  expect(store.getState().pending?.state).toBe(p.state); // the request is kept
+  await store.getState().restore();
+  await settle();
+  expect(store.getState().active?.address).toBe(p.key.address);
+});

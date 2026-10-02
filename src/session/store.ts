@@ -61,7 +61,9 @@ export interface SessionState {
   refresh(): Promise<SessionStatus | null>;
   restore(): Promise<void>;
   cancel(): void;
-  /** The settings' network changed: stop watching the old one and resume or pause what is pending. */
+  /** The network is about to change: stop reading the chain, keep everything else (restore() resumes). */
+  pause(): void;
+  /** gnonative is now on the new network: stop watching the old one and resume or pause what is pending. */
   networkChanged(): Promise<void>;
   /** Drop the session and any request from this phone only; the chain keeps the session until it expires or is revoked. */
   forget(): void;
@@ -313,6 +315,10 @@ export const createSessionStore = (d: SessionDeps) => {
           cancel(): void {
             poll.aborted = true;
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
+          },
+
+          pause(): void {
+            poll.aborted = true;
           },
 
           async networkChanged(): Promise<void> {
