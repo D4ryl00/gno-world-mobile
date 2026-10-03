@@ -397,7 +397,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   dans un vrai `gnokey` ; `make build.android` exporte la surface.
 
 - P2-M1b (les mineurs reportés de P2-M1) : 6 tâches sur `feat/deeplink-tx` (`a5f0d0d`..`d241eef`,
-  non poussé), plan `docs/superpowers/plans/2026-10-03-p2-m1b-session-minors.md`, revue finale
+  poussé sur la PR #138), plan `docs/superpowers/plans/2026-10-03-p2-m1b-session-minors.md`, revue finale
   « prêt » sans Critical ni Important. Expiration et `ExpiresAt` jugés au temps de la chaîne
   (`min(horloge du téléphone, heure du dernier bloc)`) ; pin `signer` comparé comme adresse ; clé de
   session déjà compte ordinaire refusée d'emblée (`invalid_request`) ; lien refusé puis relivré
