@@ -413,7 +413,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   réussi (c'est ce qui rend sûr `already_done` sur un `disconnect`). Plus rien de reporté dans P2-M1.
 
 - P2-M2 (iOS de gnokey-mobile : `connect` avec clé, `disconnect`, indications de périmètre) : 9 tâches
-  sur `feat/deeplink-tx` (`8b70461`..`2295ea1`, local, pas encore poussé), plan
+  sur `feat/deeplink-tx` (`8b70461`..`2295ea1`, poussé sur la PR #138 le 2026-10-03), plan
   `docs/superpowers/plans/2026-10-03-p2-m2-gnokey-ios-sessions.md`, 42 tests XCTest
   (`make test.ios device=<udid>`, nouvelle cible). Aller-retour manuel Bubble Rumble ↔ gnokey-mobile
   sur simulateur iOS 26.5 contre gnodev, les 9 étapes conformes après deux correctifs :
@@ -428,6 +428,26 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   constructeur ; nombre de gas formaté selon la locale (« 2 000 000 ») ; solde maître parfois
   périmé jusqu'au rafraîchissement ; `_` encodé `%5F` dans les réponses (existant, valide).
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m2-gnokey-ios-sessions/progress.md`.
+
+- P2-M3 (Android de gnokey-mobile : `connect` avec clé, `disconnect`, indications de périmètre) : 9 tâches
+  sur `feat/deeplink-tx` (`96c47c1`..`ef7deda`, poussé sur la PR #138 le 2026-10-03), plan
+  `docs/superpowers/plans/2026-10-03-p2-m3-gnokey-android-sessions.md`, 25 tests JUnit sur la JVM
+  (`make test.android`, nouvelle cible). Même pont et mêmes choix d'écran que P2-M2 (revue en dialogue
+  plein écran, retour = `cancelled`), avec en plus : un lien qui lance l'app à froid attend le pont
+  (`CompletableDeferred`) au lieu d'être parqué, et les indications d'un `connect` ne sont plus perdues au
+  démarrage à froid ; une durée indiquée égale à un préréglage sélectionne le préréglage (le mineur
+  « 1 day » / « 24 hours » de P2-M2 évité) ; l'intent de lancement n'est relu ni après recréation de
+  l'activité ni depuis les récents. Aller-retour manuel Bubble Rumble ↔ gnokey-mobile sur l'émulateur
+  Android 17 (arm64) contre gnodev, les 9 étapes conformes après un correctif :
+  - `ef7deda` : la surveillance de la chaîne tournait aussi en arrière-plan ; elle trouvait la
+    transaction, effaçait la demande et ouvrait le callback, qu'Android bloque depuis une app en
+    arrière-plan (`BAL_BLOCK`) — le producteur n'était jamais répondu. Elle ne tourne plus que l'app au
+    premier plan (`repeatOnLifecycle(RESUMED)`) et regarde dès le retour, comme iOS qui suspend l'app.
+  Mineurs reportés : un plan lancé juste après « Switch » peut croiser le changement de réseau et
+  afficher `wrong_network` une fois (« Try again » répare ; iOS a la même forme) ; refuser le changement
+  de réseau d'un lien `sendtx` refuse aussi une demande de session en attente (comme iOS) ; « Create a
+  session for this app » enregistre les indications dans le brouillon persistant (comme iOS).
+  Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m3-gnokey-android-sessions/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
@@ -491,14 +511,14 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      l'aller-retour avec P3. Découpé en jalons : P2-M1, `core/` et pont `mobile/`, plan
      `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md`, sur la branche
      `feat/deeplink-tx` (PR #138), gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) comme
-     gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) **livré le 2026-10-03** (voir
-     Livré) ; P2-M3 (Android) à écrire maintenant, à partir du même pont et des choix d'écran de P2-M2 ;
+     gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) et P2-M3 (Android) **livrés le
+     2026-10-03** (voir Livré) : P2 est complet sur les deux plateformes ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6).
 2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : retenues dans P2 (tâche 11 de
-   P2-M1, livrée ; écran iOS dans P2-M2, livré ; Android dans P2-M3). Bubble Rumble ne s'en sert pas.
+   P2-M1, livrée ; écran iOS dans P2-M2, livré ; Android dans P2-M3, livré). Bubble Rumble ne s'en sert pas.
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
