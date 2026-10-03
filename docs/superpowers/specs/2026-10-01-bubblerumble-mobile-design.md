@@ -424,9 +424,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   - `2295ea1` : une session créée pour exactement l'`expires` indiqué ne le « couvrait » jamais
     (`ExpiresAt ≥ maintenant + expires`) ; l'`expires` d'un `connect` compte désormais depuis
     l'arrivée de la demande (moins une minute de marge). À reprendre tel quel dans P2-M3.
-  Mineurs reportés : « 1 day » affiché à côté du préréglage équivalent « 24 hours » dans le
-  constructeur ; nombre de gas formaté selon la locale (« 2 000 000 ») ; solde maître parfois
-  périmé jusqu'au rafraîchissement ; `_` encodé `%5F` dans les réponses (existant, valide).
+  Ses 4 mineurs reportés sont réglés (voir « Mineurs restants », ci-dessous).
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m2-gnokey-ios-sessions/progress.md`.
 
 - P2-M3 (Android de gnokey-mobile : `connect` avec clé, `disconnect`, indications de périmètre) : 9 tâches
@@ -458,10 +456,30 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
     enregistré, et il revient à la fin de la construction (Back ou session arrivée).
   Vérifié à la main sur simulateur iOS 26.5 et émulateur Android 17 contre gnodev, Bubble Rumble comme
   producteur. Revue finale : relecture par l'auteur (pas de sous-agent), sans Critical ni Important.
-  Mineur reporté : accepter le changement de réseau d'un lien `sendtx` vers une chaîne X laisse une
-  demande de session pour une chaîne Y en attente, dont le plan dit alors `wrong_network` (existant :
-  une seule invite pour deux liens).
+  Son mineur reporté est réglé (voir « Mineurs restants », ci-dessous).
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m3b-network-and-draft-minors/progress.md`.
+
+- Mineurs restants (P2-M2, P2-M3b, Bubble Rumble), plan `docs/superpowers/plans/2026-10-04-remaining-minors.md`.
+  gnokey-mobile, `feat/deeplink-tx` (`8cd1875`..`52003b2`, poussé sur la PR #138 le 2026-10-04), 46 tests
+  XCTest, 26 JUnit :
+  - iOS : une durée indiquée égale à un préréglage sélectionne le préréglage (plus de « 1 day » à côté
+    de « 24 hours ») ; les réponses ne percent-encodent que ce que RFC 3986 réserve (`invalid_request`,
+    `expires_at` lisibles) ; le coût du handoff affiche « (2000000 gas) » sans groupement selon la
+    locale ; le solde maître est relu une fois une demande de session répondue (comme Android) ;
+  - iOS et Android : une revue de session dont le wallet a quitté la chaîne (le changement de réseau
+    d'un autre lien) affiche, au lieu de `wrong_network` et d'un « Try again » sans issue, la chaîne et
+    l'endpoint demandés avec « Switch to chain … » (bascule puis replanifie) ou « Decline »
+    (`network_declined`) — le contrat natif appliqué dans la revue même. L'invite de la racine avait été
+    essayée d'abord : SwiftUI perd une alerte levée pendant que la feuille de revue est à l'écran.
+    Trouvé en route sur Android : la carte et le bouton d'approbation lançaient sur leur propre scope,
+    annulé par le rechargement du plan (affiché « rememberCoroutineScope left the composition ») ; ils
+    utilisent celui de l'écran, et une annulation n'est plus affichée comme une erreur.
+  Bubble Rumble, `main` (`4cdca67`, `beff113`) : le préréglage réseau correspondant aux champs est mis
+  en évidence (`matchingPreset`, testé ; `accessibilityState.selected`) ; le bouton retour de l'écran
+  d'un pool dit « Pools » au lieu de « (tabs) ». 163 tests jest, tsc et lint propres.
+  Tout vérifié à la main sur simulateur iOS 26.5 (et Android 17 pour la revue) contre gnodev. Revue
+  finale : relecture par l'auteur (pas de sous-agent).
+  Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-04-remaining-minors/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
@@ -536,6 +554,6 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
-4. **Mineurs vus sur simulateur :** le bouton retour de l'écran d'un pool affiche « (tabs) » ; le
-   preset réseau choisi n'est pas mis en évidence ; sur le runtime
-   iOS 26.2, UIKit tue l'app au rendu du clavier logiciel (environnement, pas l'app).
+4. **Mineurs vus sur simulateur :** réglés le 2026-10-04 (voir Livré, « Mineurs restants »), sauf
+   un problème d'environnement, pas de l'app : sur le runtime iOS 26.2, UIKit tue l'app au rendu du
+   clavier logiciel.
