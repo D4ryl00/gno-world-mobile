@@ -376,7 +376,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-03. À mettre à jour à chaque étape livrée.
+État au 2026-10-04. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -443,11 +443,25 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
     transaction, effaçait la demande et ouvrait le callback, qu'Android bloque depuis une app en
     arrière-plan (`BAL_BLOCK`) — le producteur n'était jamais répondu. Elle ne tourne plus que l'app au
     premier plan (`repeatOnLifecycle(RESUMED)`) et regarde dès le retour, comme iOS qui suspend l'app.
-  Mineurs reportés : un plan lancé juste après « Switch » peut croiser le changement de réseau et
-  afficher `wrong_network` une fois (« Try again » répare ; iOS a la même forme) ; refuser le changement
-  de réseau d'un lien `sendtx` refuse aussi une demande de session en attente (comme iOS) ; « Create a
-  session for this app » enregistre les indications dans le brouillon persistant (comme iOS).
+  Ses 3 mineurs reportés sont réglés par P2-M3b (ci-dessous).
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m3-gnokey-android-sessions/progress.md`.
+
+- P2-M3b (les 3 mineurs reportés de P2-M3, sur iOS et Android, qui avaient la même forme) : 3 tâches
+  sur `feat/deeplink-tx` (`19e7692`..`971dfe6`, poussé sur la PR #138 le 2026-10-04), plan
+  `docs/superpowers/plans/2026-10-03-p2-m3b-network-and-draft-minors.md`, 43 tests XCTest, 26 JUnit :
+  - refuser un changement de réseau ne répond `network_declined` qu'aux demandes (`connect`, session)
+    qui nommaient une autre chaîne (`needsSwitch`, testé sur les deux plateformes) ; une demande sur la
+    chaîne courante, ou sans chaîne, reste en attente ;
+  - après « Switch », la revue de session et le consentement `connect` attendent que le changement de
+    réseau soit appliqué (`switchingNetwork`) : plus de `wrong_network` au premier plan ;
+  - « Create a session for this app » garde le brouillon de l'utilisateur de côté : c'est lui qui est
+    enregistré, et il revient à la fin de la construction (Back ou session arrivée).
+  Vérifié à la main sur simulateur iOS 26.5 et émulateur Android 17 contre gnodev, Bubble Rumble comme
+  producteur. Revue finale : relecture par l'auteur (pas de sous-agent), sans Critical ni Important.
+  Mineur reporté : accepter le changement de réseau d'un lien `sendtx` vers une chaîne X laisse une
+  demande de session pour une chaîne Y en attente, dont le plan dit alors `wrong_network` (existant :
+  une seule invite pour deux liens).
+  Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m3b-network-and-draft-minors/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
