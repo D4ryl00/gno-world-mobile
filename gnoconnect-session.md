@@ -183,6 +183,9 @@ host=<host, lowercased>
 
 - **No line breaks in values.** A value containing a control character is
   `invalid_request`.
+- **No `=` in parameter names.** A decoded name containing `=` is
+  `invalid_request`: `a%3Db=c` and `a=b%3Dc` would give the same line, so a
+  relay could rename a signed parameter without breaking the signature.
 - **Everything in the request is covered,** including `callback`, `chainid`,
   `iat`, `state`, `signer` and `old`. Changing any of them breaks the
   signature, so a request redirected to another callback or replayed on another

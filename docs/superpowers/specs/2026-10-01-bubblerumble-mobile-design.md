@@ -376,7 +376,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-02. À mettre à jour à chaque étape livrée.
+État au 2026-10-03. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -387,6 +387,20 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 - P3-M1 (session + boucle de jeu) : 17 tâches sur `main` (`8ca8ed3`..`85ef882`), revue de chaque
   tâche puis revue finale de la branche ; 147 tests unitaires, 5 tests de bout en bout sur gnodev.
   Ledger (non versionné) : `.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`.
+
+- P2-M1 (`core/` + pont `mobile/` de gnokey-mobile) : 12 tâches sur `feat/deeplink-tx`
+  (`767f432`..`cb83a36`, non poussé), exécution inline puis revue finale de la branche, correctifs
+  `b546701` (le pont revérifie la preuve du lien que lui rend le natif ; `PollSessionOutcome` refuse
+  une autre chaîne ; nom de paramètre contenant `=` refusé — règle ajoutée à
+  `gnoconnect-session.md` ; une session sans `spend` ne couvre aucune indication). Tests unitaires
+  Go + 2 tests d'intégration sur gnodev (`npm run gnodev`), dont un qui passe les commandes générées
+  dans un vrai `gnokey` ; `make build.android` exporte la surface. Mineurs reportés, à traiter dans
+  P2-M2/M3 : expiration jugée à l'horloge du téléphone (prendre l'heure du bloc), `Stale` après une
+  transaction déjà incluse (appeler `PlanSessionRequest` avant de reconstruire), désaccord de chaîne
+  en `invalid_spec` (le natif résout le réseau avant), pin `signer` comparé en chaîne brute, lien
+  refusé puis relivré répondu deux fois, collision clé de session / compte existant non
+  pré-vérifiée, `make test.integration` rouge sur gnodev `devchain/` (ancien test qui veut
+  `r/demo/counter`).
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
@@ -450,13 +464,14 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      l'aller-retour avec P3. Découpé en jalons : P2-M1, `core/` et pont `mobile/`, plan
      `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md`, sur la branche
      `feat/deeplink-tx` (PR #138), gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) comme
-     gnonative ; P2-M2 (iOS) et P2-M3 (Android), à écrire une fois M1 livré ;
+     gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) et P2-M3 (Android), à écrire
+     maintenant, à partir du pont tel qu'il est ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6).
 2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : retenues dans P2 (tâche 11 de
-   P2-M1, écran dans P2-M2/M3). Bubble Rumble ne s'en sert pas.
+   P2-M1, livrée ; écran dans P2-M2/M3). Bubble Rumble ne s'en sert pas.
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
