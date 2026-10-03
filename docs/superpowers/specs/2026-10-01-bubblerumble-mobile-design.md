@@ -389,18 +389,28 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   Ledger (non versionné) : `.superpowers/sdd/2026-10-01-p3-m1-game-loop/progress.md`.
 
 - P2-M1 (`core/` + pont `mobile/` de gnokey-mobile) : 12 tâches sur `feat/deeplink-tx`
-  (`767f432`..`cb83a36`, non poussé), exécution inline puis revue finale de la branche, correctifs
+  (`767f432`..`cb83a36`, poussé sur la PR #138 le 2026-10-03), exécution inline puis revue finale de la branche, correctifs
   `b546701` (le pont revérifie la preuve du lien que lui rend le natif ; `PollSessionOutcome` refuse
   une autre chaîne ; nom de paramètre contenant `=` refusé — règle ajoutée à
   `gnoconnect-session.md` ; une session sans `spend` ne couvre aucune indication). Tests unitaires
   Go + 2 tests d'intégration sur gnodev (`npm run gnodev`), dont un qui passe les commandes générées
-  dans un vrai `gnokey` ; `make build.android` exporte la surface. Mineurs reportés, à traiter dans
-  P2-M2/M3 : expiration jugée à l'horloge du téléphone (prendre l'heure du bloc), `Stale` après une
-  transaction déjà incluse (appeler `PlanSessionRequest` avant de reconstruire), désaccord de chaîne
-  en `invalid_spec` (le natif résout le réseau avant), pin `signer` comparé en chaîne brute, lien
-  refusé puis relivré répondu deux fois, collision clé de session / compte existant non
-  pré-vérifiée, `make test.integration` rouge sur gnodev `devchain/` (ancien test qui veut
-  `r/demo/counter`).
+  dans un vrai `gnokey` ; `make build.android` exporte la surface.
+
+- P2-M1b (les mineurs reportés de P2-M1) : 6 tâches sur `feat/deeplink-tx` (`a5f0d0d`..`d241eef`,
+  non poussé), plan `docs/superpowers/plans/2026-10-03-p2-m1b-session-minors.md`, revue finale
+  « prêt » sans Critical ni Important. Expiration et `ExpiresAt` jugés au temps de la chaîne
+  (`min(horloge du téléphone, heure du dernier bloc)`) ; pin `signer` comparé comme adresse ; clé de
+  session déjà compte ordinaire refusée d'emblée (`invalid_request`) ; lien refusé puis relivré
+  répondu une seule fois ; `make test.integration` vert (l'ancien test `r/demo/counter` est sauté
+  sans son realm). **Contrat natif** (P2-M2/M3) — trois codes internes jamais répondus au
+  producteur : `replayed` (ignorer la copie), `already_done` (le résultat est déjà sur la chaîne :
+  continuer à interroger, le prochain `PollSessionOutcome` dit Done), `wrong_network` (résoudre le
+  réseau — basculer, ou répondre `network_declined` — puis rappeler). Mineurs restants, à régler
+  avant ou pendant P2-M2/M3 : `chainNow` sur une chaîne sans blocs vides ou un nœud en retard
+  (durée comptée depuis le dernier bloc — notre `npm run gnodev` a `-empty-blocks`, donc non
+  concerné) ; nœud à la hauteur 0 qui rapporte l'époque Unix ; `already_done` d'un `disconnect`
+  sûr seulement si le natif appelle `PlanSessionRequest` avant `BuildSessionTx` (à écrire dans la
+  doc du pont) ; mémoire des liens non bornée.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
