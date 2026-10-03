@@ -6,7 +6,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Field } from '@/components/field';
 import { useSession } from '@/state/app-services';
-import { NETWORK_PRESETS, settingsStore, useSettings, validateOffchainUrl, validateRemote } from '@/state/settings';
+import { matchingPreset, NETWORK_PRESETS, settingsStore, useSettings, validateOffchainUrl, validateRemote } from '@/state/settings';
 import { colors, space } from '@/theme';
 
 export function SettingsScreen() {
@@ -17,6 +17,7 @@ export function SettingsScreen() {
   const [offchain, setOffchain] = useState(s.offchainUrl);
   const remoteErr = validateRemote(remote);
   const offchainErr = validateOffchainUrl(offchain);
+  const preset = matchingPreset(chainId, remote);
   const dirty = chainId !== s.chainId || remote !== s.remote || offchain !== s.offchainUrl;
 
   return (
@@ -25,7 +26,9 @@ export function SettingsScreen() {
         <Text style={styles.h}>Network</Text>
         <View style={styles.row}>
           {NETWORK_PRESETS.map((p) => (
-            <Button key={p.chainId} kind="secondary" title={p.label} onPress={() => { setChainId(p.chainId); setRemote(p.remote); }} />
+            <Button
+              key={p.chainId} kind="secondary" title={p.label} selected={preset?.chainId === p.chainId}
+              onPress={() => { setChainId(p.chainId); setRemote(p.remote); }} />
           ))}
         </View>
         <Field label="Chain ID" value={chainId} onChangeText={setChainId} />

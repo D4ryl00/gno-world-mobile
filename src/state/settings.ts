@@ -28,6 +28,10 @@ export const NETWORK_PRESETS = [
   { label: 'Local gnodev', chainId: 'dev', remote: 'http://127.0.0.1:26657' },
 ];
 
+/** The preset these fields spell, if any — what the settings screen highlights. */
+export const matchingPreset = (chainId: string, remote: string) =>
+  NETWORK_PRESETS.find((p) => p.chainId === chainId.trim() && p.remote === remote.trim());
+
 const HTTP_URL = /^https?:\/\/[^\s/]+(\/[^\s]*)?$/;
 
 export const validateRemote = (url: string) =>

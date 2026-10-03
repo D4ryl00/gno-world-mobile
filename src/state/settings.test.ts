@@ -1,6 +1,6 @@
 import type { StateStorage } from 'zustand/middleware';
 
-import { createSettingsStore, DEFAULT_SETTINGS, validateOffchainUrl, validateRemote, watchHydration } from '@/state/settings';
+import { createSettingsStore, DEFAULT_SETTINGS, matchingPreset, validateOffchainUrl, validateRemote, watchHydration } from '@/state/settings';
 
 const memory = (): StateStorage => {
   const m = new Map<string, string>();
@@ -115,4 +115,15 @@ test('onSettled is called and defaults are kept when the stored JSON is corrupt'
   await settle();
   expect(onSettled).toHaveBeenCalledTimes(1);
   expect(st.getState().remote).toBe(DEFAULT_SETTINGS.remote);
+});
+
+describe('matchingPreset', () => {
+  it('names the preset the fields spell, ignoring surrounding spaces', () => {
+    expect(matchingPreset('gnoland-1', 'https://rpc.gno.land:443')?.label).toBe('gno.land (mainnet)');
+    expect(matchingPreset(' dev ', 'http://127.0.0.1:26657 ')?.label).toBe('Local gnodev');
+  });
+  it('is undefined for a custom network', () => {
+    expect(matchingPreset('dev', 'http://10.0.2.2:26657')).toBeUndefined();
+    expect(matchingPreset('test11', 'https://rpc.gno.land:443')).toBeUndefined();
+  });
 });
