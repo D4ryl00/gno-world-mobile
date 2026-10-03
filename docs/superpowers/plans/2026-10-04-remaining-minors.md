@@ -112,6 +112,8 @@ Why: the desktop paid the fee from the master; Android's `completeSession` alrea
 
 ### Task 5: both — a review on another chain offers the switch instead of an error (P2-M3b)
 
+> **Executed differently** (see the ledger): staging the root prompt from the review is dropped by SwiftUI while the review sheet is up. The review shows its own card instead — "Switch to chain <id>" (`applyNetwork(network(of:))`, then plan again) or "Decline" (`network_declined`).
+
 **Files:** Modify `ios/GnokeyMobile/Core/AppModel.swift` (new `offerNetworkSwitch(for:)`), `ios/GnokeyMobile/Screens/SessionRequestView.swift` (`loadPlan`, `approve`); `android/.../AppViewModel.kt` (new `offerNetworkSwitch`), `android/.../screens/SessionRequestScreen.kt` (`load`, `approve`).
 
 **Interfaces:** Produces `AppModel.offerNetworkSwitch(for request: SessionRequestInfo) -> Bool` / `AppViewModel.offerNetworkSwitch(request: SessionRequestInfo): Boolean` — stages the switch prompt for the request's `rpc`/`chainid` (`stageNetworkSwitch`), true when a prompt is now pending.
