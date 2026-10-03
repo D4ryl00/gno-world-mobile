@@ -412,6 +412,23 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   liens bornée à 1024 ; doc du pont : `BuildSessionTx` seulement après un `PlanSessionRequest`
   réussi (c'est ce qui rend sûr `already_done` sur un `disconnect`). Plus rien de reporté dans P2-M1.
 
+- P2-M2 (iOS de gnokey-mobile : `connect` avec clé, `disconnect`, indications de périmètre) : 9 tâches
+  sur `feat/deeplink-tx` (`8b70461`..`2295ea1`, local, pas encore poussé), plan
+  `docs/superpowers/plans/2026-10-03-p2-m2-gnokey-ios-sessions.md`, 42 tests XCTest
+  (`make test.ios device=<udid>`, nouvelle cible). Aller-retour manuel Bubble Rumble ↔ gnokey-mobile
+  sur simulateur iOS 26.5 contre gnodev, les 9 étapes conformes après deux correctifs :
+  - `63b95f6` : gomobile déclare le champ Go `URL` comme propriété `url` mais nomme son setter
+    `setURL:` ; le `.url = …` de Swift écrivait un ivar Objective-C et Go recevait `""` — toute
+    demande de session était répondue `invalid_request`. Nouveau constructeur
+    `mobile.NewSessionRequest(link)` (seul `SessionRequest.url`/`rpc` touché, vérifié par `nm`).
+  - `2295ea1` : une session créée pour exactement l'`expires` indiqué ne le « couvrait » jamais
+    (`ExpiresAt ≥ maintenant + expires`) ; l'`expires` d'un `connect` compte désormais depuis
+    l'arrivée de la demande (moins une minute de marge). À reprendre tel quel dans P2-M3.
+  Mineurs reportés : « 1 day » affiché à côté du préréglage équivalent « 24 hours » dans le
+  constructeur ; nombre de gas formaté selon la locale (« 2 000 000 ») ; solde maître parfois
+  périmé jusqu'au rafraîchissement ; `_` encodé `%5F` dans les réponses (existant, valide).
+  Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-03-p2-m2-gnokey-ios-sessions/progress.md`.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -474,14 +491,14 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      l'aller-retour avec P3. Découpé en jalons : P2-M1, `core/` et pont `mobile/`, plan
      `docs/superpowers/plans/2026-10-02-p2-m1-gnokey-core-sessions.md`, sur la branche
      `feat/deeplink-tx` (PR #138), gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) comme
-     gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) et P2-M3 (Android), à écrire
-     maintenant, à partir du pont tel qu'il est ;
+     gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) **livré le 2026-10-03** (voir
+     Livré) ; P2-M3 (Android) à écrire maintenant, à partir du même pont et des choix d'écran de P2-M2 ;
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6).
 2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : retenues dans P2 (tâche 11 de
-   P2-M1, livrée ; écran dans P2-M2/M3). Bubble Rumble ne s'en sert pas.
+   P2-M1, livrée ; écran iOS dans P2-M2, livré ; Android dans P2-M3). Bubble Rumble ne s'en sert pas.
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
    mène au repli (§5.6 ; le bouton « Use a computer instead » le remplace), indicateur « serveur
    injoignable » (§5.6), sessions conservées par réseau (une seule session active aujourd'hui).
