@@ -405,12 +405,12 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   sans son realm). **Contrat natif** (P2-M2/M3) — trois codes internes jamais répondus au
   producteur : `replayed` (ignorer la copie), `already_done` (le résultat est déjà sur la chaîne :
   continuer à interroger, le prochain `PollSessionOutcome` dit Done), `wrong_network` (résoudre le
-  réseau — basculer, ou répondre `network_declined` — puis rappeler). Mineurs restants, à régler
-  avant ou pendant P2-M2/M3 : `chainNow` sur une chaîne sans blocs vides ou un nœud en retard
-  (durée comptée depuis le dernier bloc — notre `npm run gnodev` a `-empty-blocks`, donc non
-  concerné) ; nœud à la hauteur 0 qui rapporte l'époque Unix ; `already_done` d'un `disconnect`
-  sûr seulement si le natif appelle `PlanSessionRequest` avant `BuildSessionTx` (à écrire dans la
-  doc du pont) ; mémoire des liens non bornée.
+  réseau — basculer, ou répondre `network_declined` — puis rappeler). Les 4 mineurs de sa revue
+  finale réglés ensuite (`4f71c2e`..`a8ce2d9`) : pas d'heure de chaîne d'un nœud sans bloc (époque
+  Unix à la hauteur 0) ou encore en synchronisation ; session refusée si, comptée depuis le dernier
+  bloc (chaîne sans blocs vides, nœud en retard), elle serait déjà finie à son arrivée ; mémoire des
+  liens bornée à 1024 ; doc du pont : `BuildSessionTx` seulement après un `PlanSessionRequest`
+  réussi (c'est ce qui rend sûr `already_done` sur un `disconnect`). Plus rien de reporté dans P2-M1.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
