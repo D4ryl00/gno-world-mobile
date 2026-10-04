@@ -482,7 +482,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-04-remaining-minors/progress.md`.
 
 - Mineurs reportés de P3-M1 (les 46 du ledger P3-M1, jamais recopiés ici), plan
-  `docs/superpowers/plans/2026-10-04-p3-m1-old-minors.md`, 14 tâches sur `main` (`6bcd17b`..HEAD du
+  `docs/superpowers/plans/2026-10-04-p3-m1-old-minors.md`, 14 tâches sur `main` (`6bcd17b`..`ffe2548`,
   2026-10-04) ; 218 tests unitaires, e2e 5/5 sur gnodev, tsc et lint propres. Les plus lourds :
   - la commande desktop payait `-gas-fee 1000000ugnot` (1 GNOT par opération de session, 500× le
     minimum mainnet de 1 ugnot / 1000 gas) : `10000ugnot` par défaut, réglable ;
