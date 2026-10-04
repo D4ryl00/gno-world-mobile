@@ -9,6 +9,7 @@ import { Card } from '@/components/card';
 import { Countdown } from '@/components/countdown';
 import { useNow } from '@/hooks/use-now';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
+import { remaining, resetsIn } from '@/session/status';
 import { useServices, useSession } from '@/state/app-services';
 import { settingsStore, useSettings } from '@/state/settings';
 import { colors, space } from '@/theme';
@@ -18,6 +19,7 @@ import { gnot } from '@/utils/gnot';
 import { shareText, shareUrl } from '@/utils/share';
 
 import { BoopPanel, type BoopChoice } from './boop-panel';
+import { checkFresh } from './boop-quote';
 import { History, Roster, Rules, Shots, Split } from './sections';
 import { txMessage } from './tx-message';
 import { flagSuggestions } from './flag-suggestions';
@@ -35,7 +37,8 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const now = useNow();
   const [pool, setPool] = useState<Pool | null>(null);
   const [realm, setRealm] = useState<RealmInfo | undefined>();
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState(''); // the last action's outcome
+  const [loadError, setLoadError] = useState(''); // the last refresh's failure, cleared by the next good one
   const [busy, setBusy] = useState(false);
   const chainId = useSettings((s) => s.chainId);
   // a session made on another network is not "you" here
@@ -46,9 +49,10 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
     try {
       const [p, r] = await Promise.all([game.pool(k.version, k.id), game.realm(k.version).catch(() => undefined)]);
       setPool(p);
-      setRealm(r);
+      setRealm((before) => r ?? before); // a realm read that failed once keeps the shot prices on screen
+      setLoadError('');
     } catch (e) {
-      setMsg(String((e as Error).message ?? e));
+      setLoadError(String((e as Error).message ?? e));
     }
   }, [game, k]);
 
@@ -66,14 +70,15 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const reload = () => Promise.all([load(), refresh().catch(() => undefined)]);
 
   if (!k) return <Text style={styles.warn}>Unknown pool {poolKey}</Text>;
-  if (!pool) return <Text style={styles.muted}>{msg || 'loading…'}</Text>;
+  if (!pool) return <Text style={styles.muted}>{loadError || 'loading…'}</Text>;
 
+  /** `f` may return a sentence instead of signing (nothing sent, e.g. the price moved). */
   const run = (label: string, f: () => Promise<unknown>) =>
     runner(async () => {
       setMsg(`${label}…`);
       try {
-        await f();
-        setMsg(`${label} — done`);
+        const said = await f();
+        setMsg(typeof said === 'string' ? said : `${label} — done`);
       } catch (e) {
         setMsg(txMessage(e, now, (await refresh().catch(() => null)) ?? status));
       }
@@ -82,6 +87,13 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const effectiveRef = ref && ref !== me ? ref : '';
   const onBoop = (c: BoopChoice) =>
     run('boop', async () => {
+      // the amount comes from the pool on screen: sign it only if the chain still asks that price
+      const fresh = await game.pool(pool.version, pool.id);
+      const stale = checkFresh(pool, fresh);
+      if (stale) {
+        setPool(fresh);
+        return stale;
+      }
       if (c.flag) settingsStore.getState().setFlag(c.flag);
       await game.bid(active!, pool, { ref: effectiveRef, flag: c.flag, boost: c.boost, shot: c.shot });
     });
@@ -91,6 +103,8 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const live = !pool.over && !pool.cancelled;
   const blocked = isPlayBlocked(country);
   const suggestions = flagSuggestions(country, pool.teams);
+  const elsewhere = !!active && active.chainId !== chainId;
+  const budget = status && !elsewhere ? { left: remaining(status, now), refillsIn: resetsIn(status, now) } : undefined;
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -115,10 +129,17 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
             <Text style={styles.warn}>{NOPLAY_TEXT}</Text>
           ) : !active ? (
             <Link href="/session" style={styles.link}>Set up a session to play →</Link>
+          ) : elsewhere ? (
+            <>
+              <Text style={styles.t}>
+                Your session is for {active.chainId}. Switch back to it in Settings, or get a session for {chainId}.
+              </Text>
+              <Link href="/session" style={styles.link}>Get a session for {chainId} →</Link>
+            </>
           ) : (
             <BoopPanel
               pool={pool} realm={realm} me={me} hasRef={!!effectiveRef} defaultFlag={flag || country}
-              suggestions={suggestions} busy={busy} onBoop={onBoop}
+              suggestions={suggestions} busy={busy} budget={budget} onBoop={onBoop}
             />
           )}
         </Card>
@@ -127,6 +148,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
       {closedUnpaid && active ? <Button title="claim" disabled={busy} onPress={() => run('claim', () => game.claim(active, pool))} /> : null}
       {canCancel ? <Button kind="danger" title="cancel this pool" disabled={busy} onPress={() => run('cancel', () => game.cancel(active!, pool))} /> : null}
       {msg ? <Text style={styles.msg}>{msg}</Text> : null}
+      {loadError ? <Text style={styles.warn}>Could not refresh this pool: {loadError}</Text> : null}
 
       <Button
         kind="secondary" title="share"

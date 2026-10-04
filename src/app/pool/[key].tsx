@@ -9,5 +9,6 @@ export default function PoolRoute() {
   useEffect(() => {
     if (ref) settingsStore.getState().setRefOnce(ref);
   }, [ref]);
-  return <PoolScreen poolKey={key} />;
+  // keyed: another pool starts from a clean screen, not from the previous one's state
+  return <PoolScreen key={key} poolKey={key} />;
 }

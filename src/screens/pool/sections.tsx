@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import type { Pool } from '@/chain/parse';
 import { Card } from '@/components/card';
@@ -85,4 +85,3 @@ const styles = StyleSheet.create({
   t: { color: colors.muted },
 });
 
-export const SectionGap = () => <View style={{ height: space.m }} />;
