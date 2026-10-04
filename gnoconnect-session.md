@@ -1,6 +1,12 @@
 # GnoConnect — Sessions through `connect` (draft)
 
-> **Status:** draft proposal. Written to slot into
+> **Integrated into the standard on 2026-10-04:** `docs/resources/gnoconnect.md`
+> in gnolang/gno, section "Sessions: `connect` with a key, and `disconnect`" under
+> "Launch Links" (PR #5970, carried into PR #6016), with the corrections the
+> implementation taught. That text is now the reference; this draft is kept for
+> its verification table and is no longer maintained.
+>
+> **Status (before integration):** draft proposal. Written to slot into
 > `docs/resources/gnoconnect.md`, under "Launch Links (external wallets)": it
 > extends `connect` and adds one host, `disconnect`. It uses that document's
 > terms and rules: network resolution, the `signer` pin, the `status`/`code`

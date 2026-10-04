@@ -511,6 +511,24 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   insets du clavier, fermeture au glissé). Plus rien de reporté.
   Ledger (non versionné) : `.superpowers/sdd/2026-10-04-p3-m1-old-minors/progress.md`.
 
+- Étape 6 du §7 (mise à jour du standard GnoConnect), plan
+  `docs/superpowers/plans/2026-10-04-gnoconnect-standard-sessions.md` : `gnoconnect-session.md`
+  intégré dans `docs/resources/gnoconnect.md` de `~/gno-external-wallets`
+  (`feat/gnoconnect-external-wallets`, PR #5970, `ded071ad6`), section « Sessions: `connect` with a key,
+  and `disconnect` » sous « Launch Links » ; tableau des hosts (`disconnect`), `connect` (indications,
+  `pubkey`, token `sessions`, nouveaux codes), règles des callbacks (nouvelles clés, exception `allow`,
+  noms décodés, où lire la réponse) et « Known Implementations » (Gnokey Mobile, Bubble Rumble mobile)
+  mis à jour. Corrigé de ce que l'implémentation a appris : `chainid` reste requis sur tout `connect`
+  (le brouillon disait « optionnel ») ; `-expires-at` de gnokey prend une durée ; l'expiration se juge
+  au temps de la chaîne ; les durées indiquées comptent depuis l'arrivée de la demande ; refuser un
+  changement de réseau ne répond qu'aux demandes qui le demandaient, et une demande dont le wallet a
+  quitté la chaîne est résolue à nouveau ; callbacks ouverts au premier plan seulement (Android) ;
+  frais payés en entier, donc tirés du prix du gas de la chaîne ; ordre canonique par point de code et
+  contrôles C0/DEL/C1 précisés. Retirés : le tableau de vérification (resté dans le brouillon) et les
+  questions de conception du wallet. `~/gno-inpage-wallets` rebasée dessus sans conflit (60 commits),
+  plus un commit (`12c2561b5`) qui relie la section à « The `signer` pin » et dit ce qui manque au
+  fournisseur in-page. Le brouillon porte une bannière vers le standard.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -578,7 +596,7 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    - P3-M2 : social, off-chain (§5.4) ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
-     (§7, étape 6).
+     (§7, étape 6) — **faite le 2026-10-04** (voir Livré).
 2. **Indications de périmètre** (`connect` sans `pubkey`, §4) : retenues dans P2 (tâche 11 de
    P2-M1, livrée ; écran iOS dans P2-M2, livré ; Android dans P2-M3, livré). Bubble Rumble ne s'en sert pas.
 3. **Écarts entre le plan P3-M1 et cette spec,** non implémentés : délai sans réponse du wallet qui
