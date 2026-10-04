@@ -14,13 +14,13 @@ test('create command', () => {
     'gnokey maketx session create -pubkey gpub1new -expires-at 30d ' +
       '-allow-paths vm/exec:gno.land/r/a -allow-paths vm/exec:gno.land/r/b ' +
       '-spend-limit 5000000ugnot -spend-period 3600 ' +
-      '-gas-fee 1000000ugnot -gas-wanted 2000000 -broadcast -chainid gnoland-1 -remote https://rpc.gno.land:443 YOUR_KEY',
+      '-gas-fee 10000ugnot -gas-wanted 2000000 -broadcast -chainid gnoland-1 -remote https://rpc.gno.land:443 YOUR_KEY',
   );
 });
 
 test('revoke, replace (create first, then revoke) and extra flags', () => {
   expect(revokeCommand('gpub1old', { ...ctx, keyName: 'test1', extraFlags: ['-home', '/tmp/h'] })).toBe(
-    'gnokey maketx session revoke -pubkey gpub1old -gas-fee 1000000ugnot -gas-wanted 2000000 -broadcast ' +
+    'gnokey maketx session revoke -pubkey gpub1old -gas-fee 10000ugnot -gas-wanted 2000000 -broadcast ' +
       '-chainid gnoland-1 -remote https://rpc.gno.land:443 -home /tmp/h test1',
   );
   const r = replaceCommand(key, grant, ['bank/send'], 'gpub1old', ctx);
@@ -30,4 +30,8 @@ test('revoke, replace (create first, then revoke) and extra flags', () => {
 
 test('shell metacharacters are quoted', () => {
   expect(revokeCommand('gpub1x', { ...ctx, keyName: "my key's" })).toMatch(/'my key'\\''s'$/);
+});
+
+test('the gas can be set; the default pays 5× the mainnet floor, not 1 GNOT', () => {
+  expect(revokeCommand('gpub1old', { ...ctx, gasFee: '3000ugnot', gasWanted: 3000000 })).toContain('-gas-fee 3000ugnot -gas-wanted 3000000');
 });

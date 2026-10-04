@@ -58,6 +58,9 @@ export async function pollSession(
   opts: { intervalMs: number; signal: { aborted: boolean }; sleep?: (ms: number) => Promise<void> },
 ): Promise<SessionStatus | null> {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  // a malformed address never becomes valid: fail now rather than poll forever
+  decodeAddress(master);
+  decodeAddress(session);
   for (;;) {
     if (opts.signal.aborted) throw new Error('cancelled');
     const st = await querySession(api, master, session).catch(() => undefined); // transient errors: try again

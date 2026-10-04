@@ -7,6 +7,9 @@ export interface CommandContext {
   keyName?: string;
   /** inserted before the key name (e.g. -home <dir> -insecure-password-stdin in tests) */
   extraFlags?: string[];
+  /** -gas-fee; by default 10000ugnot: mainnet asks 1 ugnot per 1000 gas, so 5× the floor for 2000000 gas */
+  gasFee?: string;
+  gasWanted?: number;
 }
 
 const q = (s: string) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
@@ -15,7 +18,7 @@ export const expiresArg = (seconds: number) => (seconds % 86400 === 0 ? `${secon
 
 function tail(ctx: CommandContext): string[] {
   return [
-    '-gas-fee', '1000000ugnot', '-gas-wanted', '2000000', '-broadcast',
+    '-gas-fee', ctx.gasFee ?? '10000ugnot', '-gas-wanted', String(ctx.gasWanted ?? 2000000), '-broadcast',
     '-chainid', ctx.chainId, '-remote', ctx.remote, ...(ctx.extraFlags ?? []), ctx.keyName ?? 'YOUR_KEY',
   ];
 }

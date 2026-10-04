@@ -112,3 +112,10 @@ describe('missingPaths', () => {
     expect(missingPaths(st(['vm/exec:gno.land/r/a/bubble']), need)).toEqual(['vm/exec:gno.land/r/a/bubblerumble5']);
   });
 });
+
+test('pollSession refuses a malformed address at once instead of polling forever', async () => {
+  const api = new FakeChainApi();
+  const sleep = jest.fn(async () => undefined);
+  await expect(pollSession(api, 'g1nope', S, 'present', { intervalMs: 1, signal: { aborted: false }, sleep })).rejects.toThrow();
+  expect(sleep).not.toHaveBeenCalled();
+});
