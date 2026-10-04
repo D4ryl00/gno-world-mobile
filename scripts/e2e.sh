@@ -7,6 +7,17 @@ E=$ROOT/.e2e
 GNO=${GNO:-$HOME/gno}
 GNONATIVE=${GNONATIVE:-$HOME/gnonative}
 mkdir -p "$E/bin" "$E/home"
+
+# One run at a time (a second one would kill the first's node), on free ports. The trap below kills only this
+# script's binaries (anchored), never npm run gnodev's .e2e/bin/gnodev-<rev>.
+if ! mkdir "$E/e2e.lock" 2>/dev/null; then
+  echo "another e2e run holds $E/e2e.lock (remove it if no run is going on)"; exit 1
+fi
+trap 'rmdir "$E/e2e.lock" 2>/dev/null || true' EXIT
+for port in 46657 46660; do
+  if lsof -nP -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1; then echo "port $port is in use"; exit 1; fi
+done
+
 rm -rf "$E/gnohome" "$E/goroot"
 mkdir -p "$E/gnohome" "$E/goroot"
 
@@ -16,7 +27,7 @@ mkdir -p "$E/gnohome" "$E/goroot"
 # A throwaway modfile keeps ~/gnonative untouched.
 cp "$GNONATIVE/go.mod" "$E/goserver.mod"; cp "$GNONATIVE/go.sum" "$E/goserver.sum"
 (cd "$GNONATIVE" && go mod edit -modfile="$E/goserver.mod" -replace "github.com/gnolang/gno=$GNO" \
-  && go mod tidy -modfile="$E/goserver.mod" >/dev/null 2>&1 \
+  && { go mod tidy -modfile="$E/goserver.mod" >"$E/gomod.log" 2>&1 || { cat "$E/gomod.log"; exit 1; }; } \
   && go build -modfile="$E/goserver.mod" -o "$E/bin/goserver" ./goserver)
 
 SEED="source bonus chronic canvas draft south burst lottery vacant surface solve popular case indicate oppose farm nothing bullet exhibit title speed wink action roast"
@@ -29,7 +40,7 @@ printf '%s\n\n\n' "$SEED" | "$E/bin/gnokey" add test1 --recover --insecure-passw
 GNODEV=$!
 (cd "$E/goroot" && TMPDIR="$E/goroot" "$E/bin/goserver" -remote http://127.0.0.1:46657 tcp -addr 127.0.0.1:46660 >"$E/goserver.log" 2>&1) &
 GOSERVER=$!
-trap 'kill $GNODEV $GOSERVER 2>/dev/null || true; pkill -f "$E/bin/goserver" 2>/dev/null || true; pkill -f "$E/bin/gnodev" 2>/dev/null || true' EXIT
+trap 'kill $GNODEV $GOSERVER 2>/dev/null || true; pkill -f "^$E/bin/goserver " 2>/dev/null || true; pkill -f "^$E/bin/gnodev " 2>/dev/null || true; rmdir "$E/e2e.lock" 2>/dev/null || true' EXIT
 
 for i in $(seq 1 120); do grep -q 'node is ready' "$E/gnodev.log" && break; sleep 1; done
 grep -q 'node is ready' "$E/gnodev.log" || { echo "gnodev did not start"; tail -30 "$E/gnodev.log"; exit 1; }

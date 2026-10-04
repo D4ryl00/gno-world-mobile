@@ -75,6 +75,9 @@ test('desktop fallback: create the session, then play with it', async () => {
 test('the budget is enforced by the chain and classified', async () => {
   const p = (await game.realm(5)).pools.find((x) => x.name === 'e2e')!;
   await expect(game.bid(session, p, { ref: '', flag: '', boost: 10, shot: 0 })).rejects.toMatchObject({ kind: 'budget' });
+  // corroborate: the refusal is the budget, not some other session refusal read as one
+  const st = await querySession(api, MASTER, session.address);
+  expect(remaining(st!, Math.floor(Date.now() / 1000))).toBeLessThan(p.nextPrice * 10);
 });
 
 test('replace via the desktop fallback, then revoke', async () => {
