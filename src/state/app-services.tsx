@@ -15,7 +15,7 @@ import { settingsStore, watchHydration } from '@/state/settings';
 import { randomHex } from '@/utils/random';
 import { secureStore } from '@/utils/secure';
 
-type SessionStore = ReturnType<typeof createSessionStore>; // StoreApi<SessionState> plus the persist API
+type SessionStore = ReturnType<typeof createSessionStore>; // StoreApi<SessionState>, the persist API and `ready`
 
 interface Services {
   api: ChainApi;
@@ -44,7 +44,7 @@ export function AppServices({ children }: PropsWithChildren) {
       },
       changed: async () => {
         // before hydration, the launch-time restore() picks up the current network itself
-        if (session.persist.hasHydrated()) await session.getState().networkChanged();
+        if (session.ready.hasHydrated()) await session.getState().networkChanged();
       },
     });
     const offchain = createOffchain({
@@ -76,7 +76,8 @@ export function AppServices({ children }: PropsWithChildren) {
   // resume a pending session request / re-unlock the active key on launch
   useEffect(() => {
     let done = false;
-    return watchHydration(services.session.persist, () => {
+    // `ready`, not `persist`: it settles even when the storage could not be read
+    return watchHydration(services.session.ready, () => {
       if (done) return;
       done = true;
       void services.session.getState().restore().catch(() => undefined);

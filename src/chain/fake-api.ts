@@ -14,6 +14,7 @@ export class FakeChainApi implements ChainApi {
   keys = new Map<string, { address: Uint8Array; pubKey: Uint8Array; password: string }>();
   activated = new Map<string, { master?: string; password?: string }>(); // by key name
   signed: { addressHex: string; data: string }[] = [];
+  deleted: string[] = [];
   private n = 0;
 
   async setRemote() {}
@@ -58,6 +59,12 @@ export class FakeChainApi implements ChainApi {
     const prev = this.activated.get(name) ?? {};
     this.activated.set(name, { ...prev, master: master ? bytesToHex(master) : undefined });
     return { hasPassword: !!prev.password };
+  }
+  async deleteAccount(name: string) {
+    this.deleted.push(name);
+    this.keys.delete(name);
+    this.activated.delete(name);
+    return {};
   }
   async setPassword(password: string, address: Uint8Array) {
     for (const [name, k] of this.keys)

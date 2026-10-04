@@ -28,6 +28,7 @@ export interface ChainApi {
   generateRecoveryPhrase(): Promise<string>;
   createAccount(name: string, mnemonic: string, password: string): Promise<{ address: Uint8Array; pubKey: Uint8Array } | undefined>;
   activateAccount(nameOrBech32: string, master?: Uint8Array): Promise<{ hasPassword: boolean }>;
+  deleteAccount(nameOrBech32: string, password: string | undefined, skipPassword: boolean): Promise<unknown>;
   setPassword(password: string, address: Uint8Array): Promise<unknown>;
   signBytes(address: Uint8Array, data: Uint8Array): Promise<{ signature: Uint8Array; pubKey: Uint8Array }>;
 }

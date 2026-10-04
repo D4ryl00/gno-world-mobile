@@ -10,6 +10,7 @@ import { Card } from '@/components/card';
 import { CommandBlock } from '@/components/command-block';
 import { Field } from '@/components/field';
 import { useNow } from '@/hooks/use-now';
+import { revokeCommand } from '@/session/fallback';
 import { expiresSoon, missingPaths, remaining, resetsIn } from '@/session/status';
 import { useServices, useSession } from '@/state/app-services';
 import { useSettings } from '@/state/settings';
@@ -74,7 +75,7 @@ export function SessionScreen() {
         <Text style={styles.warn}>{s.error}</Text>
         {can.forget ? <Button kind="danger" title="Forget this session on this phone" onPress={s.forget} /> : null}
         {can.retry ? <Button title="Retry" onPress={() => void s.restore().catch(() => undefined)} /> : null}
-        <Button kind="secondary" title="Back" onPress={s.cancel} />
+        {can.back ? <Button kind="secondary" title="Back" onPress={s.cancel} /> : null}
       </Card>,
     );
   }
@@ -188,6 +189,7 @@ export function SessionScreen() {
           ) : null}
           <Button kind="danger" title="Revoke" onPress={() => void s.revoke()} />
         </Card>
+        {s.previous ? <PreviousSession /> : null}
         <Earnings session={s.active} />
       </>,
     );
@@ -202,6 +204,29 @@ export function SessionScreen() {
       </Text>
       <GrantForm submitLabel="Get a session from gnokey-mobile" onSubmit={(g) => void s.begin('create', g)} />
     </Card>,
+  );
+}
+
+/** A renewal left the old session on chain (its revoke did not go through): it can still spend until revoked. */
+function PreviousSession() {
+  const previous = useSession((x) => x.previous)!;
+  const dismissPrevious = useSession((x) => x.dismissPrevious);
+  const remote = useSettings((x) => x.remote);
+  const [note, setNote] = useState('');
+  return (
+    <Card>
+      <Text style={styles.h}>Your previous session is still active</Text>
+      <Text style={styles.muted}>
+        The renewal created the new session, but the old one was not revoked. It can still spend its budget until it
+        expires. Revoke it with gnokey:
+      </Text>
+      <CommandBlock command={revokeCommand(previous.pubkey, { chainId: previous.chainId, remote })} />
+      <Button
+        kind="secondary" title="I revoked it"
+        onPress={async () => setNote((await dismissPrevious()) ? '' : 'It is still on chain — run the command first.')}
+      />
+      {note ? <Text style={styles.warn}>{note}</Text> : null}
+    </Card>
   );
 }
 

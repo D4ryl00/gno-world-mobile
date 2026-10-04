@@ -19,12 +19,14 @@ test('which active card to show', () => {
 test('the error card offers to forget a session key this phone can no longer use', () => {
   expect(errorActions(KEY_LOST_ERROR, true).forget).toBe(true);
   expect(errorActions(KEY_LOST_ERROR, false).forget).toBe(false);
-  expect(errorActions('rejected', true)).toEqual({ forget: false, retry: false });
-  expect(errorActions(undefined, true)).toEqual({ forget: false, retry: false });
+  expect(errorActions('rejected', true)).toEqual({ forget: false, retry: false, back: true });
+  expect(errorActions(undefined, true)).toEqual({ forget: false, retry: false, back: true });
+  // a key this phone cannot unlock: no Back to a session that cannot sign
+  expect(errorActions(KEY_LOST_ERROR, true)).toEqual({ forget: true, retry: true, back: false });
 });
 
 test('the error card offers a retry for a request started on another network', () => {
   const err = 'This request was started on gnoland-1. Switch back to that network to finish it, or cancel it.';
-  expect(errorActions(err, false)).toEqual({ forget: false, retry: true });
-  expect(errorActions(KEY_LOST_ERROR, true)).toEqual({ forget: true, retry: false });
+  expect(errorActions(err, false)).toEqual({ forget: false, retry: true, back: true });
+  expect(errorActions(KEY_LOST_ERROR, true)).toEqual({ forget: true, retry: true, back: false });
 });

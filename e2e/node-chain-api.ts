@@ -18,6 +18,7 @@ export function nodeChainApi(baseUrl: string): ChainApi {
     generateRecoveryPhrase: async () => (await c.generateRecoveryPhrase({})).phrase,
     createAccount: async (nameOrBech32, mnemonic, password) => (await c.createAccount({ nameOrBech32, mnemonic, password })).key,
     activateAccount: (nameOrBech32, master) => c.activateAccount(master ? { nameOrBech32, master } : { nameOrBech32 }),
+    deleteAccount: (nameOrBech32, password, skipPassword) => c.deleteAccount({ nameOrBech32, password, skipPassword }),
     setPassword: (password, address) => c.setPassword({ password, address }),
     signBytes: (address, data) => c.signBytes({ address, data }),
   };

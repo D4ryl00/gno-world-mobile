@@ -32,11 +32,12 @@ function setup(over: Partial<SessionDeps> = {}) {
     openURL: async (u) => void opened.push(u),
     randomHex: (n) => {
       randomCount++;
-      return (randomCount.toString().padStart(n, '0')).slice(0, n);
+      return randomCount.toString().padStart(2 * n, '0'); // n bytes → 2n hex characters, as the real one
     },
     now: () => (t += 1000),
     network: () => net,
     pollIntervalMs: 1,
+    previousWaitMs: 10,
     ...over,
   };
   const store = createSessionStore(deps);
@@ -611,4 +612,143 @@ test('a wallet error on a revoke keeps the active session on screen', async () =
   expect(store.getState().phase).toBe('active');
   expect(store.getState().active).toBeDefined();
   expect(store.getState().walletError).toEqual({ code: 'signer_unavailable', op: 'revoke' });
+});
+
+// --- P3-M1's deferred minors
+
+test('(a) a cancelled, refused or failed request deletes its key; the active key is never deleted', async () => {
+  const { api, store, activate } = setup();
+  const active = await activate();
+  await store.getState().begin('replace', DEFAULT_GRANT);
+  const k1 = store.getState().pending!.key;
+  store.getState().cancel();
+  await settle();
+  expect(api.deleted).toContain(k1.keyName);
+
+  await store.getState().begin('replace', DEFAULT_GRANT);
+  const p2 = store.getState().pending!;
+  await store.getState().onReply(reply({ status: 'error', code: 'rejected', state: p2.state }));
+  await settle();
+  expect(api.deleted).toContain(p2.key.keyName);
+
+  await store.getState().revoke(); // the pending key of a revoke is the active key
+  store.getState().cancel();
+  await settle();
+  expect(api.deleted).not.toContain(active.keyName);
+});
+
+test('(a) a begin that fails after making its key deletes it', async () => {
+  const { api, store } = setup();
+  api.signBytes = async () => {
+    throw new Error('signing failed');
+  };
+  await store.getState().begin('create', DEFAULT_GRANT);
+  await settle();
+  expect(store.getState().phase).toBe('error');
+  expect(api.deleted).toHaveLength(1);
+});
+
+test('(b) an answer from another account or chain is an error, not an endless wait', async () => {
+  const { store, activate } = setup();
+  await activate();
+  await store.getState().begin('replace', DEFAULT_GRANT);
+  let p = store.getState().pending!;
+  await store.getState().onReply(reply({ state: p.state, address: OTHER, session: p.key.address }));
+  expect(store.getState().phase).toBe('error');
+  expect(store.getState().error).toMatch(/another account/);
+
+  store.getState().cancel();
+  await store.getState().begin('replace', DEFAULT_GRANT);
+  p = store.getState().pending!;
+  await store.getState().onReply(reply({ state: p.state, address: M, session: p.key.address, chainid: 'dev' }));
+  expect(store.getState().phase).toBe('error');
+  expect(store.getState().error).toMatch(/dev/);
+});
+
+test('(c) cancel while begin is still preparing: nothing is opened, nothing is pending', async () => {
+  const { store, opened, api } = setup();
+  const started = store.getState().begin('create', DEFAULT_GRANT);
+  store.getState().cancel();
+  await started;
+  await settle();
+  expect(opened).toHaveLength(0);
+  expect(store.getState().pending).toBeUndefined();
+  expect(api.deleted).toHaveLength(1);
+});
+
+test('(c) a wallet that never comes back does not block a new request after cancel', async () => {
+  const opened: string[] = [];
+  const { store } = setup({ openURL: (u) => { opened.push(u); return new Promise<void>(() => undefined); } });
+  void store.getState().begin('create', DEFAULT_GRANT);
+  await settle();
+  expect(opened).toHaveLength(1);
+  store.getState().cancel();
+  void store.getState().begin('create', DEFAULT_GRANT);
+  await settle();
+  expect(opened).toHaveLength(2);
+});
+
+test('(d) a request answered on the wrong network stops the poll already running for it', async () => {
+  const { store, onChain, setNetwork } = setup({ openURL: async () => { throw new Error('no app'); } });
+  await store.getState().begin('create', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  void store.getState().submitMaster(M); // polling on gnoland-1 (resolves only once the poll ends)
+  await settle();
+  setNetwork('dev', 'http://127.0.0.1:26657');
+  await store.getState().submitMaster(M); // refused: another network
+  expect(store.getState().phase).toBe('error');
+  setNetwork('gnoland-1', 'https://rpc.gno.land:443');
+  onChain(p.key.address);
+  await settle();
+  expect(store.getState().phase).toBe('error'); // the first poll did not wake up and activate behind the error
+});
+
+test('(e) restore does not resume a request cancelled while it was unlocking the active key', async () => {
+  const s = setup();
+  await persistedActive(s);
+  const { store, api } = s;
+  await store.persist.rehydrate();
+  const pendingKey = await createSessionKey(api, s.deps.secrets, s.deps.randomHex, s.deps.now);
+  store.setState({
+    pending: { op: 'create', state: 'st', key: pendingKey, master: M, chainId: 'gnoland-1', via: 'desktop', createdAt: 1 },
+  });
+  const activateAccount = api.activateAccount.bind(api);
+  api.activateAccount = async (...a) => {
+    store.getState().cancel();
+    return activateAccount(...a);
+  };
+  await store.getState().restore();
+  s.onChain(pendingKey.address);
+  await settle();
+  expect(store.getState().pending).toBeUndefined();
+  expect(store.getState().active!.address).not.toBe(pendingKey.address);
+});
+
+test('(f) a renewal that left the old session on chain says so; one that revoked it drops its key', async () => {
+  const { api, store, activate, onChain } = setup();
+  const first = await activate();
+  await store.getState().begin('replace', DEFAULT_GRANT);
+  const p = store.getState().pending!;
+  onChain(p.key.address);
+  await store.getState().onReply(reply({ state: p.state, address: M, session: p.key.address }));
+  await settle();
+  expect(store.getState().previous?.address).toBe(first.address);
+
+  api.sessions.delete(`${bytesToHex(decodeAddress(M))}/${bytesToHex(decodeAddress(first.address))}`);
+  expect(await store.getState().dismissPrevious()).toBe(true);
+  expect(store.getState().previous).toBeUndefined();
+  expect(api.deleted).toContain(first.keyName);
+});
+
+test('(g) a session storage that cannot be read still lets restore and replies run', async () => {
+  const { store } = setup({
+    storage: { getItem: () => { throw new Error('disk'); }, setItem: () => undefined, removeItem: () => undefined },
+  });
+  await settle();
+  expect(store.ready.hasHydrated()).toBe(true);
+  const r = await Promise.race([
+    store.getState().onReply(reply({ state: 'x' })).then(() => 'done'),
+    new Promise((res) => setTimeout(() => res('hung'), 200)),
+  ]);
+  expect(r).toBe('done');
 });

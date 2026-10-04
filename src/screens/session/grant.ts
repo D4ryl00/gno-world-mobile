@@ -21,7 +21,9 @@ export function activeCard(sessionChainId: string, currentChainId: string, hasSt
   return hasStatus ? 'live' : 'unreadable';
 }
 
-/** The buttons the error card shows besides Back. */
-export function errorActions(error: string | undefined, hasActive: boolean): { forget: boolean; retry: boolean } {
-  return { forget: hasActive && error === KEY_LOST_ERROR, retry: isOtherChainRequest(error) };
+/** The buttons the error card shows. A key this phone cannot unlock has no Back: it would return to a session that
+ *  cannot sign; retrying re-reads the secure store. */
+export function errorActions(error: string | undefined, hasActive: boolean): { forget: boolean; retry: boolean; back: boolean } {
+  const keyLost = hasActive && error === KEY_LOST_ERROR;
+  return { forget: keyLost, retry: keyLost || isOtherChainRequest(error), back: !keyLost };
 }

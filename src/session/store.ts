@@ -44,6 +44,8 @@ export interface SessionDeps {
   now: () => number;
   network: () => { chainId: string; remote: string };
   pollIntervalMs?: number;
+  /** how long a renewal waits for the old session to leave the chain before saying it is still there */
+  previousWaitMs?: number;
 }
 
 export interface SessionState {
@@ -71,6 +73,10 @@ export interface SessionState {
   networkChanged(): Promise<void>;
   /** Drop the session and any request from this phone only; the chain keeps the session until it expires or is revoked. */
   forget(): void;
+  /** A renewal left the old session on chain (a desktop replace whose revoke failed): the screen offers to revoke it. */
+  previous?: ActiveSession;
+  /** Re-reads the previous session: gone → forgotten and its key deleted (true); still there → kept (false). */
+  dismissPrevious(): Promise<boolean>;
 }
 
 // gnoconnect-session.md: a grant and a renewal are both a `connect` with the new key (a renewal adds `old`).
@@ -79,13 +85,53 @@ const HOST: Record<Pending['op'], SessionHost> = { create: 'connect', replace: '
 export const createSessionStore = (d: SessionDeps) => {
   let poll = { aborted: false };
   let starting = false; // a begin/revoke is between its start and its send (a double tap)
+  let generation = 0; // bumped by cancel() and forget(): a begin started before must not send
   const interval = d.pollIntervalMs ?? 3000;
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-  return createStore<SessionState>()(
+  // Hydration is "settled" once the first rehydrate is over, even when the storage failed (zustand's hasHydrated
+  // then stays false and anything waiting on it would wait forever).
+  let settled = false;
+  const settledListeners = new Set<() => void>();
+  const ready = {
+    hasHydrated: () => settled,
+    onFinishHydration: (fn: () => void) => {
+      settledListeners.add(fn);
+      return () => void settledListeners.delete(fn);
+    },
+  };
+
+  const store = createStore<SessionState>()(
     persist(
       (set, get, api) => {
         const fail = (e: unknown): void => {
           set({ phase: 'error', error: String((e as Error)?.message ?? e) });
+        };
+
+        /** Deletes a key no session will use any more (a request that ended, a session revoked or replaced). */
+        const drop = (key: SessionKey | undefined): void => {
+          if (!key || get().active?.keyName === key.keyName) return; // never the key that signs
+          void d.api().deleteAccount(key.keyName, undefined, true).catch(() => undefined);
+        };
+        /** The pending request is over: its new key is useless (a revoke's key is the active one, kept). */
+        const dropPending = (p: Pending | undefined): void => {
+          if (p && p.op !== 'revoke') drop(p.key);
+        };
+
+        /** After a renewal: the old session should leave the chain (same transaction from a wallet, a second one from
+         *  gnokey). Its key goes once it has; if it is still there after a while, the screen offers to revoke it. */
+        const watchPrevious = async (old: ActiveSession, next: SessionKey) => {
+          const tries = Math.max(1, Math.round((d.previousWaitMs ?? 30000) / interval));
+          for (let i = 0; i < tries; i++) {
+            if (get().active?.address !== next.address) return; // forgotten, revoked or replaced meanwhile
+            const st = await querySession(d.api(), old.master, old.address).catch(() => undefined);
+            if (st === null) {
+              drop(old);
+              return;
+            }
+            await sleep(interval);
+          }
+          if (get().active?.address === next.address) set({ previous: old });
         };
 
         const commandFor = (p: Pending): string => {
@@ -100,13 +146,11 @@ export const createSessionStore = (d: SessionDeps) => {
           !signal.aborted && get().pending?.state === p.state && d.network().chainId === p.chainId;
 
         const waitForChain = async (p: Pending, master: string) => {
-          // Check network chain before polling
+          poll.aborted = true; // whatever happens next, a poll already running for this request must stop
           if (p.chainId !== d.network().chainId) {
             set({ phase: 'error', error: otherChainRequestError(p.chainId) });
             return;
           }
-
-          poll.aborted = true;
           poll = { aborted: false };
           const signal = poll;
           set({ phase: 'waiting-chain', pending: { ...p, master } });
@@ -115,6 +159,7 @@ export const createSessionStore = (d: SessionDeps) => {
               await pollSession(d.api(), master, p.key.address, 'absent', { intervalMs: interval, signal });
               if (!current(p, signal)) return;
               set({ phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined });
+              drop(p.key); // revoked: nothing will sign with it again
               return;
             }
             const status = await pollSession(d.api(), master, p.key.address, 'present', { intervalMs: interval, signal });
@@ -123,8 +168,9 @@ export const createSessionStore = (d: SessionDeps) => {
             if (!current(p, signal)) return;
             set({
               phase: 'active', active: { ...p.key, master, chainId: p.chainId }, status: status ?? undefined,
-              pending: undefined, command: undefined, error: undefined,
+              pending: undefined, command: undefined, error: undefined, previous: undefined,
             });
+            if (p.op === 'replace' && p.old) void watchPrevious(p.old, p.key);
           } catch (e) {
             if (current(p, signal)) fail(e);
           }
@@ -148,6 +194,7 @@ export const createSessionStore = (d: SessionDeps) => {
         const send = async (p: Pending, link: string) => {
           poll.aborted = true; // abort any running poll before setting new pending
           set({ pending: p, phase: 'waiting-wallet', command: commandFor(p), error: undefined });
+          starting = false; // the pending request now blocks a second one, even if the wallet never comes back
           try {
             await d.openURL(link);
           } catch {
@@ -175,17 +222,26 @@ export const createSessionStore = (d: SessionDeps) => {
           async begin(op, grant): Promise<void> {
             if (starting || get().pending) return;
             starting = true;
+            const gen = generation;
+            let key: SessionKey | undefined;
             try {
               const old = get().active;
               if (op === 'replace' && !old) throw new Error('no session to replace');
-              const key = await createSessionKey(d.api(), d.secrets, d.randomHex, d.now);
+              key = await createSessionKey(d.api(), d.secrets, d.randomHex, d.now);
               await unlockKey(d.api(), d.secrets, key); // so it can sign the proof
               const p: Pending = {
                 op, state: d.randomHex(16), key, old: op === 'replace' ? old : undefined, grant,
                 chainId: d.network().chainId, via: 'wallet', createdAt: d.now(),
               };
-              await send(p, await linkFor(p));
+              const link = await linkFor(p);
+              if (gen !== generation) {
+                drop(key); // cancelled while the request was being prepared
+                return;
+              }
+              await send(p, link);
             } catch (e) {
+              if (gen !== generation) return;
+              drop(key);
               fail(e);
             } finally {
               starting = false;
@@ -195,13 +251,16 @@ export const createSessionStore = (d: SessionDeps) => {
           async revoke(): Promise<void> {
             if (starting || get().pending) return;
             starting = true;
+            const gen = generation;
             try {
               const active = get().active;
               if (!active) throw new Error('no session to revoke');
               const p: Pending = {
                 op: 'revoke', state: d.randomHex(16), key: active, chainId: active.chainId, via: 'wallet', createdAt: d.now(),
               };
-              await send(p, await linkFor(p));
+              const link = await linkFor(p);
+              if (gen !== generation) return;
+              await send(p, link);
             } catch (e) {
               fail(e);
             } finally {
@@ -221,14 +280,14 @@ export const createSessionStore = (d: SessionDeps) => {
           },
 
           async onReply(r): Promise<void> {
-            // Wait for hydration in case reply arrives before state is restored
-            if (!api.persist.hasHydrated()) {
+            // a reply can arrive before the persisted request is read back: wait for it (or for its failure)
+            if (!ready.hasHydrated()) {
               await new Promise<void>((resolve) => {
-                const off = api.persist.onFinishHydration(() => {
+                const off = ready.onFinishHydration(() => {
                   off();
                   resolve();
                 });
-                if (api.persist.hasHydrated()) {
+                if (ready.hasHydrated()) {
                   off();
                   resolve();
                 }
@@ -240,6 +299,7 @@ export const createSessionStore = (d: SessionDeps) => {
             if (r.status === 'cancelled') {
               poll.aborted = true;
               set({ pending: undefined, command: undefined, phase: get().active ? 'active' : 'none' });
+              dropPending(p);
               return;
             }
             if (r.status === 'error') {
@@ -253,6 +313,17 @@ export const createSessionStore = (d: SessionDeps) => {
                 pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none',
                 walletError: { code: r.code, op: p.op },
               });
+              dropPending(p);
+              return;
+            }
+            // a success for this request must be about its network and, for a renewal or a revocation, its account
+            if (r.chainid && r.chainid !== p.chainId) {
+              fail(new Error(`The wallet answered for ${r.chainid}, but this request is for ${p.chainId}. Cancel it and try again.`));
+              return;
+            }
+            const known = p.op === 'create' ? undefined : get().active?.master;
+            if (known && r.address && r.address !== known) {
+              fail(new Error(`The wallet answered for another account (${r.address}); this session belongs to ${known}. Cancel it and pick that account in the wallet.`));
               return;
             }
             const master = p.op === 'create' ? r.address : get().active?.master;
@@ -323,7 +394,10 @@ export const createSessionStore = (d: SessionDeps) => {
 
           cancel(): void {
             poll.aborted = true;
+            generation++;
+            const p = get().pending;
             set({ pending: undefined, command: undefined, error: undefined, phase: get().active ? 'active' : 'none' });
+            dropPending(p);
           },
 
           takeWalletError() {
@@ -343,16 +417,34 @@ export const createSessionStore = (d: SessionDeps) => {
 
           forget(): void {
             poll.aborted = true;
+            generation++;
+            const p = get().pending;
             set({
               phase: 'none', active: undefined, pending: undefined, status: undefined, command: undefined, error: undefined,
+              previous: undefined,
             });
+            dropPending(p);
+          },
+
+          async dismissPrevious(): Promise<boolean> {
+            const old = get().previous;
+            if (!old) return true;
+            const st = await querySession(d.api(), old.master, old.address).catch(() => undefined);
+            if (st !== null) return false; // still on chain, or the chain did not answer
+            set({ previous: undefined });
+            drop(old);
+            return true;
           },
         };
       },
       {
         name: 'br.session',
         storage: createJSONStorage(() => d.storage),
-        partialize: (s) => ({ active: s.active, pending: s.pending }),
+        partialize: (s) => ({ active: s.active, pending: s.pending, previous: s.previous }),
+        onRehydrateStorage: () => () => {
+          settled = true;
+          settledListeners.forEach((fn) => fn());
+        },
         // the phase is derived from what was persisted, never stored itself
         merge: (persisted, current) => {
           const p = (persisted ?? {}) as Partial<SessionState>;
@@ -364,4 +456,5 @@ export const createSessionStore = (d: SessionDeps) => {
       },
     ),
   );
+  return Object.assign(store, { ready });
 };
