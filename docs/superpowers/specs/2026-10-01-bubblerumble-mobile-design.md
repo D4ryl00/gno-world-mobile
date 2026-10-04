@@ -481,6 +481,34 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   finale : relecture par l'auteur (pas de sous-agent).
   Ledger (non versionné) : `~/gnokey-mobile/.superpowers/sdd/2026-10-04-remaining-minors/progress.md`.
 
+- Mineurs reportés de P3-M1 (les 46 du ledger P3-M1, jamais recopiés ici), plan
+  `docs/superpowers/plans/2026-10-04-p3-m1-old-minors.md`, 14 tâches sur `main` (`6bcd17b`..HEAD du
+  2026-10-04) ; 218 tests unitaires, e2e 5/5 sur gnodev, tsc et lint propres. Les plus lourds :
+  - la commande desktop payait `-gas-fee 1000000ugnot` (1 GNOT par opération de session, 500× le
+    minimum mainnet de 1 ugnot / 1000 gas) : `10000ugnot` par défaut, réglable ;
+  - un boop n'est plus signé à un prix périmé : le pool est relu avant de signer (`checkFresh`) ;
+  - une session d'un autre réseau ou un budget insuffisant se voient avant d'appuyer ;
+  - les clés de session abandonnées (annulée, refusée, échouée), révoquées ou remplacées sont
+    supprimées du keybase ; une réponse du wallet pour un autre compte ou une autre chaîne est une
+    erreur ; « Cancel » annule aussi une demande en préparation ; un stockage illisible ne bloque plus
+    `restore()` / `onReply()` ; un renouvellement dont l'ancienne session reste sur la chaîne le dit,
+    avec la commande pour la révoquer ;
+  - liens GnoConnect : ordre canonique par point de code, contrôles C1 et `=` refusés, réponse lue là
+    où le wallet l'écrit, limites du protocole appliquées à la construction ;
+  - et les petits : `clockFor` sans montant, seuil de partage nommé, montants au-delà de 2^53 refusés,
+    `\U` impossible refusé, pool sans id ignoré, texte de realm prioritaire sur un mot réseau, flux de
+    transaction vide = issue inconnue, `setNetwork` gardé, horloge partagée pour les comptes à rebours,
+    états vides / chargement / échec dits, création qui atterrit sur le nouveau pool, jours stricts et
+    renouvellement depuis la session courante, révocation confirmée, harnais e2e (verrou, ports, trap
+    qui ne tue plus le `gnodev` de `npm run gnodev`).
+  Décisions sans changement de code (tableau « Triage » du plan) : archive gnonative hors du dépôt
+  (jusqu'à la publication de la PR #233), expériences `reactCompiler`/`typedRoutes` gardées, paliers de
+  tir du site, regex « issue inconnue » (gnonative n'offre aucun signal fiable). Revue finale :
+  relecture par l'auteur, un défaut Important corrigé (clé non supprimée si une demande annulée
+  échouait ensuite). Mineur reporté : un appui sur un bouton pendant que le clavier numérique est
+  ouvert ne fait que fermer le clavier (comportement par défaut de React Native).
+  Ledger (non versionné) : `.superpowers/sdd/2026-10-04-p3-m1-old-minors/progress.md`.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
