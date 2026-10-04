@@ -53,7 +53,11 @@ export const createSettingsStore = (storage: StateStorage, onSettled?: () => voi
     persist(
       (set, get) => ({
         ...DEFAULT_SETTINGS,
-        setNetwork: (chainId, remote) => set({ chainId: chainId.trim(), remote: remote.trim() }),
+        // the screen validates first; the store still never holds a network that cannot be reached
+        setNetwork: (chainId, remote) => {
+          if (!chainId.trim() || validateRemote(remote) !== null) return;
+          set({ chainId: chainId.trim(), remote: remote.trim() });
+        },
         setOffchainUrl: (url) => set({ offchainUrl: url.trim().replace(/\/+$/, '') }),
         setFlag: (cc) => {
           const up = cc.trim().toUpperCase();

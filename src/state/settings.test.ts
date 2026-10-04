@@ -127,3 +127,26 @@ describe('matchingPreset', () => {
     expect(matchingPreset('test11', 'https://rpc.gno.land:443')).toBeUndefined();
   });
 });
+
+test('setNetwork refuses an empty chain or an endpoint that is no URL', () => {
+  const st = createSettingsStore(memory());
+  st.getState().setNetwork('', 'http://127.0.0.1:26657');
+  st.getState().setNetwork('dev', 'nope');
+  expect(st.getState().chainId).toBe('gnoland-1');
+  expect(st.getState().remote).toBe('https://rpc.gno.land:443');
+  st.getState().setNetwork(' dev ', ' http://127.0.0.1:26657 ');
+  expect(st.getState()).toMatchObject({ chainId: 'dev', remote: 'http://127.0.0.1:26657' });
+});
+
+test('settings survive a restart', async () => {
+  const storage = memory();
+  const first = createSettingsStore(storage);
+  first.getState().setNetwork('dev', 'http://127.0.0.1:26657');
+  first.getState().setFlag('fr');
+  first.getState().setRefOnce('g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr');
+  const second = createSettingsStore(storage);
+  await new Promise<void>((resolve) => watchHydration(second.persist, resolve));
+  expect(second.getState()).toMatchObject({
+    chainId: 'dev', remote: 'http://127.0.0.1:26657', flag: 'FR', ref: 'g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr',
+  });
+});

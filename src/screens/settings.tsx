@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -15,6 +15,15 @@ export function SettingsScreen() {
   const [chainId, setChainId] = useState(s.chainId);
   const [remote, setRemote] = useState(s.remote);
   const [offchain, setOffchain] = useState(s.offchainUrl);
+  // the saved values changed while this screen is open: a field the user has not edited follows them
+  const saved = useRef({ chainId: s.chainId, remote: s.remote, offchainUrl: s.offchainUrl });
+  useEffect(() => {
+    const before = saved.current;
+    setChainId((v) => (v === before.chainId ? s.chainId : v));
+    setRemote((v) => (v === before.remote ? s.remote : v));
+    setOffchain((v) => (v === before.offchainUrl ? s.offchainUrl : v));
+    saved.current = { chainId: s.chainId, remote: s.remote, offchainUrl: s.offchainUrl };
+  }, [s.chainId, s.remote, s.offchainUrl]);
   const remoteErr = validateRemote(remote);
   const offchainErr = validateOffchainUrl(offchain);
   const preset = matchingPreset(chainId, remote);
@@ -33,8 +42,10 @@ export function SettingsScreen() {
         </View>
         <Field label="Chain ID" value={chainId} onChangeText={setChainId} />
         <Field label="RPC endpoint" value={remote} onChangeText={setRemote} error={remoteErr} />
-        {active && active.chainId !== chainId ? (
-          <Text style={styles.warn}>Your session was made on {active.chainId}; it will not sign on {chainId}.</Text>
+        {active && chainId.trim() !== s.chainId && active.chainId !== chainId.trim() ? (
+          <Text style={styles.warn}>Your session was made on {active.chainId}; once saved, it will not sign on {chainId.trim()}.</Text>
+        ) : active && chainId.trim() === s.chainId && active.chainId !== s.chainId ? (
+          <Text style={styles.warn}>Your session was made on {active.chainId}; it does not sign on {s.chainId}.</Text>
         ) : null}
       </Card>
       <Card>
