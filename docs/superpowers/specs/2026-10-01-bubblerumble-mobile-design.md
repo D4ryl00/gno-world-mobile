@@ -527,7 +527,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   contrôles C0/DEL/C1 précisés. Retirés : le tableau de vérification (resté dans le brouillon) et les
   questions de conception du wallet. `~/gno-inpage-wallets` rebasée dessus sans conflit (60 commits),
   plus un commit (`12c2561b5`) qui relie la section à « The `signer` pin » et dit ce qui manque au
-  fournisseur in-page. Le brouillon porte une bannière vers le standard.
+  fournisseur in-page ; poussées avec ton accord (PR #6016 en push forcé). Le brouillon porte une bannière vers le standard.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
