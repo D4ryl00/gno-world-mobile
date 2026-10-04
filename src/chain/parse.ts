@@ -43,7 +43,8 @@ const u4 = (n: number) => '\\u' + n.toString(16).padStart(4, '0');
 
 /**
  * JSON.parse that also accepts the escapes Go's strconv.Quote emits and JSON lacks:
- * \xHH (a raw byte, kept as U+00HH), \UHHHHHHHH (an astral rune, rewritten as a surrogate pair),
+ * \xHH (a raw byte, kept as U+00HH), \UHHHHHHHH (an astral rune, rewritten as a surrogate pair; above U+10FFFF
+ * it throws),
  * \a (BEL) and \v (VT).
  */
 export function parseJSONLoose(raw: string): unknown {
@@ -59,7 +60,9 @@ export function parseJSONLoose(raw: string): unknown {
       out += u4(hex(raw.slice(i + 2, i + 4)));
       i += 3;
     } else if (n === 'U' && /^[0-9a-fA-F]{8}$/.test(raw.slice(i + 2, i + 10))) {
-      const cp = hex(raw.slice(i + 2, i + 10)) - 0x10000;
+      const full = hex(raw.slice(i + 2, i + 10));
+      if (full > 0x10ffff) throw new Error(`escape \\U${raw.slice(i + 2, i + 10)} is not a Unicode code point`);
+      const cp = full - 0x10000;
       out += cp < 0 ? u4(cp + 0x10000) : u4(0xd800 + (cp >> 10)) + u4(0xdc00 + (cp & 0x3ff));
       i += 9;
     } else if (n === 'a' || n === 'v') {
@@ -114,7 +117,9 @@ export function parseRealm(raw: string, v: Version): RealmInfo {
   const o = load(raw, `realm v${v}`);
   return {
     version: v, now: num(o.now), shotsOn: bool(o.shotsOn), keeperSeen: num(o.keeperSeen),
-    commitsFree: num(o.commitsFree), split: numMap(o.split), pools: arr(o.pools).map((p) => toPool(p, v)),
+    commitsFree: num(o.commitsFree), split: numMap(o.split),
+    // a pool without an id cannot be shown or played: skip it, keep the others
+    pools: arr(o.pools).filter((p) => typeof p.id === 'number').map((p) => toPool(p, v)),
   };
 }
 

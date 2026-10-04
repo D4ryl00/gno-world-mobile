@@ -55,3 +55,18 @@ test('parseMe and parseTeams', () => {
 test('garbage is a clear error', () => {
   expect(() => parseRealm('not json', 5)).toThrow(/realm v5/);
 });
+
+test('parseJSONLoose refuses an escape that is no code point', () => {
+  expect(() => parseJSONLoose('"\\U00110000"')).toThrow(/not a Unicode code point/);
+  expect(() => parseRealm('{"pools":[{"id":1,"name":"\\U00110000"}]}', 5)).toThrow(/unreadable answer/);
+});
+
+test('parseJSONLoose leaves malformed escapes to JSON, which refuses them', () => {
+  expect(() => parseJSONLoose('"\\x4"')).toThrow(SyntaxError);
+  expect(() => parseJSONLoose('"abc\\')).toThrow(SyntaxError);
+});
+
+test('one malformed pool does not poison the realm', () => {
+  const r = parseRealm('{"now":1,"pools":["oops",{"id":7,"name":"ok"},{"name":"no id"}]}', 5);
+  expect(r.pools.map((p) => p.key)).toEqual(['v5-7']);
+});
