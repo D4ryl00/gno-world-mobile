@@ -98,3 +98,28 @@ test('browserId is 16 hex and stable', async () => {
   expect(a).toMatch(/^[0-9a-f]{16}$/);
   expect(await browserId(store, () => 'zz')).toBe(a);
 });
+
+test('two first-launch requests at once share one browser id', async () => {
+  const m = new Map<string, string>();
+  let writes = 0;
+  const store = {
+    get: async (k: string) => {
+      const v = m.get(k) ?? null; // read now, answer later: the two reads overlap
+      await new Promise((r) => setTimeout(r, 5));
+      return v;
+    },
+    set: async (k: string, v: string) => { writes++; m.set(k, v); },
+  };
+  let n = 0;
+  const hex = (bytes: number) => String(++n).padStart(bytes * 2, '0');
+  const [a, b] = await Promise.all([browserId(store, hex), browserId(store, hex)]);
+  expect(a).toBe(b);
+  expect(writes).toBe(1);
+});
+
+test('a browser id that never comes is covered by the timeout', async () => {
+  const fetchMock = jest.fn();
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: () => new Promise<string>(() => undefined), fetch: fetchMock as never, timeoutMs: 20 });
+  await expect(oc.get('/api/where')).rejects.toMatchObject({ status: 0 });
+  expect(fetchMock).not.toHaveBeenCalled();
+});

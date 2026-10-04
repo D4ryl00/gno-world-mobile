@@ -23,7 +23,11 @@ export function createOffchain(d: {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), d.timeoutMs ?? 10000);
     try {
-      const bid = await d.bid();
+      // the timeout covers the browser id too (it comes from the secure store)
+      const bid = await new Promise<string>((resolve, reject) => {
+        ctrl.signal.addEventListener('abort', () => reject(new Error('timed out')));
+        d.bid().then(resolve, reject);
+      });
       const headers: Record<string, string> = { 'X-Bid': bid };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       const res = await f(d.baseUrl().replace(/\/+$/, '') + path, {
@@ -47,11 +51,21 @@ export function createOffchain(d: {
 
 const BID_KEY = 'br.bid';
 
-/** The site's per-browser id (X-Bid): 16 hex, kept in the secure store. */
-export async function browserId(store: SecretStore, randomHex: (n: number) => string): Promise<string> {
-  const have = await store.get(BID_KEY);
-  if (have && /^[0-9a-f]{16}$/.test(have)) return have;
-  const id = randomHex(8);
-  await store.set(BID_KEY, id);
-  return id;
+const inFlightIds = new WeakMap<SecretStore, Promise<string>>();
+
+/** The site's per-browser id (X-Bid): 16 hex, kept in the secure store. Concurrent first calls share one id. */
+export function browserId(store: SecretStore, randomHex: (n: number) => string): Promise<string> {
+  const running = inFlightIds.get(store);
+  if (running) return running;
+  const promise = (async () => {
+    const have = await store.get(BID_KEY);
+    if (have && /^[0-9a-f]{16}$/.test(have)) return have;
+    const id = randomHex(8);
+    await store.set(BID_KEY, id);
+    return id;
+  })();
+  inFlightIds.set(store, promise);
+  // once settled, the next call reads the store again (a failure is not remembered)
+  void promise.finally(() => inFlightIds.delete(store)).catch(() => undefined);
+  return promise;
 }
