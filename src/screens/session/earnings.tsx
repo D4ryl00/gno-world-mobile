@@ -15,16 +15,21 @@ import { gnot } from '@/utils/gnot';
 export function Earnings({ session }: { session: ActiveSession }) {
   const { game } = useServices();
   const [mes, setMes] = useState<Partial<Record<Version, Me>>>({});
+  const [failed, setFailed] = useState<Version[]>([]); // versions whose earnings could not be read
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
   const load = useCallback(async () => {
     const out: Partial<Record<Version, Me>> = {};
+    const lost: Version[] = [];
     await Promise.all(VERSIONS.filter((v) => caps(v).me).map(async (v) => {
-      const m = await game.me(v, session.master).catch(() => null);
-      if (m && (m.bids || m.owed || m.won)) out[v] = m;
+      const m = await game.me(v, session.master).catch(() => undefined);
+      if (m === undefined) lost.push(v);
+      else if (m && (m.bids || m.owed || m.won)) out[v] = m;
     }));
-    if (mounted.current) setMes(out);
+    if (!mounted.current) return;
+    setMes(out);
+    setFailed(VERSIONS.filter((v) => lost.includes(v)));
   }, [game, session.master]);
   useEffect(() => void load(), [load]);
   useEffect(() => {
@@ -41,7 +46,13 @@ export function Earnings({ session }: { session: ActiveSession }) {
   return (
     <Card>
       <Text style={{ color: colors.fg, fontWeight: '700' }}>Your earnings</Text>
-      {!rows.length ? <Text style={{ color: colors.muted }}>No boops yet.</Text> : null}
+      {!rows.length && !failed.length ? <Text style={{ color: colors.muted }}>No boops yet.</Text> : null}
+      {failed.length ? (
+        <>
+          <Text style={{ color: colors.accent }}>Could not load your earnings on {failed.map((v) => `v${v}`).join(', ')}.</Text>
+          <Button kind="secondary" title="Try again" disabled={busy} onPress={() => void load()} />
+        </>
+      ) : null}
       {rows.map((v) => {
         const m = mes[v]!;
         return (

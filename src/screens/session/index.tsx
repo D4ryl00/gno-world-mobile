@@ -20,7 +20,7 @@ import { decodeAddress } from '@/utils/bech32';
 import { gnot, humanDuration } from '@/utils/gnot';
 
 import { Earnings } from './earnings';
-import { activeCard, errorActions } from './grant';
+import { activeCard, errorActions, initialGrant } from './grant';
 import { GrantForm } from './grant-form';
 import { walletErrorText } from './wallet-error';
 
@@ -178,7 +178,12 @@ export function SessionScreen() {
           ) : null}
           {balance !== null ? <Text style={styles.muted}>account balance {gnot(balance)}</Text> : null}
           <Button kind="secondary" title="Renew / change the budget" onPress={() => setRenewing(!renewing)} />
-          {renewing ? <GrantForm submitLabel="Renew the session" onSubmit={(g) => { setRenewing(false); void s.begin('replace', g); }} /> : null}
+          {renewing ? (
+            <GrantForm
+              submitLabel="Renew the session" initial={initialGrant(st, now)}
+              onSubmit={(g) => { setRenewing(false); void s.begin('replace', g); }}
+            />
+          ) : null}
           <Button kind="secondary" title="Top up" onPress={() => setTopUp(!topUp)} />
           {topUp ? (
             <>
@@ -187,7 +192,15 @@ export function SessionScreen() {
               <QRCode value={s.active.master} size={200} backgroundColor="#fff" color="#000" />
             </>
           ) : null}
-          <Button kind="danger" title="Revoke" onPress={() => void s.revoke()} />
+          <Button
+            kind="danger" title="Revoke"
+            onPress={() =>
+              Alert.alert('Revoke this session?', 'Bubble Rumble will no longer play from this phone until you get a new session.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Revoke', style: 'destructive', onPress: () => void s.revoke() },
+              ])
+            }
+          />
         </Card>
         {s.previous ? <PreviousSession /> : null}
         <Earnings session={s.active} />

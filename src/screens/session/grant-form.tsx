@@ -7,7 +7,7 @@ import type { Grant } from '@/session/types';
 import { colors, space } from '@/theme';
 import { gnot } from '@/utils/gnot';
 
-import { grantFromInput } from './grant';
+import { grantFromInput, worstCase } from './grant';
 
 export function GrantForm({ submitLabel, initial, onSubmit }: { submitLabel: string; initial?: Grant; onSubmit: (g: Grant) => void }) {
   const [perHour, setPerHour] = useState(String((initial?.spendPerPeriod ?? 5_000_000) / 1_000_000));
@@ -19,7 +19,7 @@ export function GrantForm({ submitLabel, initial, onSubmit }: { submitLabel: str
       <Field label="Valid for (days)" value={days} onChangeText={setDays} keyboardType="number-pad" />
       {grant ? (
         <Text style={{ color: colors.muted }}>
-          At most {gnot(grant.spendPerPeriod)} per hour, {gnot((grant.spendPerPeriod * grant.expires) / grant.period)} over {days} days.
+          At most {gnot(grant.spendPerPeriod)} per hour, {gnot(worstCase(grant))} over {grant.expires / 86400} days.
           Only Bubble Rumble&apos;s realms. Revocable at any time.
         </Text>
       ) : (
