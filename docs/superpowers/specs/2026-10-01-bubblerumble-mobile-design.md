@@ -505,8 +505,10 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   (jusqu'à la publication de la PR #233), expériences `reactCompiler`/`typedRoutes` gardées, paliers de
   tir du site, regex « issue inconnue » (gnonative n'offre aucun signal fiable). Revue finale :
   relecture par l'auteur, un défaut Important corrigé (clé non supprimée si une demande annulée
-  échouait ensuite). Mineur reporté : un appui sur un bouton pendant que le clavier numérique est
-  ouvert ne fait que fermer le clavier (comportement par défaut de React Native).
+  échouait ensuite). Mineur trouvé en route, réglé ensuite (`ac36a33`) : un appui sur un bouton pendant que
+  le clavier était ouvert ne faisait que fermer le clavier, et sur iOS le contenu ne défilait pas au-dessus
+  du clavier ; les écrans à champs partagent désormais un `Page` (`keyboardShouldPersistTaps="handled"`,
+  insets du clavier, fermeture au glissé). Plus rien de reporté.
   Ledger (non versionné) : `.superpowers/sdd/2026-10-04-p3-m1-old-minors/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
