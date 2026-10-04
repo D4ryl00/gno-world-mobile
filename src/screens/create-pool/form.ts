@@ -1,4 +1,5 @@
 import type { PoolForm } from '@/chain/game-client';
+import type { Pool } from '@/chain/parse';
 import { parseDuration, toUgnot } from '@/utils/gnot';
 
 // bubblerumble5's CreatePool bounds
@@ -21,4 +22,11 @@ export function validatePoolForm(i: { name: string; window: string; base: string
   } catch (e) {
     return { error: (e as Error).message };
   }
+}
+
+/** The pool a CreatePool just made: the newest v5 pool with that creator and name (CreatePool returns no id here). */
+export function findCreated(pools: Pool[], creator: string, name: string): string | undefined {
+  return pools
+    .filter((p) => p.version === 5 && p.creator === creator && p.name === name)
+    .sort((a, b) => b.id - a.id)[0]?.key;
 }

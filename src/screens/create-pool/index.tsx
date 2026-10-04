@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { ChainError } from '@/chain/errors';
@@ -7,11 +7,19 @@ import { Button } from '@/components/button';
 import { Field } from '@/components/field';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
 import { txMessage } from '@/screens/pool/tx-message';
+import { createTxRunner } from '@/screens/pool/tx-runner';
 import { useServices, useSession } from '@/state/app-services';
 import { colors, space } from '@/theme';
 import { gnot } from '@/utils/gnot';
 
-import { validatePoolForm } from './form';
+import { findCreated, validatePoolForm } from './form';
+
+/** Leaves the modal, for a pool when given; a deep link that opened it directly has nothing to go back to. */
+const leave = (poolKey?: string) => {
+  if (poolKey) router.replace({ pathname: '/pool/[key]', params: { key: poolKey } });
+  else if (router.canGoBack()) router.back();
+  else router.replace('/');
+};
 
 export function CreatePoolScreen() {
   const { game } = useServices();
@@ -22,8 +30,8 @@ export function CreatePoolScreen() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false); // the pool may exist: never offer to create it twice
   const { form, error } = validatePoolForm(v);
-  const inFlightRef = useRef(false);
-  const set = (k: keyof typeof v) => (t: string) => setV({ ...v, [k]: t });
+  const [runner] = useState(() => createTxRunner(setBusy)); // one transaction at a time, as on the pool screen
+  const set = (k: keyof typeof v) => (t: string) => setV((prev) => ({ ...prev, [k]: t }));
 
   if (blocked) return <Text style={styles.warn}>{NOPLAY_TEXT}</Text>;
   return (
@@ -37,27 +45,26 @@ export function CreatePoolScreen() {
       {error ? <Text style={styles.warn}>{error}</Text> : <Text style={styles.muted}>first boop {gnot(form!.basePrice)}</Text>}
       <Button
         title={active ? 'create' : 'set up a session first'} disabled={!form || !active || busy || sent}
-        onPress={async () => {
-          if (inFlightRef.current) return;
-          inFlightRef.current = true;
-          setBusy(true);
-          try {
-            await game.createPool(active!, form!);
-            router.back();
-          } catch (e) {
-            const m = txMessage(e, Math.floor(Date.now() / 1000));
-            setMsg(m);
-            if (e instanceof ChainError && e.kind === 'unknown-outcome') {
-              // probably created: back to the list, where the new pool shows up, with the warning kept on screen
+        onPress={() =>
+          void runner(async () => {
+            try {
+              await game.createPool(active!, form!);
               setSent(true);
-              router.back();
-              Alert.alert('New pool', m);
+              // land on the new pool when the realm already lists it, else on the list (it shows up there)
+              const created = await game.realm(5).then((r) => findCreated(r.pools, active!.master, form!.name)).catch(() => undefined);
+              leave(created);
+            } catch (e) {
+              const m = txMessage(e, Math.floor(Date.now() / 1000));
+              setMsg(m);
+              if (e instanceof ChainError && e.kind === 'unknown-outcome') {
+                // probably created: back to the list, where the new pool shows up, with the warning kept on screen
+                setSent(true);
+                leave();
+                Alert.alert('New pool', m);
+              }
             }
-          } finally {
-            setBusy(false);
-            inFlightRef.current = false;
-          }
-        }}
+          }, async () => undefined)
+        }
       />
       {msg ? <Text style={styles.warn}>{msg}</Text> : null}
     </ScrollView>
