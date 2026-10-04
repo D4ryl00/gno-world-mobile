@@ -35,7 +35,7 @@ export class GameClient {
   async pool(v: Version, id: number): Promise<Pool> {
     if (caps(v).poolJson) return parsePool(await this.api.render(REALMS[v], `json/${id}`), v);
     const p = (await this.realm(v)).pools.find((x) => x.id === id);
-    if (!p) throw new Error(`no pool v${v}-${id}`);
+    if (!p) throw new ChainError('other', `no pool v${v}-${id} on this network`);
     return p;
   }
 
@@ -87,7 +87,9 @@ export class GameClient {
       );
       let last: { hash: Uint8Array; height: bigint } | undefined;
       for await (const r of stream) last = r;
-      return { hash: last ? bytesToHex(last.hash) : '', height: last ? Number(last.height) : 0 };
+      // broadcast, but nothing came back: it may or may not have landed
+      if (!last) throw new ChainError('unknown-outcome', 'the node returned no result for the transaction');
+      return { hash: bytesToHex(last.hash), height: Number(last.height) };
     } catch (e) {
       throw classifyError(e);
     }

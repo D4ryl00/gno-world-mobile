@@ -68,3 +68,25 @@ test('createPool sends the seed and the arguments in realm order', async () => {
   expect(api.calls[0]).toMatchObject({ pkg: REALMS[5], fnc: 'CreatePool', args: ['x', '600', '1000', '0'] });
   expect(api.calls[0].send).toEqual([{ denom: 'ugnot', amount: 5000n }]);
 });
+
+test('every transaction refuses a session from another chain', async () => {
+  const api = new FakeChainApi();
+  const g = new GameClient(api, () => 'dev');
+  const pool = parsePool(fx('v5-pool.json'), 5);
+  await expect(g.bid(session, pool, { ref: '', flag: '', boost: 1, shot: 0 })).rejects.toMatchObject({ kind: 'wrong-chain' });
+  await expect(g.createPool(session, { name: 'x', window: 600, basePrice: 1000, life: 0, seed: 0 })).rejects.toMatchObject({ kind: 'wrong-chain' });
+  await expect(g.withdraw(session, 5)).rejects.toMatchObject({ kind: 'wrong-chain' });
+  expect(api.calls).toHaveLength(0);
+});
+
+test('a pool a v1 realm does not list is a classified error', async () => {
+  const api = new FakeChainApi();
+  api.renders.set(`${REALMS[1]}:json`, '{"now":1,"pools":[]}');
+  await expect(new GameClient(api, () => 'gnoland-1').pool(1, 9)).rejects.toMatchObject({ name: 'ChainError', kind: 'other' });
+});
+
+test('a transaction whose stream ends without a result has an unknown outcome', async () => {
+  const api = new FakeChainApi();
+  api.emptyNextCall = true;
+  await expect(new GameClient(api, () => 'gnoland-1').withdraw(session, 5)).rejects.toMatchObject({ kind: 'unknown-outcome' });
+});

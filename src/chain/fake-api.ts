@@ -7,6 +7,8 @@ export class FakeChainApi implements ChainApi {
   renders = new Map<string, string>();
   calls: { pkg: string; fnc: string; args: string[]; gasFee: string; gasWanted: bigint; signerHex: string; send?: Coin[] }[] = [];
   failNextCall: Error | null = null;
+  /** the next call's stream ends without a result */
+  emptyNextCall = false;
   sessions = new Map<string, SessionAccountInfo>(); // key: masterHex/sessionHex
   balances = new Map<string, Coin[]>();
   keys = new Map<string, { address: Uint8Array; pubKey: Uint8Array; password: string }>();
@@ -28,8 +30,10 @@ export class FakeChainApi implements ChainApi {
       throw e;
     }
     this.calls.push({ pkg, fnc, args, gasFee, gasWanted, signerHex: bytesToHex(signer), send });
+    const empty = this.emptyNextCall;
+    this.emptyNextCall = false;
     return (async function* () {
-      yield { hash: new Uint8Array([0xab, 0xcd]), height: 7n };
+      if (!empty) yield { hash: new Uint8Array([0xab, 0xcd]), height: 7n };
     })();
   }
   async queryAccount(address: Uint8Array) {

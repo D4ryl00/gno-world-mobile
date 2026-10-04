@@ -22,8 +22,10 @@ const RULES: [RegExp, ChainErrorKind][] = [
   // The tx was broadcast but its result could not be decoded (gnonative's gno lacks some event types): it may have
   // landed, so it must not read as a failure worth a paid retry.
   [/unrecognized concrete type|failed to decode|unmarshal/i, 'unknown-outcome'],
-  [/ECONNREFUSED|unreachable|network request failed|failed to fetch|timed? ?out|unable to connect/i, 'network'],
 ];
+
+/** Checked after the realm's own texts: a realm refusal may contain a word like "timeout". */
+const NETWORK = /ECONNREFUSED|unreachable|network request failed|failed to fetch|timed? ?out|unable to connect/i;
 
 const REALM_TEXT =
   /(pool is closed|pool was cancelled|send at least [^\n,]+(?:, got [^\n,]+)?|name must be [^\n]+?(?=\n|$)|name has control characters|window must be [^\n]+?(?=\n|$)|base price must be [^\n]+?(?=\n|$)|life must be [^\n]+?(?=\n|$)|shot must be [^\n]+?(?=\n|$)|must be a direct user call|nothing to (?:claim|withdraw)[^\n]*|only ugnot is accepted|bad pool id)/i;
@@ -34,5 +36,6 @@ export function classifyError(e: unknown): ChainError {
   for (const [re, kind] of RULES) if (re.test(msg)) return new ChainError(kind, msg.split('\n')[0], e);
   const realm = REALM_TEXT.exec(msg);
   if (realm) return new ChainError('realm', realm[1].trim(), e);
+  if (NETWORK.test(msg)) return new ChainError('network', msg.split('\n')[0], e);
   return new ChainError('other', msg.split('\n')[0], e);
 }

@@ -41,3 +41,7 @@ test.each([
 ])('%s → unknown-outcome', (msg) => {
   expect(classifyError(new Error(msg)).kind).toBe('unknown-outcome');
 });
+
+test('a realm refusal is not taken for a network failure because of a word', () => {
+  expect(classifyError(new Error('pool is closed (connection timed out)'))).toMatchObject({ kind: 'realm', message: 'pool is closed' });
+});
