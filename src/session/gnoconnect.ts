@@ -9,13 +9,16 @@ export type SessionHost = 'connect' | 'disconnect';
 
 const enc = encodeURIComponent;
 
-function splitLink(link: string): { host: string; query: string; fragment: string } {
-  const afterScheme = link.slice(link.indexOf('://') + 3);
+function splitLink(link: string): { scheme: string; host: string; query: string; fragment: string } {
+  const sep = link.indexOf('://');
+  if (sep <= 0) throw new Error('not a link');
+  const afterScheme = link.slice(sep + 3);
   const hash = afterScheme.indexOf('#');
   const noFrag = hash >= 0 ? afterScheme.slice(0, hash) : afterScheme;
   const q = noFrag.indexOf('?');
   const hostPath = q >= 0 ? noFrag.slice(0, q) : noFrag;
   return {
+    scheme: link.slice(0, sep).toLowerCase(),
     host: hostPath.split('/')[0].toLowerCase(),
     query: q >= 0 ? noFrag.slice(q + 1) : '',
     fragment: hash >= 0 ? afterScheme.slice(hash + 1) : '',
@@ -35,12 +38,28 @@ function entries(qs: string): [string, string][] {
     });
 }
 
+/** Control characters as Go's unicode.IsControl sees them: C0, DEL and C1. */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+
+/** Bytewise UTF-8 order, which is code-point order (UTF-16 code units disagree above U+FFFF). */
+function byCodePoint(a: string, b: string): number {
+  const x = Array.from(a), y = Array.from(b);
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = x[i].codePointAt(0)! - y[i].codePointAt(0)!;
+    if (d) return d;
+  }
+  return x.length - y.length;
+}
+
 /** The proof-of-possession payload (gnoconnect-session.md, "Proof of possession"). */
 export function canonicalPayload(link: string): string {
   const { host, query } = splitLink(link);
   const kvs = entries(query).filter(([k]) => k !== 'sig' && k !== 'oldsig');
-  for (const [k, v] of kvs) if (/[\u0000-\u001f\u007f]/.test(k + v)) throw new Error(`control character in ${k}`);
-  kvs.sort(([ak, av], [bk, bv]) => (ak !== bk ? (ak < bk ? -1 : 1) : av < bv ? -1 : av > bv ? 1 : 0));
+  for (const [k, v] of kvs) {
+    if (CONTROL.test(k + v)) throw new Error(`control character in ${k}`);
+    if (k.includes('=')) throw new Error(`= in the parameter name ${k}`);
+  }
+  kvs.sort(([ak, av], [bk, bv]) => byCodePoint(ak, bk) || byCodePoint(av, bv));
   return ['gnoconnect-session-v1', `host=${host}`, ...kvs.map(([k, v]) => `${k}=${v}`)].join('\n');
 }
 
@@ -58,7 +77,31 @@ export interface SessionRequest {
   iat: number;
 }
 
+/** The request rules a wallet would answer `invalid_request` to (gnoconnect-session.md, "Parameters"). */
+function checkRequest(r: SessionRequest): void {
+  const bad = (why: string) => {
+    throw new Error(`session request: ${why}`);
+  };
+  if (!r.state || r.state.length > 256) bad('state must be 1 to 256 characters');
+  if (r.host === 'disconnect') {
+    if (!r.signer) bad('a disconnect needs signer');
+    if (r.old || r.grant || r.allow?.length) bad('a disconnect carries no old, allow or grant');
+    return;
+  }
+  const allow = r.allow ?? [];
+  if (allow.length < 1 || allow.length > 8) bad('a grant needs 1 to 8 allow entries');
+  if (!r.grant) bad('a grant needs expires');
+  const g = r.grant!;
+  if (g.period < 0 || g.period > 2592000) bad('period must be 0 to 2592000 seconds');
+  if (g.expires < 1 || g.expires > 126144000) bad('expires must be 1 to 126144000 seconds');
+  if (r.old !== undefined) {
+    if (r.old === r.pubkey) bad('old must differ from pubkey');
+    if (!r.signer) bad('old needs signer');
+  }
+}
+
 export function buildSessionLink(r: SessionRequest): string {
+  checkRequest(r);
   const p: [string, string][] = [['pubkey', r.pubkey]];
   if (r.old) p.push(['old', r.old]);
   for (const a of r.allow ?? []) p.push(['allow', a]);
@@ -114,11 +157,12 @@ export function parseReplyEntries(es: [string, string][]): WalletReply | null {
 
 export function parseReplyURL(url: string): WalletReply | null {
   try {
-    const { query, fragment } = splitLink(url);
-    return parseReplyEntries([...entries(query), ...entries(fragment)]);
-  } catch (e) {
-    if (e instanceof URIError) return null;
-    throw e;
+    // the wallet answers in the fragment for an http(s) callback, in the query otherwise
+    const { scheme, query, fragment } = splitLink(url);
+    const web = scheme === 'http' || scheme === 'https';
+    return parseReplyEntries(entries(web ? fragment : query));
+  } catch {
+    return null; // attacker-controlled input: malformed escapes, not a link
   }
 }
 

@@ -90,6 +90,7 @@ test('a reply grants the key only when its session is the key address', () => {
 
 test('fragment replies (https callbacks) parse too; junk is null', () => {
   expect(parseReplyURL('https://x.example/cb#status=cancelled&state=s')).toMatchObject({ status: 'cancelled', state: 's' });
+  expect(parseReplyURL('https://x.example/cb?status=error&state=q#status=cancelled&state=s')).toMatchObject({ status: 'cancelled', state: 's' });
   expect(parseReplyURL('bubblerumble://session-callback?status=maybe')).toBeNull();
 });
 
@@ -97,4 +98,72 @@ test('malformed escape sequences in callback URLs return null (attacker-controll
   expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%zz')).toBeNull();
   expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%ff')).toBeNull();
   expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%')).toBeNull();
+});
+
+test('a custom-scheme reply is read from the query, where the wallet writes it', () => {
+  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=a#status=error&state=b')).toMatchObject({
+    status: 'success', state: 'a',
+  });
+});
+
+test('the canonical order is by code point, as UTF-8 bytes order them', () => {
+  // UTF-16 code units put U+1F600 (a surrogate pair, 0xD83D…) before U+E000; UTF-8 puts it after.
+  const p = canonicalPayload('land.gno.gnokey://disconnect?k=%F0%9F%98%80&k=%EE%80%80');
+  expect(p.split('\n').slice(2)).toEqual(['k=\uE000', 'k=\u{1F600}']);
+});
+
+test('control characters, C1 included, and = in a name are refused', () => {
+  expect(() => canonicalPayload('land.gno.gnokey://disconnect?state=a%C2%85b')).toThrow(/control/);
+  expect(() => canonicalPayload('land.gno.gnokey://disconnect?st%7Fate=a')).toThrow(/control/);
+  expect(() => canonicalPayload('land.gno.gnokey://disconnect?a%3Db=c')).toThrow(/=/);
+});
+
+test('something that is not a link is refused', () => {
+  expect(() => canonicalPayload('connect?state=a')).toThrow(/not a link/);
+  expect(parseReplyURL('status=success&state=a')).toBeNull();
+});
+
+describe('buildSessionLink keeps to the protocol', () => {
+  const ok = {
+    host: 'connect' as const, pubkey: GPUB, allow: ['bank/send'], grant: { spendPerPeriod: 1, period: 3600, expires: 60 },
+    chainid: 'dev', callback: 'bubblerumble://session-callback', state: 's', iat: 1,
+  };
+  it('accepts a well-formed grant', () => expect(() => buildSessionLink(ok)).not.toThrow());
+  it('refuses old equal to pubkey', () => expect(() => buildSessionLink({ ...ok, old: GPUB, signer: 'g1me' })).toThrow(/old/));
+  it('refuses old without signer', () => expect(() => buildSessionLink({ ...ok, old: 'gpub1old' })).toThrow(/signer/));
+  it('refuses 0 or 9 allow entries on a grant', () => {
+    expect(() => buildSessionLink({ ...ok, allow: [] })).toThrow(/allow/);
+    expect(() => buildSessionLink({ ...ok, allow: Array(9).fill('bank/send') })).toThrow(/allow/);
+  });
+  it('refuses an empty or a 257-character state', () => {
+    expect(() => buildSessionLink({ ...ok, state: '' })).toThrow(/state/);
+    expect(() => buildSessionLink({ ...ok, state: 'x'.repeat(257) })).toThrow(/state/);
+  });
+  it('refuses out-of-range period and expires', () => {
+    expect(() => buildSessionLink({ ...ok, grant: { ...ok.grant, period: 2592001 } })).toThrow(/period/);
+    expect(() => buildSessionLink({ ...ok, grant: { ...ok.grant, expires: 0 } })).toThrow(/expires/);
+    expect(() => buildSessionLink({ ...ok, grant: { ...ok.grant, expires: 126144001 } })).toThrow(/expires/);
+  });
+  it('refuses a disconnect without signer, or with old or allow', () => {
+    const d = { host: 'disconnect' as const, pubkey: GPUB, chainid: 'dev', signer: 'g1me', callback: ok.callback, state: 's', iat: 1 };
+    expect(() => buildSessionLink(d)).not.toThrow();
+    expect(() => buildSessionLink({ ...d, signer: undefined })).toThrow(/signer/);
+    expect(() => buildSessionLink({ ...d, old: 'gpub1old' })).toThrow(/old/);
+    expect(() => buildSessionLink({ ...d, allow: ['bank/send'] })).toThrow(/allow/);
+  });
+});
+
+test('signatures are appended whole, sig then oldsig, base64url without padding', async () => {
+  const link = buildSessionLink({
+    host: 'connect', pubkey: GPUB, old: 'gpub1old', allow: ['bank/send'], grant: { spendPerPeriod: 1, period: 0, expires: 60 },
+    chainid: 'dev', signer: 'g1me', callback: 'bubblerumble://session-callback', state: 's', iat: 1,
+  });
+  const a = new Uint8Array(64).map((_, i) => i * 4); // covers - and _ in base64url
+  const b = new Uint8Array(64).fill(0xff);
+  const signed = await signLink(link, async () => a, async () => b);
+  const tail = signed.slice(link.length);
+  const m = /^&sig=([A-Za-z0-9_-]+)&oldsig=([A-Za-z0-9_-]+)$/.exec(tail);
+  expect(m).not.toBeNull();
+  expect(Buffer.from(m![1], 'base64url')).toEqual(Buffer.from(a));
+  expect(Buffer.from(m![2], 'base64url')).toEqual(Buffer.from(b));
 });
