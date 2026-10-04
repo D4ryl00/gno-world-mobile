@@ -240,8 +240,8 @@ export const createSessionStore = (d: SessionDeps) => {
               }
               await send(p, link);
             } catch (e) {
-              if (gen !== generation) return;
               drop(key);
+              if (gen !== generation) return; // cancelled meanwhile: no error card for a dropped request
               fail(e);
             } finally {
               starting = false;

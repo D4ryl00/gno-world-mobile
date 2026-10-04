@@ -752,3 +752,16 @@ test('(g) a session storage that cannot be read still lets restore and replies r
   ]);
   expect(r).toBe('done');
 });
+
+test('(a) a begin cancelled and then failing still deletes its key', async () => {
+  const { api, store } = setup();
+  api.signBytes = async () => {
+    throw new Error('signing failed');
+  };
+  const started = store.getState().begin('create', DEFAULT_GRANT);
+  store.getState().cancel();
+  await started;
+  await settle();
+  expect(api.deleted).toHaveLength(1);
+  expect(store.getState().phase).toBe('none'); // cancelled: no error card for a request the user dropped
+});
