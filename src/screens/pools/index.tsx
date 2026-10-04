@@ -18,10 +18,10 @@ import { sortPools } from './sort';
 
 export function PoolsScreen() {
   const { game } = useServices();
-  const now = useNow(5000);
+  const now = useNow(1000); // the rows' countdowns tick on the same shared timer; a closed pool leaves Live at once
   const blocked = usePresence((s) => isPlayBlocked(s.country));
   const [data, setData] = useState<AllPools | null>(null);
-  const [teams, setTeams] = useState<Teams>({});
+  const [teams, setTeams] = useState<Teams | null>({}); // null: the teams could not be loaded
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -32,7 +32,7 @@ export function PoolsScreen() {
     () =>
       serial(async () => {
         try {
-          const [all, t] = await Promise.all([game.allPools(), game.teams().catch(() => ({}))]);
+          const [all, t] = await Promise.all([game.allPools(), game.teams().catch(() => null)]);
           if (!mounted.current) return;
           const r = loadNotice(all);
           setData(all);
@@ -62,7 +62,7 @@ export function PoolsScreen() {
   );
 
   const { live, closed } = sortPools(data?.pools ?? [], now);
-  const topTeams = Object.entries(teams).sort(([, a], [, b]) => b.won - a.won || b.paid - a.paid).slice(0, 10);
+  const topTeams = Object.entries(teams ?? {}).sort(([, a], [, b]) => b.won - a.won || b.paid - a.paid).slice(0, 10);
 
   return (
     <SectionList
@@ -74,6 +74,7 @@ export function PoolsScreen() {
           {blocked ? <Text style={styles.warn}>{NOPLAY_TEXT}</Text> : <Button title="New pool" onPress={() => router.push('/create')} />}
           {error ? <Text style={styles.warn}>{error}</Text> : null}
           {notice ? <Text style={styles.warn}>{notice}</Text> : null}
+          {!data && !error ? <Text style={styles.muted}>Loading pools…</Text> : null}
         </View>
       }
       sections={[
@@ -82,10 +83,17 @@ export function PoolsScreen() {
       ]}
       keyExtractor={(p) => p.key}
       renderSectionHeader={({ section }) => <Text style={styles.h}>{section.title}</Text>}
+      renderSectionFooter={({ section }) =>
+        data && !section.data.length ? (
+          <Text style={styles.muted}>{section.title === 'Live' ? 'No live pools.' : 'No closed pools yet.'}</Text>
+        ) : null
+      }
       renderItem={({ item }) => <PoolRow pool={item} />}
       ItemSeparatorComponent={() => <View style={{ height: space.s }} />}
       ListFooterComponent={
-        topTeams.length ? (
+        teams === null ? (
+          <Text style={[styles.muted, { marginTop: space.l }]}>Teams could not be loaded.</Text>
+        ) : topTeams.length ? (
           <View style={{ gap: space.xs, marginTop: space.l }}>
             <Text style={styles.h}>Teams</Text>
             {topTeams.map(([cc, t]) => (
@@ -103,6 +111,7 @@ export function PoolsScreen() {
 const styles = StyleSheet.create({
   page: { padding: space.l, gap: space.s },
   lede: { color: colors.muted },
+  muted: { color: colors.muted },
   h: { color: colors.fg, fontSize: 18, fontWeight: '800', marginTop: space.l, marginBottom: space.s },
   warn: { color: colors.accent },
   team: { color: colors.fg },
