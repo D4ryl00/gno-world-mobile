@@ -1,11 +1,12 @@
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Share, StyleSheet, Text } from 'react-native';
+import { Share, StyleSheet, Text } from 'react-native';
 
 import type { Pool, RealmInfo } from '@/chain/parse';
 import { parsePoolKey } from '@/chain/realms';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { Page } from '@/components/page';
 import { Countdown } from '@/components/countdown';
 import { useNow } from '@/hooks/use-now';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
@@ -107,7 +108,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
   const budget = status && !elsewhere ? { left: remaining(status, now), refillsIn: resetsIn(status, now) } : undefined;
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <Page style={styles.page}>
       <Card>
         <Text style={styles.name}>{pool.name}</Text>
         <Text style={styles.pot}>{gnot(pool.pot)}</Text>
@@ -162,7 +163,7 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
       <Roster pool={pool} me={me} />
       <Shots pool={pool} />
       <Rules pool={pool} />
-    </ScrollView>
+    </Page>
   );
 }
 

@@ -1,12 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { ugnot } from '@/chain/api';
 import { SESSION_ALLOW_PATHS } from '@/chain/realms';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { Page } from '@/components/page';
 import { CommandBlock } from '@/components/command-block';
 import { Field } from '@/components/field';
 import { useNow } from '@/hooks/use-now';
@@ -66,7 +67,7 @@ export function SessionScreen() {
     Alert.alert(title, message);
   }, [walletError, takeWalletError, chainId]);
 
-  const page = (body: ReactNode) => <ScrollView contentContainerStyle={styles.page}>{body}</ScrollView>;
+  const page = (body: ReactNode) => <Page style={styles.page}>{body}</Page>;
 
   if (s.phase === 'error') {
     const can = errorActions(s.error, !!s.active);

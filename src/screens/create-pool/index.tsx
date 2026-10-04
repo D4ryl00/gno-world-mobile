@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 
 import { ChainError } from '@/chain/errors';
 import { Button } from '@/components/button';
+import { Page } from '@/components/page';
 import { Field } from '@/components/field';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
 import { txMessage } from '@/screens/pool/tx-message';
@@ -35,7 +36,7 @@ export function CreatePoolScreen() {
 
   if (blocked) return <Text style={styles.warn}>{NOPLAY_TEXT}</Text>;
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <Page style={styles.page}>
       <Text style={styles.muted}>The seed comes out of your account. Nth boop costs base·√N. You earn 5% of every boop.</Text>
       <Field label="Name" value={v.name} onChangeText={set('name')} />
       <Field label="Window (e.g. 90m, 12h, 2d)" value={v.window} onChangeText={set('window')} />
@@ -67,7 +68,7 @@ export function CreatePoolScreen() {
         }
       />
       {msg ? <Text style={styles.warn}>{msg}</Text> : null}
-    </ScrollView>
+    </Page>
   );
 }
 

@@ -1,9 +1,10 @@
 import Constants from 'expo-constants';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { Page } from '@/components/page';
 import { Field } from '@/components/field';
 import { useSession } from '@/state/app-services';
 import { matchingPreset, NETWORK_PRESETS, settingsStore, useSettings, validateOffchainUrl, validateRemote } from '@/state/settings';
@@ -30,7 +31,7 @@ export function SettingsScreen() {
   const dirty = chainId !== s.chainId || remote !== s.remote || offchain !== s.offchainUrl;
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <Page style={styles.page}>
       <Card>
         <Text style={styles.h}>Network</Text>
         <View style={styles.row}>
@@ -61,7 +62,7 @@ export function SettingsScreen() {
         }}
       />
       <Text style={styles.muted}>Bubble Rumble mobile {Constants.expoConfig?.version ?? ''}</Text>
-    </ScrollView>
+    </Page>
   );
 }
 

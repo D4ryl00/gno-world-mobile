@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors, radius, space } from '@/theme';
 
@@ -13,7 +13,11 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled, selected }}
       disabled={disabled}
-      onPress={onPress}
+      // a tap with the keyboard up acts at once (the screens let it through) and closes the keyboard
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
       style={({ pressed }) => [styles.base, styles[kind], selected && styles.selected, (disabled || pressed) && styles.dim]}>
       <Text style={[styles.text, kind === 'primary' && styles.primaryText, selected && styles.selectedText]}>{title}</Text>
     </Pressable>
