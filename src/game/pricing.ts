@@ -8,6 +8,7 @@ export const price = (base: number, bids: number) => Math.ceil(base * Math.sqrt(
 
 /** ClockFor: the window divided by the multiple paid, within [max(window/10, 5 min), window]. */
 export function clockFor(window: number, priceU: number, sent: number): number {
+  if (sent <= 0) return window; // nothing paid: no boost (and no division by zero)
   let c = Math.trunc((window * priceU) / sent);
   if (c < Math.trunc(window / MAX_BOOST)) c = Math.trunc(window / MAX_BOOST);
   if (c < MIN_CLOCK) c = MIN_CLOCK;

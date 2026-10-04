@@ -41,3 +41,19 @@ test('shotPause mirrors the site messages', () => {
   expect(shotPause({ ...base, liveBps: 2000 }, info)).toMatch(/slid under a quarter/);
   expect(shotPause({ ...base, version: 3 }, info)).toBe('');
 });
+
+test('takeFor on a first boop adds the first-bid bonus', () => {
+  // 1e6 + 50% + 10% (no ref) + 30% (first bid) of 1e6 − tip
+  expect(takeFor({ ...base, bids: 0 }, 1_000_000, 0)).toBe(1_880_000);
+});
+
+test('shotFor before v4 prices against the pot, capped at 10 GNOT', () => {
+  expect(shotFor({ ...base, version: 3 }, 100, 1_000_000)).toBe(12_500);
+  expect(shotFor({ ...base, version: 3, pot: 50_000_000 }, 100, 1_000_000)).toBe(125_000);
+});
+
+test('shotPause names the realm live floor', () => {
+  const info = { shotsOn: true, commitsFree: 5, keeperSeen: 100, keeperFresh: 300, liveFloor: 2500, now: 200 };
+  expect(shotPause({ ...base, liveBps: 2000 }, info)).toMatch(/under a quarter/);
+  expect(shotPause({ ...base, liveBps: 3000 }, { ...info, liveFloor: 4000 })).toMatch(/under 40%/);
+});

@@ -27,3 +27,12 @@ test('humanDuration keeps three units', () => {
   expect(humanDuration(93784)).toBe('1d 2h 3m');
   expect(humanDuration(0)).toBe('0s');
 });
+
+test('gnot keeps the sign', () => {
+  expect(gnot(-1500000)).toBe('-1.5 GNOT');
+});
+
+test('toUgnot refuses an amount past exact integers', () => {
+  expect(() => toUgnot('9007199254.740993')).toThrow(/too large/);
+  expect(toUgnot('9007199254.740991')).toBe(Number.MAX_SAFE_INTEGER);
+});

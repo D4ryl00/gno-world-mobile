@@ -21,3 +21,12 @@ test('gasFor is the site table', () => {
   expect(gasFor('CreatePool')).toEqual({ wanted: 30000000, fee: 30000 });
   expect(gasFor('Withdraw')).toEqual({ wanted: 30000000, fee: 30000 });
 });
+
+test('clockFor without a positive amount is the plain window', () => {
+  expect(clockFor(3600, 1000, 0)).toBe(3600);
+  expect(clockFor(3600, 1000, -5)).toBe(3600);
+});
+
+test('gasFor a pool function without a pool falls back to the flat rate', () => {
+  expect(gasFor('Bid')).toEqual({ wanted: 3e7, fee: 3e4 });
+});

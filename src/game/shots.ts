@@ -71,7 +71,8 @@ export function shotPause(p: ShotInputs, info: ShotRealmInfo): string {
   if (!info.commitsFree) return 'the keeper has no commitments left — shots are paused, back soon';
   if (!info.keeperSeen || info.now - info.keeperSeen > (info.keeperFresh || 300))
     return 'the keeper has not been seen for a while — shots are paused';
-  if (p.bids > 0 && p.liveBps < (info.liveFloor || 2500))
-    return "the winner's share has slid under a quarter — no more shots on this bubble";
+  const floor = info.liveFloor || 2500;
+  if (p.bids > 0 && p.liveBps < floor)
+    return `the winner's share has slid under ${floor === 2500 ? 'a quarter' : `${floor / 100}%`} — no more shots on this bubble`;
   return '';
 }

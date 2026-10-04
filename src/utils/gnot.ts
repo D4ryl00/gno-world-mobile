@@ -15,7 +15,9 @@ export function toUgnot(input: string): number {
   if (!s) return 0;
   const m = /^(\d*)(?:\.(\d{0,6}))?$/.exec(s);
   if (!m || (!m[1] && !m[2])) throw new Error('amount must be a number with up to 6 decimals');
-  return Number((m[1] || '0') + (m[2] || '').padEnd(6, '0'));
+  const n = Number((m[1] || '0') + (m[2] || '').padEnd(6, '0'));
+  if (!Number.isSafeInteger(n)) throw new Error('amount too large');
+  return n;
 }
 
 const UNIT = { s: 1, m: 60, h: 3600, d: 86400 } as const;
