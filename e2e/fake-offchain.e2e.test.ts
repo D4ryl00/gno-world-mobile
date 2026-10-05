@@ -150,3 +150,15 @@ test('fidelity: same reply keys and line field types as production', async () =>
   for (const l of mine.msgs)
     for (const [k, v] of Object.entries(l)) if (prodTypes.has(k)) expect([k, kind(v)]).toEqual([k, prodTypes.get(k)]);
 });
+
+test('a restarted fake server is a new log (another gen)', async () => {
+  const genOf = async (url: string) =>
+    (await (await fetch(`${url}/api/chat?since=0&wait=0`, { headers: { 'X-Bid': 'aaaaaaaaaaaaaaaa' } })).json()).gen;
+  const a = await startFakeServer(0);
+  const first = await genOf(a.url);
+  await a.close();
+  await new Promise((r) => setTimeout(r, 5));
+  const b = await startFakeServer(0);
+  expect(await genOf(b.url)).not.toBe(first);
+  await b.close();
+});

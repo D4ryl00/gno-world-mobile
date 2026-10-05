@@ -19,7 +19,7 @@ interface Line {
   changedAt: number;
 }
 
-export interface FakeOptions { host?: string; now?: () => number; maxWait?: number }
+export interface FakeOptions { host?: string; now?: () => number; maxWait?: number; gen?: number }
 export interface FakeServer { url: string; close(): Promise<void> }
 
 const tagOf = (bid: string) => createHash('sha256').update(bid).digest('hex').slice(0, 4);
@@ -44,7 +44,8 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   const now = o.now ?? (() => Math.floor(Date.now() / 1000));
   const maxWait = o.maxWait ?? 55;
   let seq = 0;
-  let gen = 1;
+  // a new run is a new log, as a real server's reset: clients that knew the old one reload
+  let gen = o.gen ?? Date.now() % 1_000_000_000;
   const lines: Line[] = [];
   const gone: { id: number; at: number }[] = [];
   const typing = new Map<string, { name: string; n: number; until: number }>();
