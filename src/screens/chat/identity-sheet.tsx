@@ -8,6 +8,8 @@ import { avatarUrl } from '@/offchain/chat/client';
 import type { ChatState } from '@/offchain/chat/store';
 import { colors, radius, space } from '@/theme';
 
+import { avatarJpeg } from './avatar';
+
 export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve }: {
   store: StoreApi<ChatState>; visible: boolean; onClose: () => void; offchainUrl: string; canReserve: boolean;
 }) {
@@ -44,8 +46,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
         const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
         const a = r.canceled ? null : r.assets?.[0];
         if (!a) return;
-        const blob = await (await fetch(a.uri)).blob();
-        await store.getState().setAvatar(blob, a.mimeType ?? 'image/jpeg');
+        await store.getState().setAvatar(await avatarJpeg(a.uri), 'image/jpeg');
       } catch {
         setPhotoError('That picture could not be read — try another one.');
       }

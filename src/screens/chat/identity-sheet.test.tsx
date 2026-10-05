@@ -11,6 +11,7 @@ jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(async () => ({ granted: true })),
   launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })),
 }));
+jest.mock('@/screens/chat/avatar', () => ({ avatarJpeg: jest.fn(async () => new Uint8Array([1, 2, 3])) }));
 
 function make(identity: ChatIdentity, client: Partial<ChatClient> = {}) {
   let ident = identity;
@@ -99,4 +100,16 @@ test('"anon" is proposed and can be saved as is', async () => {
   expect(screen.getByLabelText('name').props.value).toBe('anon');
   fireEvent.press(screen.getByText('Save name'));
   await waitFor(() => expect(store.getState().identity.name).toBe('anon'));
+});
+
+test('a picked photo is sent as the small JPEG', async () => {
+  const picker = jest.requireMock('expo-image-picker');
+  picker.launchImageLibraryAsync.mockReset();
+  picker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///p.jpg', mimeType: 'image/heic' }] });
+  const uploadAvatar = jest.fn(async () => ({ id: 'abcdefgh', key: 'k' }));
+  const store = make(NO_IDENTITY, { uploadAvatar } as Partial<ChatClient>);
+  await store.ready;
+  render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
+  fireEvent.press(screen.getByText('Choose a photo'));
+  await waitFor(() => expect(uploadAvatar).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]), 'image/jpeg'));
 });
