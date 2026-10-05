@@ -250,7 +250,7 @@ les données.
 |---|---|
 | Chat principal : lire, poster, répondre, éditer, supprimer, réactions, votes, épingles (lecture), signalement, « en train d'écrire » | `/api/chat` (GET/POST/PATCH/DELETE), `/react`, `/vote`, `/report`, `/typing`, `/withdraw` |
 | Pièces jointes : images et fichiers, messages vocaux (enregistrement, lecture, lecture auto en file) | `/api/chat/file`, `/api/chat/clip` |
-| Nom réservé, profil, avatar | `/api/name`, `/api/profile`, `/api/avatar` |
+| Nom réservé, profil, avatar (le « profil » = nom + avatar ; `/api/profile` est un rapport de performance du site, pas un profil — corrigé par la spec M2a) | `/api/name`, `/api/avatar` |
 | Rooms publiques et privées, invitations | `/api/rooms`, `/api/room`, `/api/room/invite` |
 | Messages directs, amis | `/api/dm`, `/api/friends` |
 | Appairage avec le navigateur (code à 6 caractères) : récupérer son nom et ses rooms | `/api/sync/pair`, `/api/sync/` |
@@ -580,6 +580,28 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   restent listés et boopables tant qu'ils vivent, comme v1–v4 (le site masque ceux qui n'ont pas été
   joués avant le passage).
 
+- P3-M2a (chat principal, nom, avatar) : spec `docs/superpowers/specs/2026-10-05-p3-m2a-chat-design.md`,
+  plan `docs/superpowers/plans/2026-10-05-p3-m2a-chat.md`, 12 tâches inline sur `main`
+  (`0a0614c`..`ab18085`). Onglet Chat (4ᵉ onglet) : lignes en direct par long-polling tant que l'app est
+  au premier plan (store zustand), épingles, bot, sondages, réactions (7), répondre, éditer (15 min),
+  reprendre sa dernière ligne, « en train d'écrire », pastille de non-lus (dernière ligne vue gardée
+  par serveur), pages anciennes ; nom libre ou réservé (rapport de boop puis `POST /api/name`, comme
+  le site), avatar depuis la photothèque (`expo-image-picker`, recadrage carré) ; pièces jointes et
+  vocaux en texte (« 📎 picture », « 🎤 voice message »). Faux serveur `scripts/fake-offchain`
+  (`npm run fake-offchain`) écrit d'après le JS du site. 298 tests jest, `npm run e2e:chat` 18/18
+  (deux clients de l'app contre le faux serveur). Vérifié à la main : simulateur iOS 26.5 (toutes les
+  étapes du plan, dont réservation refusée avant un boop puis acceptée après un boop sur gnodev, liée
+  au compte qui a boopé, et serveur coupé → « server unreachable — retrying » sans gêner le jeu) ;
+  production en lecture seule (25 présents, épingles, avatars, ✓, pages anciennes ; rien posté) ;
+  émulateur Android (lecture, envoi, clavier). Écarts trouvés à la main, corrigés avec un test :
+  `signalTyping` (nom en conflit avec la liste `typing`), dernière ligne vue par serveur, Blob envoyé
+  avec le type demandé (`c687cd6`), feuille du nom au-dessus du clavier, et **Android** (`ab18085`) :
+  avec edge-to-edge la fenêtre ne se redimensionne pas, le `KeyboardAvoidingView` du chat et de la
+  feuille passe à `padding` sur Android aussi (un AVD avec `hw.keyboard=yes` fait flotter Gboard et
+  cache le problème). Réservation réelle sur la production : **à faire par l'utilisateur** (le bot du
+  site rappelle qu'il faut un boop récent, « in the last 3 minutes »). Ledger (non versionné) :
+  `.superpowers/sdd/2026-10-05-p3-m2a-chat/progress.md`.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -647,6 +669,7 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    - P3-M2 : social, off-chain (§5.4), découpé le 2026-10-05 en quatre jalons, chacun avec sa spec
      et son plan : M2a chat principal (avec nom réservé, profil, avatar), M2b rooms, DM et amis,
      M2c pièces jointes et vocaux, M2d appairage avec le navigateur et présence « people here ».
+     **M2a livré le 2026-10-05** (voir Livré) ; suivant : M2b.
      Vérification sur un faux serveur local écrit d'après le JS du site (pas de serveur de test
      public) ; la production n'est lue qu'en lecture seule, plus un passage manuel court dans une
      room privée ;
@@ -661,3 +684,9 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
 4. **Mineurs vus sur simulateur :** réglés le 2026-10-04 (voir Livré, « Mineurs restants »), sauf
    un problème d'environnement, pas de l'app : sur le runtime iOS 26.2, UIKit tue l'app au rendu du
    clavier logiciel.
+5. **Clavier Android hors du chat (vu pendant P3-M2a) :** `Page` (formulaires de P3-M1 : nouveau pool,
+   réglages, session) compte sur « Android redimensionne la fenêtre » et sur
+   `automaticallyAdjustKeyboardInsets`, propre à iOS ; avec edge-to-edge la fenêtre garde sa taille.
+   Vu clavier ancré sur l'émulateur (1080×2400, `hw.keyboard=no`) : les champs restent visibles, le
+   bouton du nouveau pool aussi, mais le bouton Save des réglages passe sous le clavier (il faut le
+   fermer d'abord) ; un petit écran cacherait davantage. À traiter comme le chat.
