@@ -59,3 +59,9 @@ export function pollBars(p: ChatPoll, mine: number | undefined) {
     }),
   };
 }
+
+/** As the site's chatRxWho: who reacted with this emoji, twelve names then "+N". */
+export function rxWho(line: ChatLine, emoji: string): string {
+  const names = line.rxwho[emoji] ?? [];
+  return names.length > 12 ? `${names.slice(0, 12).join(', ')} +${names.length - 12}` : names.join(', ');
+}

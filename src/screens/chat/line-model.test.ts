@@ -1,5 +1,5 @@
 import { line } from '@/offchain/chat/testing';
-import { ago, canEdit, canWithdraw, placeholder, pollBars, splitLinks, typingText } from '@/screens/chat/line-model';
+import { ago, canEdit, canWithdraw, placeholder, pollBars, rxWho, splitLinks, typingText } from '@/screens/chat/line-model';
 
 const T = 1_790_000_000;
 
@@ -61,4 +61,11 @@ test('poll bars', () => {
     ],
   });
   expect(pollBars({ q: 'q', opts: ['a'], votes: [] }, undefined).bars[0].pct).toBe(0);
+});
+
+test('who reacted: the names, then "+N" past twelve', () => {
+  expect(rxWho(line(1, { rxwho: { '❤️': ['ann', 'bob'] } }), '❤️')).toBe('ann, bob');
+  const many = Array.from({ length: 14 }, (_, i) => `p${i}`);
+  expect(rxWho(line(1, { rxwho: { '❤️': many } }), '❤️')).toBe(`${many.slice(0, 12).join(', ')} +2`);
+  expect(rxWho(line(1), '❤️')).toBe('');
 });

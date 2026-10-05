@@ -1,7 +1,7 @@
 import type { ChatClient, PollQuery } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
 import { unreadCount } from '@/offchain/chat/merge';
-import { createChatStore, SEEN_KEY } from '@/offchain/chat/store';
+import { createChatStore, MARKS_KEY, SEEN_KEY } from '@/offchain/chat/store';
 import { line, reply } from '@/offchain/chat/testing';
 import type { ChatPollReply } from '@/offchain/chat/types';
 import { OffchainError } from '@/offchain/http';
@@ -481,4 +481,47 @@ test('a refused reservation is the sheet\'s error, a refused post the composer\'
   expect(h.store.getState().identityError).toBe('boop once from this app first');
   h.store.getState().clearIdentityError();
   expect(h.store.getState().identityError).toBe('');
+});
+
+test('own reactions and votes of this log come back after a relaunch; another gen\'s do not', async () => {
+  const kv = new Map([[MARKS_KEY, JSON.stringify({ gen: 1, rx: { 5: ['❤️'] }, votes: { 7: 1 } })]]);
+  const h = harness([reply({ msgs: [line(5), line(7)], gen: 1 })], { kv });
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().myReactions).toEqual({ 5: ['❤️'] });
+  expect(h.store.getState().myVotes).toEqual({ 7: 1 });
+  h.store.getState().stop();
+  const h2 = harness([reply({ msgs: [line(5)], gen: 2 })], { kv: new Map(kv) });
+  h2.store.getState().start();
+  await flush();
+  expect(h2.store.getState().myReactions).toEqual({});
+  h2.store.getState().stop();
+});
+
+test('a reaction and a vote are remembered with their gen', async () => {
+  const h = harness([reply({ msgs: [line(5)], gen: 1 })]);
+  h.store.getState().start();
+  await flush();
+  h.client.react.mockResolvedValueOnce({ rx: { '🔥': 1 }, mine: true });
+  await h.store.getState().react(5, '🔥');
+  h.client.vote.mockResolvedValueOnce({ mine: 0, poll: undefined });
+  await h.store.getState().vote(5, 0);
+  expect(JSON.parse(h.kv.get(MARKS_KEY)!)).toEqual({ gen: 1, rx: { 5: ['🔥'] }, votes: { 5: 0 } });
+  h.store.getState().stop();
+});
+
+test('the remembered marks keep the newest 400 lines', async () => {
+  const rx: Record<number, string[]> = {};
+  for (let id = 1; id <= 400; id++) rx[id] = ['👍'];
+  const kv = new Map([[MARKS_KEY, JSON.stringify({ gen: 1, rx, votes: {} })]]);
+  const h = harness([reply({ msgs: [line(401)], gen: 1 })], { kv });
+  h.store.getState().start();
+  await flush();
+  h.client.react.mockResolvedValueOnce({ rx: { '👍': 1 }, mine: true });
+  await h.store.getState().react(401, '👍');
+  const kept = JSON.parse(h.kv.get(MARKS_KEY)!).rx;
+  expect(Object.keys(kept)).toHaveLength(400);
+  expect(kept[1]).toBeUndefined();
+  expect(kept[401]).toEqual(['👍']);
+  h.store.getState().stop();
 });

@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { avatarUrl } from '@/offchain/chat/client';
@@ -6,13 +7,14 @@ import type { ChatLine } from '@/offchain/chat/types';
 import { colors, radius, space } from '@/theme';
 import { flagEmoji } from '@/utils/flag';
 
-import { ago, placeholder, pollBars, splitLinks } from './line-model';
+import { ago, placeholder, pollBars, rxWho, splitLinks } from './line-model';
 
 export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote, onLongPress, onJump, onReact, onVote }: {
   line: ChatLine; mine: boolean; now: number; offchainUrl: string; myReactions: string[]; myVote: number | undefined;
   onLongPress: () => void; onJump: (id: number) => void; onReact: (emoji: string) => void; onVote: (opt: number) => void;
 }) {
   const extra = placeholder(line);
+  const [who, setWho] = useState<string | null>(null);
   const poll = line.poll ? pollBars(line.poll, myVote) : null;
   return (
     // not one accessible element: poll options, reactions and links stay reachable on their own
@@ -50,13 +52,15 @@ export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote,
         {Object.keys(line.rx).length ? (
           <View style={styles.rxRow}>
             {Object.entries(line.rx).map(([e, n]) => (
-              <Pressable key={e} accessibilityRole="button" onPress={() => onReact(e)}
+              <Pressable key={e} accessibilityRole="button" accessibilityLabel={`${e} ${n}${rxWho(line, e) ? `, ${rxWho(line, e)}` : ''}`}
+                accessibilityHint="hold to see who" onPress={() => onReact(e)} onLongPress={() => setWho(who === e ? null : e)}
                 style={[styles.rx, myReactions.includes(e) && styles.rxMine]}>
                 <Text style={styles.rxText}>{e} {n}</Text>
               </Pressable>
             ))}
           </View>
         ) : null}
+        {who && rxWho(line, who) ? <Text style={styles.meta}>{who} {rxWho(line, who)}</Text> : null}
       </View>
     </Pressable>
   );

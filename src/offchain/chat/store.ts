@@ -58,6 +58,12 @@ export interface ChatDeps {
 }
 
 export const SEEN_KEY = 'br.chat.seen';
+export const MARKS_KEY = 'br.chat.marks';
+/** As the site's br.rx: the newest 400 lines' marks are kept. */
+const MARKS_MAX = 400;
+
+const newest = <T>(m: Record<number, T>): Record<number, T> =>
+  Object.fromEntries(Object.entries(m).map(([k, v]) => [Number(k), v] as const).sort((a, b) => b[0] - a[0]).slice(0, MARKS_MAX));
 const BACKOFF_MIN = 2000;
 const BACKOFF_MAX = 60000;
 const TYPING_EVERY = 3000;
@@ -89,6 +95,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
   let olderBusy = false;
   let seenLoaded: number | null = null; // the stored last seen id; null until read
   const seenKey = () => (d.scope ? `${SEEN_KEY}:${d.scope()}` : SEEN_KEY);
+  const marksKey = () => (d.scope ? `${MARKS_KEY}:${d.scope()}` : MARKS_KEY);
   let typingAt = 0;
   let typingN = 0;
   // bumped when the view is replaced (restart, a new gen): an answer to a request made before is about another view
@@ -108,6 +115,23 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       seenLoaded = valid ? raw.id : newest;
       set({ lastSeen: seenLoaded });
       if (!valid || raw.gen === null) void d.kv.setItem(seenKey(), seenValue(seenLoaded)).catch(() => undefined);
+    };
+
+    // own reactions and votes, per server and log: the site keeps its reactions the same way (br.rx)
+    const loadMarks = async () => {
+      const raw = await d.kv.getItem(marksKey()).catch(() => null);
+      try {
+        const m = raw ? (JSON.parse(raw) as { gen?: unknown; rx?: Record<string, string[]>; votes?: Record<string, number> }) : null;
+        if (m && m.gen === get().gen) set({ myReactions: newest(m.rx ?? {}), myVotes: newest(m.votes ?? {}) });
+      } catch {
+        // a damaged record is forgotten
+      }
+    };
+    const saveMarks = () => {
+      const { gen, myReactions, myVotes } = get();
+      if (gen === null) return;
+      const value = JSON.stringify({ gen, rx: newest(myReactions), votes: newest(myVotes) });
+      void d.kv.setItem(marksKey(), value).catch(() => undefined);
     };
 
     const loop = async (signal: AbortSignal, resume: boolean) => {
@@ -132,7 +156,10 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
             continue;
           }
           set({ ...applyPoll(first ? EMPTY_VIEW : get(), r), phase: 'live' });
-          if (first) await settleSeen();
+          if (first) {
+            await settleSeen();
+            await loadMarks();
+          }
           first = false;
           backoff = BACKOFF_MIN;
         } catch (e) {
@@ -248,6 +275,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
             const had = (s.myReactions[id] ?? []).filter((e) => e !== emoji);
             return { ...patchLine(s, id, { rx: r.rx }), myReactions: { ...s.myReactions, [id]: r.mine ? [...had, emoji] : had } };
           });
+          saveMarks();
         });
       },
       vote: async (id, opt) => {
@@ -256,6 +284,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           const r = await d.client.vote(id, opt);
           if (e !== epoch) return;
           set((s) => ({ ...(r.poll ? patchLine(s, id, { poll: r.poll }) : s), myVotes: { ...s.myVotes, [id]: r.mine } }));
+          saveMarks();
         });
       },
       signalTyping: (n) => {
