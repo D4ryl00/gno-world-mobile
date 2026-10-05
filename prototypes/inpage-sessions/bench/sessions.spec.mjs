@@ -101,9 +101,12 @@ async function openPage(query) {
 
 /**
  * Runs `action` on the page and answers each Adena window that opens meanwhile
- * with the next of `answers` ('Connect', 'Approve', 'Reject'). Asserts that
- * exactly that many windows opened.
+ * with the next of `answers` ('Connect', 'Approve', 'Reject', or CLOSE_ON_SEND:
+ * Approve, then close the window as soon as its transaction leaves). Asserts
+ * that exactly that many windows opened.
  */
+const CLOSE_ON_SEND = 'Approve, then close once sent';
+
 async function run(page, action, answers = []) {
   const opened = [];
   const onPage = async (popup) => {
@@ -114,11 +117,20 @@ async function run(page, action, answers = []) {
     opened.push(popup.url());
     log(`${action}: window ${popup.url().split('#')[1]?.split('?')[0]} -> ${answer ?? '(unexpected)'}`);
     if (!answer) return;
-    const button = popup.getByRole('button', { name: answer, exact: true });
+    const closeOnSend = answer === CLOSE_ON_SEND;
+    const button = popup.getByRole('button', { name: closeOnSend ? 'Approve' : answer, exact: true });
     await button.waitFor({ timeout: 30000 });
     // The review composes its transaction first; Approve is enabled once it is ready.
     for (let i = 0; i < 60 && (await button.isDisabled().catch(() => false)); i++) await popup.waitForTimeout(500);
+    const sent = closeOnSend
+      ? popup.waitForRequest((r) => (r.postData() ?? '').includes('broadcast_tx'), { timeout: 30000 })
+      : null;
     await button.click();
+    if (sent) {
+      await sent;
+      log(`${action}: transaction sent, closing the window`);
+      await popup.close();
+    }
   };
   ctx.on('page', onPage);
   const watch = process.env.DEBUG
@@ -269,6 +281,24 @@ for (const keyType of (process.env.ONLY_KEY ? [process.env.ONLY_KEY] : ['ed25519
       assert.equal(line.status, 'Approved', JSON.stringify(line));
       assert.equal(line.revoked, false);
       assert.equal((await run(page, 'account')).approved, false);
+    });
+
+    test('5b. grant, the review closed once its transaction is sent: answered from the chain', async () => {
+      await run(page, 'resetKeys');
+      const line = await run(page, 'grant', connectAnswers(false).concat([CLOSE_ON_SEND]));
+      approved = true;
+      assert.equal(line.status, 'Approved', JSON.stringify(line));
+      assert.equal(line.granted, true);
+      assert.equal(line.session, line.key);
+      assert.deepEqual(line.onChain.allow, GRANT.allow);
+    });
+
+    test('5c. disconnect with key, the review closed once its transaction is sent: answered from the chain', async () => {
+      const line = await run(page, 'disconnectWithKey', [CLOSE_ON_SEND]);
+      approved = false;
+      assert.equal(line.status, 'Approved', JSON.stringify(line));
+      assert.equal(line.revoked, true);
+      assert.equal(line.onChain, null);
     });
 
     test('6. refusals before any window', async () => {

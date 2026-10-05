@@ -557,9 +557,15 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   écran virtuel (`--screen-info`) ; le stockage du service worker d'Adena garde tout le magasin en
   mémoire après sa première écriture, donc le retrait d'approbation passe par un stockage jetable
   (`e34254b8`). Revue finale : relecture par l'auteur (pas de sous-agent), sans Critical ni Important ;
-  3 mineurs reportés dans le ledger (fenêtre fermée pendant la relecture de la chaîne, mémoire anti-rejeu
-  perdue à l'arrêt du service worker, défauts préexistants d'Adena vus en route). Poussées en attente de
-  ton accord. Ledger (non versionné) : `.superpowers/sdd/2026-10-04-gnoconnect-inpage-sessions/progress.md`.
+  3 mineurs reportés dans le ledger, corrigés le 2026-10-05 (Adena `3c9d307f`..`bd396e6e`, banc
+  `prototypes/inpage-sessions/bench`) : une revue fermée après l'envoi de sa transaction n'est plus un refus,
+  le service worker relit la chaîne comme la revue l'aurait fait (`readBack`, partagé ; une lecture en
+  échec ne passe plus pour une révocation) ; les marques anti-rejeu vivent dans `chrome.storage.local` ;
+  défauts préexistants d'Adena : le stockage relit le magasin à chaque écriture (plus de cache, donc
+  plus de stockage jetable), `createPopup` répond `UNEXPECTED_ERROR` si Chrome refuse la fenêtre, et
+  l'origine d'une requête de page vient de `sender.url`, plus de ce que la page écrit. 811 tests jest,
+  banc 19/19 (5b, 5c : revue fermée après l'envoi). Poussées en attente de ton accord. Ledger (non
+  versionné) : `.superpowers/sdd/2026-10-04-gnoconnect-inpage-sessions/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 

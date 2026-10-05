@@ -21,11 +21,13 @@ What it does:
   `window.runAction`, answering each Adena window as it opens (Connect, Approve,
   Reject) and asserting how many opened;
 - reads the session back from the chain (`auth/accounts/<test1>/session/<addr>`).
+- closes the review window as soon as its transaction leaves (5b, 5c): the page
+  must still get the grant or the revocation, read from the chain by Adena.
 
 Variables: `ADENA_DIST` (another build), `HEADED=1` (watch it), `ONLY_KEY=ed25519`
 or `secp256k1`, `DEBUG=1` (page console, window list, the extension's own logs and
 its stored approvals after each action).
 
 Headless Chromium's virtual screen is too small for the place Adena opens its
-windows (left 800, top 300), and Chrome then refuses to create them: the bench
-passes `--screen-info={0,0 1920x1080}`.
+windows (left 800, top 300), and Chrome then refuses to create them (Adena then
+answers `UNEXPECTED_ERROR`): the bench passes `--screen-info={0,0 1920x1080}`.
