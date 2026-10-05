@@ -130,7 +130,7 @@ test('Reply puts the cursor in the field', async () => {
   act(() => store.getState().stop());
 });
 
-test('a line held back for a name goes out once the name is saved', async () => {
+test('a line held back for a name goes out once the name is saved and the sheet closed', async () => {
   const { store, post } = storeWith(NO_IDENTITY);
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
@@ -142,6 +142,7 @@ test('a line held back for a name goes out once the name is saved', async () => 
   view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen />);
   expect(post).not.toHaveBeenCalled();
   await act(() => store.getState().setName('ann'));
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen={false} />);
   await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', undefined));
   act(() => store.getState().stop());
 });
@@ -157,5 +158,22 @@ test('closing the sheet without a name drops the held-back line', async () => {
   view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
   await act(() => store.getState().setName('ann'));
   expect(post).not.toHaveBeenCalled();
+  act(() => store.getState().stop());
+});
+
+test('Send without a name, then Reserve: the line waits for the reservation, and goes once the sheet closes', async () => {
+  const { store, post } = storeWith(NO_IDENTITY);
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
+  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  fireEvent.press(screen.getByLabelText('send'));
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
+  await act(() => store.getState().setName('ann')); // Reserve's first step; its request is still in flight
+  expect(post).not.toHaveBeenCalled();
+  act(() => store.setState({ identity: { ...store.getState().identity, reservedName: 'ann', nameKey: 'k' } }));
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  expect(post).toHaveBeenCalledWith('ann', 'hi', undefined);
   act(() => store.getState().stop());
 });

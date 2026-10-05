@@ -62,13 +62,12 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity, identityOpen }: {
     />
   ), [mine, now, offchainUrl, s.myReactions, s.myVotes, openMenu, jumpTo, react, vote]);
   const myName = s.identity.reservedName || s.identity.name;
-  // the held-back line goes out once a name is saved; closing the sheet without one drops it
+  // the held-back line goes out when the sheet closes with a name (not as soon as one is saved: "Reserve" saves the
+  // name, then reserves it — the line must carry the key); closing it without a name drops the line
   useEffect(() => {
-    if (!heldBack.current) return;
-    if (myName) {
-      heldBack.current = false;
-      composer.current?.send();
-    } else if (!identityOpen) heldBack.current = false;
+    if (!heldBack.current || identityOpen) return;
+    heldBack.current = false;
+    if (myName) composer.current?.send();
   }, [myName, identityOpen]);
   const typing = typingText(s.typing, myName);
 
