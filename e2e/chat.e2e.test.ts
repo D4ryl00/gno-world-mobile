@@ -82,7 +82,7 @@ test('a boop report, then the name is reserved and its lines carry the mark', as
   await ann.store.ready;
   await ann.store.getState().setName('Ann');
   expect(await ann.store.getState().reserveName()).toBe(false);
-  expect(ann.store.getState().error).toMatch(/boop once/);
+  expect(ann.store.getState().identityError).toMatch(/boop once/);
   await ann.client.reportBoop('g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5', 1, 1, 6);
   expect(await ann.store.getState().reserveName()).toBe(true);
   expect(await ann.store.getState().send('signed')).toBe(true);

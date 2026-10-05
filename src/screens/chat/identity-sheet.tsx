@@ -12,7 +12,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
   store: StoreApi<ChatState>; visible: boolean; onClose: () => void; offchainUrl: string; canReserve: boolean;
 }) {
   const identity = useStore(store, (s) => s.identity);
-  const error = useStore(store, (s) => s.error);
+  const error = useStore(store, (s) => s.identityError);
   const [name, setName] = useState(identity.name);
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState('');
@@ -23,6 +23,10 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
     setName(identity.name);
   }
   const reserved = !!identity.reservedName;
+  const close = () => {
+    store.getState().clearIdentityError();
+    onClose();
+  };
   const run = async (f: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -48,10 +52,10 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
     });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
       {/* the sheet rises above the keyboard: its field and buttons stay in sight (padding on Android too: edge-to-edge keeps the window full size) */}
       <KeyboardAvoidingView style={styles.fill} behavior="padding">
-        <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
+        <Pressable style={styles.backdrop} onPress={close} accessible={false}>
           <Pressable style={styles.sheet} onPress={() => undefined} accessible={false}>
             <Text style={styles.h}>You in the chat</Text>
             <View style={styles.row}>
@@ -84,7 +88,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
             )}
             {photoError ? <Text style={styles.error}>{photoError}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Button kind="secondary" title="Done" onPress={onClose} />
+            <Button kind="secondary" title="Done" onPress={close} />
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>

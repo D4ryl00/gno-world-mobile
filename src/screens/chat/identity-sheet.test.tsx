@@ -47,11 +47,12 @@ test('reserving shows the mark, and the server\'s refusal as is', async () => {
 });
 
 test('on Android the sheet rises above the keyboard itself (edge-to-edge: the window is not resized)', async () => {
-  jest.replaceProperty(Platform, 'OS', 'android');
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   const store = make(NO_IDENTITY);
   await store.ready;
   render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
   expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
+  os.restore();
 });
 
 test('the library opens without asking for photo access (a refusal does not block the picker)', async () => {
@@ -76,4 +77,17 @@ test('a picker that fails says so and leaves the sheet usable', async () => {
   expect(await screen.findByText('That picture could not be read — try another one.')).toBeTruthy();
   fireEvent.press(screen.getByText('Choose a photo'));
   await waitFor(() => expect(picker.launchImageLibraryAsync).toHaveBeenCalledTimes(2));
+});
+
+test('the sheet shows its own error, not the composer\'s, and closing it clears its own', async () => {
+  const store = make(NO_IDENTITY);
+  await store.ready;
+  store.setState({ error: 'the composer\'s trouble', identityError: 'the sheet\'s trouble' });
+  const onClose = jest.fn();
+  render(<IdentitySheet store={store} visible onClose={onClose} offchainUrl="http://fake" canReserve={false} />);
+  expect(screen.getByText('the sheet\'s trouble')).toBeTruthy();
+  expect(screen.queryByText('the composer\'s trouble')).toBeNull();
+  fireEvent.press(screen.getByText('Done'));
+  expect(onClose).toHaveBeenCalled();
+  expect(store.getState().identityError).toBe('');
 });

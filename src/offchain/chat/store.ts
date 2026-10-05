@@ -23,6 +23,8 @@ export interface ChatState extends ChatView {
   identity: ChatIdentity;
   /** the last refused action, in words for the composer or the sheet */
   error: string;
+  /** the last refused name or picture action, for the sheet */
+  identityError: string;
   start(): void;
   stop(): void;
   restart(): void;
@@ -40,6 +42,7 @@ export interface ChatState extends ChatView {
   releaseName(): Promise<boolean>;
   setAvatar(body: Blob | Uint8Array, contentType: string): Promise<boolean>;
   clearError(): void;
+  clearIdentityError(): void;
 }
 
 export interface ChatDeps {
@@ -145,13 +148,13 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       }
     };
 
-    const act = async (f: () => Promise<void>): Promise<boolean> => {
+    const act = async (f: () => Promise<void>, field: 'error' | 'identityError' = 'error'): Promise<boolean> => {
       try {
         await f();
-        set({ error: '' });
+        set({ [field]: '' } as Partial<ChatState>);
         return true;
       } catch (e) {
-        set({ error: say(e) });
+        set({ [field]: say(e) } as Partial<ChatState>);
         return false;
       }
     };
@@ -165,6 +168,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       myVotes: {},
       identity: NO_IDENTITY,
       error: '',
+      identityError: '',
       start: () => {
         if (run) return;
         run = new AbortController();
@@ -277,7 +281,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         act(async () => {
           const r = await d.client.reserveName(get().identity.name.trim());
           set({ identity: await d.identity.save({ name: r.name, reservedName: r.name, nameKey: r.key }) });
-        }),
+        }, 'identityError'),
       releaseName: () =>
         act(async () => {
           try {
@@ -286,13 +290,14 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
             if (!(e instanceof OffchainError && e.status === 404)) throw e; // the server no longer has it: nothing to release
           }
           set({ identity: await d.identity.save({ reservedName: '', nameKey: '' }) });
-        }),
+        }, 'identityError'),
       setAvatar: (body, contentType) =>
         act(async () => {
           const r = await d.client.uploadAvatar(body, contentType);
           set({ identity: await d.identity.save({ av: r.id, avkey: r.key }) });
-        }),
+        }, 'identityError'),
       clearError: () => set({ error: '' }),
+      clearIdentityError: () => set({ identityError: '' }),
     };
   });
 

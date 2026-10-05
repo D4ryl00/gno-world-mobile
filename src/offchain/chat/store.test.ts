@@ -467,3 +467,18 @@ test('a resume that meets a new gen reloads and forgets', async () => {
   expect(h.store.getState().mine).toEqual([]);
   h.store.getState().stop();
 });
+
+test('a refused reservation is the sheet\'s error, a refused post the composer\'s', async () => {
+  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
+  await h.store.ready;
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(403, 'boop once from this app first'));
+  await h.store.getState().reserveName();
+  expect(h.store.getState().identityError).toBe('boop once from this app first');
+  expect(h.store.getState().error).toBe('');
+  h.client.post.mockRejectedValueOnce(new OffchainError(403, '"ann" is reserved — pick another name'));
+  await h.store.getState().send('hi');
+  expect(h.store.getState().error).toBe('"ann" is reserved — pick another name');
+  expect(h.store.getState().identityError).toBe('boop once from this app first');
+  h.store.getState().clearIdentityError();
+  expect(h.store.getState().identityError).toBe('');
+});
