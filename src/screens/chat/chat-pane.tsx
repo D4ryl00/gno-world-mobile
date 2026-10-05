@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore, type StoreApi } from 'zustand';
 
@@ -47,7 +47,8 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
   const typing = typingText(s.typing, myName);
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // padding on Android too: with edge-to-edge (android/gradle.properties) the window keeps its size under the keyboard
+    <KeyboardAvoidingView style={styles.root} behavior="padding">
       <View style={[styles.header, { paddingTop: insets.top + space.s }]}>
         <Text style={styles.title}>Chat · {s.here} here</Text>
         <Pressable accessibilityRole="button" onPress={onOpenIdentity} style={styles.you}>

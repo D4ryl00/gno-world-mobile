@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react-native';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
 import { NO_IDENTITY } from '@/offchain/chat/identity';
@@ -32,5 +33,19 @@ test('the screen shows lines, pins, the bot mark, a placeholder and the unreacha
   expect(screen.getByText(/🤖/)).toBeTruthy();
   expect(screen.getByText('📎 picture')).toBeTruthy();
   expect(screen.getByText('server unreachable — retrying')).toBeTruthy();
+  act(() => store.getState().stop());
+});
+
+test('on Android the pane lifts its content above the keyboard itself (edge-to-edge: the window is not resized)', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  const client = { poll: jest.fn().mockRejectedValue(new Error('down')) } as unknown as ChatClient;
+  const store = createChatStore({
+    client, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
+    kv: { getItem: async () => null, setItem: async () => undefined }, sleep: () => new Promise(() => undefined),
+  });
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
   act(() => store.getState().stop());
 });

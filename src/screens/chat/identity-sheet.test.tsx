@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
@@ -43,4 +44,12 @@ test('reserving shows the mark, and the server\'s refusal as is', async () => {
   fireEvent.press(screen.getByText('Reserve this name'));
   expect(await screen.findByText('✓ yours')).toBeTruthy();
   expect(screen.getByText('Release')).toBeTruthy();
+});
+
+test('on Android the sheet rises above the keyboard itself (edge-to-edge: the window is not resized)', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  const store = make(NO_IDENTITY);
+  await store.ready;
+  render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
+  expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
 });

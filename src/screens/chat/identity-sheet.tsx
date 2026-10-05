@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useStore, type StoreApi } from 'zustand';
 
 import { Button } from '@/components/button';
@@ -41,8 +41,8 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* the sheet rises above the keyboard: its field and buttons stay in sight */}
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* the sheet rises above the keyboard: its field and buttons stay in sight (padding on Android too: edge-to-edge keeps the window full size) */}
+      <KeyboardAvoidingView style={styles.fill} behavior="padding">
         <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
           <Pressable style={styles.sheet} onPress={() => undefined} accessible={false}>
             <Text style={styles.h}>You in the chat</Text>
