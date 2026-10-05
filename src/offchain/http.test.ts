@@ -174,3 +174,13 @@ test('an outside abort ends the request', async () => {
   ctl.abort();
   await expect(p).rejects.toMatchObject({ status: 0 });
 });
+
+test('a typeless Blob is sent typed: React Native takes the Blob\'s type over the header', async () => {
+  const fetchMock = jest.fn(async (_u: string, _i: RequestInit) => ok({ id: 'a', key: 'k' }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  await oc.post('/api/avatar', undefined, { raw: { body: new Blob([new Uint8Array([1, 2])]), contentType: 'image/jpeg' } });
+  const sent = fetchMock.mock.calls[0][1].body as Blob;
+  expect(sent).toBeInstanceOf(Blob);
+  expect(sent.type).toBe('image/jpeg');
+  expect(sent.size).toBe(2);
+});

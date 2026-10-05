@@ -46,7 +46,11 @@ export function createOffchain(d: {
       let payload: BodyInit | undefined;
       if (o.raw) {
         headers['Content-Type'] = o.raw.contentType;
-        payload = o.raw.body as BodyInit;
+        const b = o.raw.body;
+        // React Native sends a Blob with its own type, whatever the header says: give it the right one
+        payload = (typeof Blob !== 'undefined' && b instanceof Blob && b.type !== o.raw.contentType
+          ? new Blob([b], { type: o.raw.contentType })
+          : b) as BodyInit;
       } else if (body !== undefined) {
         headers['Content-Type'] = 'application/json';
         payload = JSON.stringify(body);
