@@ -564,7 +564,8 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   défauts préexistants d'Adena : le stockage relit le magasin à chaque écriture (plus de cache, donc
   plus de stockage jetable), `createPopup` répond `UNEXPECTED_ERROR` si Chrome refuse la fenêtre, et
   l'origine d'une requête de page vient de `sender.url`, plus de ce que la page écrit. 811 tests jest,
-  banc 19/19 (5b, 5c : revue fermée après l'envoi). Poussées en attente de ton accord. Ledger (non
+  banc 19/19 (5b, 5c : revue fermée après l'envoi). Poussé le 2026-10-05 : #138 (`dd1e8c4`),
+  #5970 (`d51d5d9af`), #6016 (`8158ab13c`, push forcé), fork Adena (`bd396e6e`). Ledger (non
   versionné) : `.superpowers/sdd/2026-10-04-gnoconnect-inpage-sessions/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
