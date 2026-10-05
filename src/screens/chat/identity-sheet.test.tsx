@@ -53,3 +53,27 @@ test('on Android the sheet rises above the keyboard itself (edge-to-edge: the wi
   render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
   expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
 });
+
+test('the library opens without asking for photo access (a refusal does not block the picker)', async () => {
+  const picker = jest.requireMock('expo-image-picker');
+  picker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ granted: false });
+  picker.launchImageLibraryAsync.mockClear();
+  const store = make(NO_IDENTITY);
+  await store.ready;
+  render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
+  fireEvent.press(screen.getByText('Choose a photo'));
+  await waitFor(() => expect(picker.launchImageLibraryAsync).toHaveBeenCalledTimes(1));
+});
+
+test('a picker that fails says so and leaves the sheet usable', async () => {
+  const picker = jest.requireMock('expo-image-picker');
+  picker.launchImageLibraryAsync.mockReset();
+  picker.launchImageLibraryAsync.mockRejectedValueOnce(new Error('iCloud said no')).mockResolvedValue({ canceled: true, assets: null });
+  const store = make(NO_IDENTITY);
+  await store.ready;
+  render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
+  fireEvent.press(screen.getByText('Choose a photo'));
+  expect(await screen.findByText('That picture could not be read — try another one.')).toBeTruthy();
+  fireEvent.press(screen.getByText('Choose a photo'));
+  await waitFor(() => expect(picker.launchImageLibraryAsync).toHaveBeenCalledTimes(2));
+});

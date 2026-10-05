@@ -15,6 +15,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
   const error = useStore(store, (s) => s.error);
   const [name, setName] = useState(identity.name);
   const [busy, setBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   // the saved name (e.g. as the server spelled it on reserving) refills the field
   const [savedName, setSavedName] = useState(identity.name);
   if (identity.name !== savedName) {
@@ -24,19 +25,26 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
   const reserved = !!identity.reservedName;
   const run = async (f: () => Promise<unknown>) => {
     setBusy(true);
-    await f();
-    setBusy(false);
+    try {
+      await f();
+    } finally {
+      setBusy(false);
+    }
   };
 
+  // the library picker needs no photo permission (SDK 57 docs): asking would only let a refusal block it
   const pickPhoto = () =>
     run(async () => {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return;
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-      const a = r.canceled ? null : r.assets?.[0];
-      if (!a) return;
-      const blob = await (await fetch(a.uri)).blob();
-      await store.getState().setAvatar(blob, a.mimeType ?? 'image/jpeg');
+      setPhotoError('');
+      try {
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+        const a = r.canceled ? null : r.assets?.[0];
+        if (!a) return;
+        const blob = await (await fetch(a.uri)).blob();
+        await store.getState().setAvatar(blob, a.mimeType ?? 'image/jpeg');
+      } catch {
+        setPhotoError('That picture could not be read — try another one.');
+      }
     });
 
   return (
@@ -74,6 +82,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
                 </Text>
               </>
             )}
+            {photoError ? <Text style={styles.error}>{photoError}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Button kind="secondary" title="Done" onPress={onClose} />
           </Pressable>
