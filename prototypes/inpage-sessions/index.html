@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>In-page sessions</title>
+    <style>
+      body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; max-width: 900px; }
+      button { margin: 2px; padding: 6px 10px; }
+      #state { margin: 8px 0; padding: 8px; background: #f3f3f3; border-radius: 6px; white-space: pre-wrap; }
+      #out { font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; border-top: 1px solid #ccc; padding-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>GnoConnect in-page sessions</h1>
+    <p>
+      Query parameters: <code>key=ed25519|secp256k1</code> (default ed25519), <code>chainid</code> (default dev),
+      <code>rpc</code> (default http://127.0.0.1:26657), <code>wallet=legacy</code> for a wallet that ignores keys.
+    </p>
+    <div id="buttons">
+      <button data-action="grant">grant</button>
+      <button data-action="grantAgain">grant again</button>
+      <button data-action="renew">renew</button>
+      <button data-action="disconnectWithKey">disconnect with key</button>
+      <button data-action="disconnect">disconnect</button>
+      <button data-action="plainConnect">plain connect</button>
+      <button data-action="badProof">bad proof</button>
+      <button data-action="stale">stale</button>
+      <button data-action="oldIsPubkey">old=pubkey</button>
+      <button data-action="resetKeys">reset keys</button>
+    </div>
+    <div id="state">no wallet yet</div>
+    <div id="out"></div>
+    <script type="module" src="./page.js"></script>
+  </body>
+</html>
