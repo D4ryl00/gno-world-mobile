@@ -582,13 +582,13 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 - P3-M2a (chat principal, nom, avatar) : spec `docs/superpowers/specs/2026-10-05-p3-m2a-chat-design.md`,
   plan `docs/superpowers/plans/2026-10-05-p3-m2a-chat.md`, 12 tâches inline sur `main`
-  (`0a0614c`..`ab18085`). Onglet Chat (4ᵉ onglet) : lignes en direct par long-polling tant que l'app est
+  (`0a0614c`..`ab18085`, puis revue finale `d7408e6`..`c121360`). Onglet Chat (4ᵉ onglet) : lignes en direct par long-polling tant que l'app est
   au premier plan (store zustand), épingles, bot, sondages, réactions (7), répondre, éditer (15 min),
   reprendre sa dernière ligne, « en train d'écrire », pastille de non-lus (dernière ligne vue gardée
   par serveur), pages anciennes ; nom libre ou réservé (rapport de boop puis `POST /api/name`, comme
   le site), avatar depuis la photothèque (`expo-image-picker`, recadrage carré) ; pièces jointes et
   vocaux en texte (« 📎 picture », « 🎤 voice message »). Faux serveur `scripts/fake-offchain`
-  (`npm run fake-offchain`) écrit d'après le JS du site. 298 tests jest, `npm run e2e:chat` 18/18
+  (`npm run fake-offchain`) écrit d'après le JS du site. 306 tests jest, `npm run e2e:chat` 18/18
   (deux clients de l'app contre le faux serveur). Vérifié à la main : simulateur iOS 26.5 (toutes les
   étapes du plan, dont réservation refusée avant un boop puis acceptée après un boop sur gnodev, liée
   au compte qui a boopé, et serveur coupé → « server unreachable — retrying » sans gêner le jeu) ;
@@ -599,8 +599,24 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   avec edge-to-edge la fenêtre ne se redimensionne pas, le `KeyboardAvoidingView` du chat et de la
   feuille passe à `padding` sur Android aussi (un AVD avec `hw.keyboard=yes` fait flotter Gboard et
   cache le problème). Réservation réelle sur la production : **à faire par l'utilisateur** (le bot du
-  site rappelle qu'il faut un boop récent, « in the last 3 minutes »). Ledger (non versionné) :
-  `.superpowers/sdd/2026-10-05-p3-m2a-chat/progress.md`.
+  site rappelle qu'il faut un boop récent, « in the last 3 minutes »). Revue finale (relecteur neuf,
+  sans Critical) ; corrigés, chacun avec un test d'abord rouge : une réponse arrivée après un
+  changement de serveur (page ancienne, envoi, édition, réaction, vote) n'entre plus dans la nouvelle
+  vue (époque) ; le nom réservé, sa clé `X-Name-Key` et l'avatar sont rangés **par serveur** (la clé
+  n'est plus envoyée à n'importe quel serveur des réglages ; le nom libre reste commun) ; le choix de
+  photo ne demande plus l'accès aux photos (inutile en SDK 57) et un échec le dit sans bloquer la
+  feuille ; l'historique remonté n'est plus rogné par le poll suivant ; « Répondre » pendant une
+  édition quitte l'édition (avant : la réponse écrasait sa propre ligne). Les réponses long-poll de
+  la production portent bien `pins`. **Mineurs reportés** (détail dans le ledger) : `mine`/réactions/
+  votes gardés après un changement de gen ; tout état autre qu'`active` (centre de notifications,
+  sélecteur Android) relance le chat depuis les 80 dernières lignes ; « anon » seulement en
+  placeholder et la ligne en attente pas renvoyée après le nom ; re-rendus de tout le panneau ; un seul
+  champ d'erreur pour le chat et la feuille ; ses réactions et votes oubliés au relancement (`rxwho`
+  inutilisé) ; avatar non réduit (le site non plus) ; menu d'une ligne atteint par VoiceOver seulement
+  par appui long ; non-lus absents du libellé d'accessibilité de l'onglet ; Répondre/Éditer ne
+  donnent pas le focus au champ ; une édition inchangée marque « edited » ; avertissement de dev
+  `Response.blob()` (voir expo-blob en M2c) ; le faux serveur redémarre en gen 1. Ledger (non
+  versionné) : `.superpowers/sdd/2026-10-05-p3-m2a-chat/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
