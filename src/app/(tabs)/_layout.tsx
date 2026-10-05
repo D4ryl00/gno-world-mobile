@@ -2,6 +2,8 @@ import { Tabs } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ColorValue } from 'react-native';
 
+import { unreadCount } from '@/offchain/chat/merge';
+import { useChat } from '@/state/app-services';
 import { colors } from '@/theme';
 
 const icon = (name: SymbolViewProps['name']) =>
@@ -10,6 +12,7 @@ const icon = (name: SymbolViewProps['name']) =>
   };
 
 export default function TabsLayout() {
+  const unread = useChat((s) => unreadCount(s, s.lastSeen, s.mine));
   return (
     <Tabs
       screenOptions={{
@@ -21,6 +24,13 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.bg },
       }}>
       <Tabs.Screen name="index" options={{ title: 'Pools', tabBarIcon: icon({ ios: 'bubbles.and.sparkles', android: 'bubble_chart' }) }} />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: 'Chat', headerShown: false, tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarIcon: icon({ ios: 'bubble.left.and.bubble.right.fill', android: 'forum' }),
+        }}
+      />
       <Tabs.Screen name="session" options={{ title: 'Session', tabBarIcon: icon({ ios: 'key.fill', android: 'key' }) }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon({ ios: 'gearshape.fill', android: 'settings' }) }} />
     </Tabs>

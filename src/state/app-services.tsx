@@ -3,10 +3,13 @@ import { useGnoNativeContext } from '@gnolang/gnonative';
 import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
-import { useStore } from 'zustand';
+import { useStore, type StoreApi } from 'zustand';
 
 import type { ChainApi } from '@/chain/api';
 import { GameClient } from '@/chain/game-client';
+import { createChatClient, type ChatClient } from '@/offchain/chat/client';
+import { createIdentityStore } from '@/offchain/chat/identity';
+import { createChatStore, type ChatState } from '@/offchain/chat/store';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
 import { presenceStore, sendPresence } from '@/offchain/presence';
 import { createSessionStore, type SessionState } from '@/session/store';
@@ -23,6 +26,8 @@ interface Services {
   offchain: Offchain;
   session: SessionStore;
   net: ReturnType<typeof createNetworkSync>;
+  chat: StoreApi<ChatState> & { ready: Promise<void> };
+  chatClient: ChatClient;
 }
 
 const Ctx = createContext<Services | null>(null);
@@ -51,6 +56,11 @@ export function AppServices({ children }: PropsWithChildren) {
       baseUrl: () => settingsStore.getState().offchainUrl,
       bid: () => browserId(secureStore, randomHex),
     });
+    const identity = createIdentityStore(secureStore);
+    const chatClient = createChatClient(offchain, () => identity.load());
+    const chat = createChatStore({
+      client: chatClient, identity, kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl,
+    });
     const session = createSessionStore({
       api: () => api,
       secrets: secureStore,
@@ -60,7 +70,7 @@ export function AppServices({ children }: PropsWithChildren) {
       now: Date.now,
       network: () => net.current(),
     });
-    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net };
+    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, chatClient };
   }, [api]);
 
   // follow network switches from Settings: gnonative first, then the session store
@@ -113,6 +123,21 @@ export function AppServices({ children }: PropsWithChildren) {
     };
   }, [services, pid]);
 
+  // chat long poll: while in the foreground, from scratch when the server changes
+  useEffect(() => {
+    const chat = services.chat.getState;
+    if (AppState.currentState === 'active') chat().start();
+    const sub = AppState.addEventListener('change', (st) => (st === 'active' ? chat().start() : chat().stop()));
+    const unsub = settingsStore.subscribe((now, before) => {
+      if (now.offchainUrl !== before.offchainUrl) chat().restart();
+    });
+    return () => {
+      sub.remove();
+      unsub();
+      chat().stop();
+    };
+  }, [services]);
+
   return <Ctx.Provider value={services}>{children}</Ctx.Provider>;
 }
 
@@ -124,4 +149,8 @@ export function useServices(): Services {
 
 export function useSession<T>(sel: (s: SessionState) => T): T {
   return useStore(useServices().session, sel);
+}
+
+export function useChat<T>(sel: (s: ChatState) => T): T {
+  return useStore(useServices().chat, sel);
 }
