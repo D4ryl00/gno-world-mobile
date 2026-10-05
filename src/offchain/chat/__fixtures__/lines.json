@@ -1,0 +1,14 @@
+[
+  { "id": 10, "t": 1791191800, "name": "jae", "tag": "7e48", "cc": "US", "pos": [34, -118.25], "body": "hello", "av": "hx4b2eo2", "v": true },
+  { "id": 11, "t": 1791191802, "name": "jarvis", "tag": "jrvs", "body": "on it (10)", "bot": true,
+    "re": { "id": 10, "name": "jae", "body": "hello" } },
+  { "id": 12, "t": 1791191900, "name": "ann", "tag": "aaaa", "body": "📷 photo",
+    "att": { "url": "/api/chat/file/12-x.png", "kind": "image", "name": "image.png", "size": 3, "mime": "image/png" },
+    "rx": { "❤️": 2, "👎": 0 }, "rxwho": { "❤️": ["a", "b", 3] } },
+  { "id": 13, "t": 1791192000, "name": "bob", "tag": "bbbb", "body": "voice message", "clip": "/api/chat/clip/13", "dur": 4 },
+  { "id": 14, "t": 1791192100, "name": "cat", "tag": "cccc", "body": "pick one", "ed": true, "pinned": true,
+    "poll": { "q": "which?", "opts": ["a", "b"], "votes": [3, "x"] }, "future": { "nested": 1 } },
+  { "id": 0, "body": "no id" },
+  "not an object",
+  { "id": 15 }
+]
