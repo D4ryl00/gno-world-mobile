@@ -72,6 +72,12 @@ const abortableSleep = (ms: number, signal: AbortSignal) =>
 const say = (e: unknown) =>
   e instanceof OffchainError && e.status !== 0 ? e.message : 'The chat server did not answer — try again.';
 
+/** The stored seen mark: "<gen>:<id>"; a plain number (older builds) has no gen. */
+const parseSeen = (raw: string | null): { gen: number | null; id: number } => {
+  const m = raw ? /^(\d+):(\d+)$/.exec(raw) : null;
+  return m ? { gen: Number(m[1]), id: Number(m[2]) } : { gen: null, id: Number(raw ?? 0) || 0 };
+};
+
 export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Promise<void> } {
   const sleep = d.sleep ?? abortableSleep;
   const random = d.random ?? Math.random;
@@ -88,15 +94,17 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
   const store = createStore<ChatState>()((set, get) => {
     const name = () => get().identity.reservedName || get().identity.name || 'anon';
 
+    const seenValue = (id: number) => (get().gen === null ? String(id) : `${get().gen}:${id}`);
+
     const settleSeen = async () => {
       if (seenLoaded !== null) return;
-      const raw = Number((await d.kv.getItem(seenKey()).catch(() => null)) ?? 0);
+      const raw = parseSeen(await d.kv.getItem(seenKey()).catch(() => null));
       const newest = get().lines.at(-1)?.id ?? 0;
-      // first launch: the backlog is not "unread"; a mark beyond the newest line is stale (the log was reset)
-      const valid = raw > 0 && raw <= newest;
-      seenLoaded = valid ? raw : newest;
+      // first launch: the backlog is not "unread"; a mark of another log (gen), or beyond the newest line, is stale
+      const valid = (raw.gen === null || raw.gen === get().gen) && raw.id > 0 && raw.id <= newest;
+      seenLoaded = valid ? raw.id : newest;
       set({ lastSeen: seenLoaded });
-      if (!valid) void d.kv.setItem(seenKey(), String(seenLoaded)).catch(() => undefined);
+      if (!valid || raw.gen === null) void d.kv.setItem(seenKey(), seenValue(seenLoaded)).catch(() => undefined);
     };
 
     const loop = async (signal: AbortSignal) => {
@@ -114,7 +122,8 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           if (signal.aborted) return;
           if (!first && genChanged(v, r)) {
             epoch++;
-            set({ ...EMPTY_VIEW });
+            // another log: its ids are not the ones this app posted, reacted to or voted on
+            set({ ...EMPTY_VIEW, mine: [], myReactions: {}, myVotes: {} });
             first = true;
             seenLoaded = null;
             continue;
@@ -257,7 +266,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         if (newest <= get().lastSeen) return;
         seenLoaded = newest;
         set({ lastSeen: newest });
-        void d.kv.setItem(seenKey(), String(newest)).catch(() => undefined);
+        void d.kv.setItem(seenKey(), seenValue(newest)).catch(() => undefined);
       },
       setName: async (n) => {
         if (get().identity.reservedName) return; // a reserved name is released first

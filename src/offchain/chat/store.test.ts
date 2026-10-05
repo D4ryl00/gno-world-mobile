@@ -139,7 +139,7 @@ test('the first load is not unread; later lines are, and markSeen persists', asy
   s.markSeen();
   await flush();
   expect(h.store.getState().lastSeen).toBe(4);
-  expect(h.kv.get(SEEN_KEY)).toBe('4');
+  expect(h.kv.get(SEEN_KEY)).toBe('1:4');
   h.store.getState().stop();
 });
 
@@ -376,4 +376,49 @@ test('a restart (another server) reloads the identity: a reservation made elsewh
   await flush();
   expect(h.store.getState().identity).toEqual({ ...NO_IDENTITY, name: 'ann' });
   h.store.getState().stop();
+});
+
+test('a new gen forgets the lines this app posted, its reactions and its votes', async () => {
+  const h = harness([reply({ msgs: [line(10)], gen: 1 }), reply({ gen: 2 }), reply({ msgs: [line(11, { tag: 'cccc' })], gen: 2 })]);
+  h.client.post.mockResolvedValueOnce(line(11, { tag: 'zzzz' }));
+  h.client.react.mockResolvedValueOnce({ rx: { '❤️': 1 }, mine: true });
+  h.client.vote.mockResolvedValueOnce({ mine: 0, poll: undefined });
+  await h.store.ready;
+  await h.store.getState().send('hello');
+  await h.store.getState().react(10, '❤️');
+  await h.store.getState().vote(10, 0);
+  expect(h.store.getState().mine).toEqual([11]);
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([11]);
+  expect(h.store.getState().mine).toEqual([]);
+  expect(h.store.getState().myReactions).toEqual({});
+  expect(h.store.getState().myVotes).toEqual({});
+  h.store.getState().stop();
+});
+
+test('a seen mark from another gen is not trusted: the new log\'s backlog is seen', async () => {
+  const kv = new Map([[SEEN_KEY, '1:2']]);
+  const h = harness([reply({ msgs: [line(1), line(2), line(3), line(4), line(5)], gen: 2 })], { kv });
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().lastSeen).toBe(5);
+  expect(kv.get(SEEN_KEY)).toBe('2:5');
+  h.store.getState().stop();
+});
+
+test('a seen mark of the same gen is kept; an old plain mark is read as before', async () => {
+  const kv = new Map([[SEEN_KEY, '2:3']]);
+  const h = harness([reply({ msgs: [line(1), line(2), line(3), line(4), line(5)], gen: 2 })], { kv });
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().lastSeen).toBe(3);
+  h.store.getState().stop();
+  const kv2 = new Map([[SEEN_KEY, '3']]);
+  const h2 = harness([reply({ msgs: [line(1), line(2), line(3), line(4), line(5)], gen: 2 })], { kv: kv2 });
+  h2.store.getState().start();
+  await flush();
+  expect(h2.store.getState().lastSeen).toBe(3);
+  expect(kv2.get(SEEN_KEY)).toBe('2:3'); // rewritten with its gen
+  h2.store.getState().stop();
 });
