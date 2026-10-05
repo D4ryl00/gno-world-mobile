@@ -8,6 +8,7 @@ import { useStore, type StoreApi } from 'zustand';
 import type { ChainApi } from '@/chain/api';
 import { GameClient } from '@/chain/game-client';
 import { createChatClient, type ChatClient } from '@/offchain/chat/client';
+import { followAppState } from '@/offchain/chat/app-state';
 import { createIdentityStore } from '@/offchain/chat/identity';
 import { createChatStore, type ChatState } from '@/offchain/chat/store';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
@@ -123,11 +124,11 @@ export function AppServices({ children }: PropsWithChildren) {
     };
   }, [services, pid]);
 
-  // chat long poll: while in the foreground, from scratch when the server changes
+  // chat long poll: while in the foreground (resumed from its cursor), from scratch when the server changes
   useEffect(() => {
     const chat = services.chat.getState;
     if (AppState.currentState === 'active') chat().start();
-    const sub = AppState.addEventListener('change', (st) => (st === 'active' ? chat().start() : chat().stop()));
+    const sub = AppState.addEventListener('change', (st) => followAppState(st, chat()));
     const unsub = settingsStore.subscribe((now, before) => {
       if (now.offchainUrl !== before.offchainUrl) chat().restart();
     });

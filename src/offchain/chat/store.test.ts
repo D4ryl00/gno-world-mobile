@@ -422,3 +422,48 @@ test('a seen mark of the same gen is kept; an old plain mark is read as before',
   expect(kv2.get(SEEN_KEY)).toBe('2:3'); // rewritten with its gen
   h2.store.getState().stop();
 });
+
+test('start after stop resumes from the cursor: the view stays', async () => {
+  const answers = [reply({ msgs: [line(1), line(2)], next: 2 })];
+  const h = harness(answers);
+  h.store.getState().start();
+  await flush();
+  h.store.getState().stop();
+  answers.push(reply({ msgs: [line(3)], next: 3 }));
+  h.store.getState().start();
+  await flush();
+  expect(h.queries.at(-2)).toMatchObject({ since: 2, wait: 55, gen: 1 });
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([1, 2, 3]);
+  h.store.getState().stop();
+});
+
+test('resume catches up past one page', async () => {
+  const answers = [reply({ msgs: [line(1)], next: 1 })];
+  const h = harness(answers);
+  h.store.getState().start();
+  await flush();
+  h.store.getState().stop();
+  const page = Array.from({ length: 200 }, (_, i) => line(i + 2));
+  answers.push(reply({ msgs: page, next: 201 }), reply({ msgs: [line(202)], next: 202 }));
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().lines.at(-1)?.id).toBe(202);
+  expect(h.store.getState().lines[0].id).toBe(1); // kept: a resume, not a reload
+  h.store.getState().stop();
+});
+
+test('a resume that meets a new gen reloads and forgets', async () => {
+  const answers = [reply({ msgs: [line(10)], gen: 1 })];
+  const h = harness(answers);
+  h.client.post.mockResolvedValueOnce(line(11));
+  h.store.getState().start();
+  await flush();
+  await h.store.getState().send('hi');
+  h.store.getState().stop();
+  answers.push(reply({ gen: 2 }), reply({ msgs: [line(7)], gen: 2 }));
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([7]);
+  expect(h.store.getState().mine).toEqual([]);
+  h.store.getState().stop();
+});

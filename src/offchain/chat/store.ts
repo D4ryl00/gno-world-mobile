@@ -107,9 +107,9 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       if (!valid || raw.gen === null) void d.kv.setItem(seenKey(), seenValue(seenLoaded)).catch(() => undefined);
     };
 
-    const loop = async (signal: AbortSignal) => {
+    const loop = async (signal: AbortSignal, resume: boolean) => {
       await ready;
-      let first = true;
+      let first = !resume; // a resume long-polls from the cursor it holds; a new gen still reloads (below)
       let backoff = BACKOFF_MIN;
       set({ phase: 'loading' });
       while (!signal.aborted) {
@@ -168,7 +168,8 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       start: () => {
         if (run) return;
         run = new AbortController();
-        void loop(run.signal);
+        const v = get();
+        void loop(run.signal, v.gen !== null && v.lines.length > 0);
       },
       stop: () => {
         run?.abort();
