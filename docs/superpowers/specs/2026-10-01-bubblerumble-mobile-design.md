@@ -376,7 +376,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-04. À mettre à jour à chaque étape livrée.
+État au 2026-10-05. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -528,6 +528,38 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   questions de conception du wallet. `~/gno-inpage-wallets` rebasée dessus sans conflit (60 commits),
   plus un commit (`12c2561b5`) qui relie la section à « The `signer` pin » et dit ce qui manque au
   fournisseur in-page ; poussées avec ton accord (PR #6016 en push forcé). Le brouillon porte une bannière vers le standard.
+
+- Sessions GnoConnect dans le navigateur (in-page), spec
+  `docs/superpowers/specs/2026-10-04-gnoconnect-inpage-sessions-design.md`, plan
+  `docs/superpowers/plans/2026-10-04-gnoconnect-inpage-sessions.md`, 10 tâches exécutées inline le
+  2026-10-05 :
+  - gnokey-mobile (`feat/deeplink-tx`, `dd1e8c4`) : un `disconnect` sans clé est répondu `success`
+    (+ `state`) par un callback sûr, sans écran ni pont (le wallet ne garde rien par producteur) ;
+    48 XCTest, JUnit verts. Le cœur Go n'est pas touché : il ne voit jamais ces liens.
+  - Adena (`~/adena-wallet`, `feat/gnoconnect-in-page`, fork, `f7480afc`..`e34254b8`) :
+    `connect(opts)` et `disconnect(req?)` in-page, même objet signé que les liens (payload sans ligne
+    `callback`, champs inconnus signés), preuves Ed25519 (WebCrypto) et secp256k1 (`elliptic`),
+    contrôles avant toute fenêtre (CHECK puis CONNECT dans le service worker), clés de session
+    `/tm.PubKeyEd25519`, fenêtre de revue (origine, réseau, identité, entrées risquées, budget et pire
+    cas, expiration, ancienne / nouvelle clé, frais) ; 789 tests jest, build OK.
+  - Bubble Rumble (`main`, `3af70c2`..`2373176`) : `prototypes/inpage-sessions/` — bibliothèque de
+    requête (vecteurs Go, 12 tests Node), page de test (clé Ed25519 WebCrypto non exportable dans
+    IndexedDB, ou secp256k1), banc Playwright + Chromium qui embarque Adena compilé, l'installe avec
+    `test1` et rejoue les 7 scénarios du §6 pour les deux types de clé contre gnodev : 15/15. Une session
+    Ed25519 créée par Adena est bien sur la chaîne en `/tm.PubKeyEd25519` à l'adresse que calcule la page,
+    renouvelée puis révoquée.
+  - Standard : `~/gno-external-wallets` `d51d5d9af` (`disconnect` sans clé, PR #5970) ;
+    `~/gno-inpage-wallets` rebasée dessus (61 commits inchangés ; sauvegarde
+    `backup/inpage-before-inpage-sessions`) + `8158ab13c` (« Sessions in the browser », Ed25519 MUST
+    pour un wallet in-page, clé WebCrypto non exportable conseillée, Adena dans « Known
+    Implementations »).
+  Trouvés par le banc : Chromium headless refuse les fenêtres d'Adena (left 800 / top 300) hors de son
+  écran virtuel (`--screen-info`) ; le stockage du service worker d'Adena garde tout le magasin en
+  mémoire après sa première écriture, donc le retrait d'approbation passe par un stockage jetable
+  (`e34254b8`). Revue finale : relecture par l'auteur (pas de sous-agent), sans Critical ni Important ;
+  3 mineurs reportés dans le ledger (fenêtre fermée pendant la relecture de la chaîne, mémoire anti-rejeu
+  perdue à l'arrêt du service worker, défauts préexistants d'Adena vus en route). Poussées en attente de
+  ton accord. Ledger (non versionné) : `.superpowers/sdd/2026-10-04-gnoconnect-inpage-sessions/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
