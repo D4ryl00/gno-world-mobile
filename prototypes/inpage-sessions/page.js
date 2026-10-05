@@ -223,6 +223,15 @@ const actions = {
     const req = await signRequest('connect', fields, signerOf(key), signerOf(key));
     return reportConnect('oldIsPubkey', key, await wallet.provider.connect(req));
   },
+  /** Whether this origin is still approved: a gated read never prompts. */
+  async account() {
+    try {
+      const answer = await wallet.provider.getAccount();
+      return record('account', { status: answer.status, approved: answer.status === 'Approved' });
+    } catch (error) {
+      return record('account', { approved: false, code: error?.code });
+    }
+  },
   async resetKeys() {
     await store('delete', slot('current'));
     await store('delete', slot('previous'));
