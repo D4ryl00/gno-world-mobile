@@ -17,7 +17,8 @@ const RULES: [RegExp, ChainErrorKind][] = [
   [/ErrNoActiveAccount/, 'unknown-session'],
   [/not permitted by session AllowPaths/i, 'not-allowed'],
   [/insufficient (funds|coins)/i, 'funds'],
-  // gnonative drops the chain's detail for SessionNotAllowedError; for this app's own calls the realistic cause is the spend limit.
+  // gnonative drops the chain's detail for SessionNotAllowedError: read as the spend limit here; GameClient turns it into
+  // not-allowed when the session on chain does not cover the realm.
   [/session not allowed error/i, 'budget'],
   // The tx was broadcast but its result could not be decoded (gnonative's gno lacks some event types): it may have
   // landed, so it must not read as a failure worth a paid retry.

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 
 import { ChainError } from '@/chain/errors';
+import { CURRENT_VERSION } from '@/chain/realms';
 import { Button } from '@/components/button';
 import { Page } from '@/components/page';
 import { Field } from '@/components/field';
@@ -26,7 +27,7 @@ export function CreatePoolScreen() {
   const { game } = useServices();
   const active = useSession((s) => s.active);
   const blocked = usePresence((s) => isPlayBlocked(s.country));
-  const [v, setV] = useState({ name: '', window: '12h', base: '1', life: '', seed: '0' });
+  const [v, setV] = useState({ name: '', window: '12h', base: '1', seed: '0' });
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false); // the pool may exist: never offer to create it twice
@@ -41,7 +42,6 @@ export function CreatePoolScreen() {
       <Field label="Name" value={v.name} onChangeText={set('name')} />
       <Field label="Window (e.g. 90m, 12h, 2d)" value={v.window} onChangeText={set('window')} />
       <Field label="Base price (GNOT)" value={v.base} onChangeText={set('base')} keyboardType="decimal-pad" />
-      <Field label="Life from the first boop (optional, e.g. 3d)" value={v.life} onChangeText={set('life')} />
       <Field label="Seed (GNOT, optional)" value={v.seed} onChangeText={set('seed')} keyboardType="decimal-pad" />
       {error ? <Text style={styles.warn}>{error}</Text> : <Text style={styles.muted}>first boop {gnot(form!.basePrice)}</Text>}
       <Button
@@ -52,7 +52,7 @@ export function CreatePoolScreen() {
               await game.createPool(active!, form!);
               setSent(true);
               // land on the new pool when the realm already lists it, else on the list (it shows up there)
-              const created = await game.realm(5).then((r) => findCreated(r.pools, active!.master, form!.name)).catch(() => undefined);
+              const created = await game.realm(CURRENT_VERSION).then((r) => findCreated(r.pools, active!.master, form!.name)).catch(() => undefined);
               leave(created);
             } catch (e) {
               const m = txMessage(e, Math.floor(Date.now() / 1000));

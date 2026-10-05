@@ -1,0 +1,236 @@
+{
+ "now": 1791190449,
+ "height": 572893,
+ "realm": "gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble6",
+ "split": {
+  "pot": 50,
+  "div": 30,
+  "ref": 10,
+  "creator": 5,
+  "treasury": 5,
+  "team": 35,
+  "roster": 100,
+  "shotMaxBps": 100,
+  "shotFair": 8000,
+  "shotDelay": 3,
+  "shotWindow": 2,
+  "minClock": 300,
+  "minShot": 100000,
+  "revealTip": 20000,
+  "keeperFresh": 300
+ },
+ "shotsOn": true,
+ "treasury": "g1uvwsyasxrzj3ela6gzhkzklujyf7l9ney6q8an",
+ "treasuryPaid": 81575494,
+ "keeper": "g18dd5mstjqlcg9ngqpg26azeya6wqg7upd9t8xa",
+ "keeperSeen": 1791190372,
+ "commitsFree": 91,
+ "commitHead": "bb26f43dabb31d2d26ce625e0772705f8dc879627f840dc4bdbcae5fe1864c1f",
+ "voided": 0,
+ "late": 9,
+ "pools": [
+  {
+   "id": 1,
+   "name": "\ud83c\udfc1 speedrun",
+   "creator": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+   "window": 600,
+   "basePrice": 500000,
+   "seed": 30000000,
+   "pot": 30450000,
+   "bids": 1,
+   "nextPrice": 707107,
+   "lastBidder": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+   "lastBidAt": 1790964272,
+   "firstBidAt": 1790964272,
+   "deadline": 1790964872,
+   "lastDay": 0,
+   "liveBps": 10000,
+   "clock": 600,
+   "createdAt": 1790964146,
+   "over": true,
+   "popped": false,
+   "paid": true,
+   "cancelled": false,
+   "bidders": 1,
+   "divPaid": 0,
+   "refPaid": 0,
+   "creatorPaid": 25000,
+   "treasuryPaid": 25000,
+   "shotPaid": 0,
+   "teamPaid": 0,
+   "sharedPaid": 0,
+   "winnerPaid": 30450000,
+   "shots": 0,
+   "misses": 0,
+   "voided": 0,
+   "late": 0,
+   "pending": 0,
+   "escrow": 0,
+   "flag": "FR",
+   "teams": {
+    "FR": 500000
+   }
+  },
+  {
+   "id": 2,
+   "name": "Infinity Pool",
+   "creator": "g1hrepv77qv6nh7953jrnqpar4c89yxg5hkx9ca8",
+   "window": 86400,
+   "basePrice": 1000000,
+   "seed": 1000000,
+   "pot": 3514558,
+   "bids": 3,
+   "nextPrice": 2000000,
+   "lastBidder": "g1c78d8wwp6stq2cpfpw9u8aq6qwmswpp2kcwhqg",
+   "lastBidAt": 1791098972,
+   "firstBidAt": 1791015663,
+   "deadline": 1791185372,
+   "lastDay": 0,
+   "liveBps": 10000,
+   "clock": 86400,
+   "createdAt": 1791011248,
+   "over": true,
+   "popped": false,
+   "paid": true,
+   "cancelled": false,
+   "bidders": 3,
+   "divPaid": 943878,
+   "refPaid": 273205,
+   "creatorPaid": 207312,
+   "treasuryPaid": 207312,
+   "shotPaid": 0,
+   "teamPaid": 1230094,
+   "sharedPaid": 0,
+   "winnerPaid": 2284464,
+   "shots": 0,
+   "misses": 0,
+   "voided": 0,
+   "late": 0,
+   "pending": 0,
+   "escrow": 0,
+   "flag": "RU",
+   "teams": {
+    "CZ": 1000000,
+    "US": 1414214,
+    "RU": 1732051
+   }
+  }
+ ],
+ "teams": {
+  "FR": {
+   "paid": 40169319,
+   "won": 30450000,
+   "players": 5
+  },
+  "CZ": {
+   "paid": 2000000,
+   "won": 0,
+   "players": 1
+  },
+  "DE": {
+   "paid": 14386411,
+   "won": 0,
+   "players": 3
+  },
+  "KZ": {
+   "paid": 14143,
+   "won": 0,
+   "players": 1
+  },
+  "ES": {
+   "paid": 50611768,
+   "won": 4600000,
+   "players": 2
+  },
+  "NL": {
+   "paid": 124567,
+   "won": 0,
+   "players": 2
+  },
+  "LV": {
+   "paid": 1100000,
+   "won": 1080000,
+   "players": 1
+  },
+  "AE": {
+   "paid": 50953,
+   "won": 0,
+   "players": 1
+  },
+  "CH": {
+   "paid": 28285,
+   "won": 0,
+   "players": 1
+  },
+  "US": {
+   "paid": 7326152,
+   "won": 0,
+   "players": 1
+  },
+  "UA": {
+   "paid": 2526534,
+   "won": 0,
+   "players": 3
+  },
+  "GB": {
+   "paid": 20578713,
+   "won": 0,
+   "players": 3
+  },
+  "PK": {
+   "paid": 5000000,
+   "won": 0,
+   "players": 1
+  },
+  "SA": {
+   "paid": 17254851,
+   "won": 0,
+   "players": 2
+  },
+  "SG": {
+   "paid": 48770,
+   "won": 0,
+   "players": 1
+  },
+  "SI": {
+   "paid": 373764884,
+   "won": 474132408,
+   "players": 3
+  },
+  "CN": {
+   "paid": 1000000,
+   "won": 0,
+   "players": 1
+  },
+  "AU": {
+   "paid": 26352771,
+   "won": 0,
+   "players": 1
+  },
+  "RU": {
+   "paid": 3308432,
+   "won": 3514558,
+   "players": 2
+  },
+  "DK": {
+   "paid": 74559020,
+   "won": 0,
+   "players": 2
+  },
+  "BY": {
+   "paid": 35653,
+   "won": 0,
+   "players": 1
+  },
+  "FI": {
+   "paid": 13869546,
+   "won": 0,
+   "players": 1
+  },
+  "KR": {
+   "paid": 1000000000,
+   "won": 0,
+   "players": 1
+  }
+ }
+}

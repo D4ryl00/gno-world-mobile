@@ -1,0 +1,63 @@
+{
+ "id": 1,
+ "name": "\ud83c\udfc1 speedrun",
+ "creator": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+ "window": 600,
+ "basePrice": 500000,
+ "seed": 30000000,
+ "pot": 30450000,
+ "bids": 1,
+ "nextPrice": 707107,
+ "lastBidder": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+ "lastBidAt": 1790964272,
+ "firstBidAt": 1790964272,
+ "deadline": 1790964872,
+ "lastDay": 0,
+ "liveBps": 10000,
+ "clock": 600,
+ "createdAt": 1790964146,
+ "over": true,
+ "popped": false,
+ "paid": true,
+ "cancelled": false,
+ "bidders": 1,
+ "divPaid": 0,
+ "refPaid": 0,
+ "creatorPaid": 25000,
+ "treasuryPaid": 25000,
+ "shotPaid": 0,
+ "teamPaid": 0,
+ "sharedPaid": 0,
+ "winnerPaid": 30450000,
+ "shots": 0,
+ "misses": 0,
+ "voided": 0,
+ "late": 0,
+ "pending": 0,
+ "escrow": 0,
+ "flag": "FR",
+ "teams": {
+  "FR": 500000
+ },
+ "history": [
+  {
+   "n": 1,
+   "bidder": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+   "flag": "FR",
+   "price": 500000,
+   "shot": 0,
+   "clock": 600,
+   "pot": 30450000,
+   "at": 1790964272
+  }
+ ],
+ "roster": [
+  {
+   "addr": "g1manfred47kzduec920z88wfr64ylksmdcedlf5",
+   "flag": "FR",
+   "paid": 500000,
+   "earned": 0
+  }
+ ],
+ "shotlog": []
+}

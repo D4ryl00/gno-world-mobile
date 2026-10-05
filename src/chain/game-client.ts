@@ -1,15 +1,18 @@
 import { gasFor } from '@/game/pricing';
+import { missingPaths, querySession } from '@/session/status';
 import type { ActiveSession } from '@/session/types';
 import { bytesToHex, decodeAddress } from '@/utils/bech32';
 
 import type { ChainApi } from './api';
 import { ChainError, classifyError } from './errors';
 import { parseMe, parsePool, parseRealm, parseTeams, type Me, type Pool, type RealmInfo, type Teams } from './parse';
-import { bidArgs, caps, REALMS, VERSIONS, type Version } from './realms';
+import { bidArgs, caps, CURRENT_VERSION, REALMS, VERSIONS, type Version } from './realms';
+
+const SESSION_NOT_ALLOWED = /session not allowed error/i;
 
 export interface TxResult { hash: string; height: number }
 export interface BidOptions { ref: string; flag: string; boost: number; shot: number }
-export interface PoolForm { name: string; window: number; basePrice: number; life: number; seed: number }
+export interface PoolForm { name: string; window: number; basePrice: number; seed: number }
 export interface AllPools { pools: Pool[]; realms: Partial<Record<Version, RealmInfo>>; failed: Version[] }
 
 export class GameClient {
@@ -45,7 +48,7 @@ export class GameClient {
   }
 
   async teams(): Promise<Teams> {
-    return parseTeams(await this.api.render(REALMS[5], 'teams'));
+    return parseTeams(await this.api.render(REALMS[CURRENT_VERSION], 'teams'));
   }
 
   bid(s: ActiveSession, p: Pool, o: BidOptions): Promise<TxResult> {
@@ -68,8 +71,8 @@ export class GameClient {
   }
 
   createPool(s: ActiveSession, f: PoolForm) {
-    const args = [f.name, String(f.window), String(f.basePrice), String(f.life)];
-    return this.exec(s, 5, 'CreatePool', args, f.seed, gasFor('CreatePool'));
+    const args = [f.name, String(f.window), String(f.basePrice)];
+    return this.exec(s, CURRENT_VERSION, 'CreatePool', args, f.seed, gasFor('CreatePool'));
   }
 
   private async exec(
@@ -91,7 +94,15 @@ export class GameClient {
       if (!last) throw new ChainError('unknown-outcome', 'the node returned no result for the transaction');
       return { hash: bytesToHex(last.hash), height: Number(last.height) };
     } catch (e) {
-      throw classifyError(e);
+      throw await this.refine(classifyError(e), s, v);
     }
+  }
+
+  /** gnonative passes on only "session not allowed error" (see errors.ts): when the session on chain does not cover
+   *  the realm (a session from before v6, say), that is the cause, not the budget. */
+  private async refine(e: ChainError, s: ActiveSession, v: Version): Promise<ChainError> {
+    if (e.kind !== 'budget' || !SESSION_NOT_ALLOWED.test(e.message)) return e;
+    const st = await querySession(this.api, s.master, s.address).catch(() => null);
+    return st && missingPaths(st, [`vm/exec:${REALMS[v]}`]).length > 0 ? new ChainError('not-allowed', e.message, e.raw) : e;
   }
 }

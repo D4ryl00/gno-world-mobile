@@ -70,3 +70,8 @@ test('one malformed pool does not poison the realm', () => {
   const r = parseRealm('{"now":1,"pools":["oops",{"id":7,"name":"ok"},{"name":"no id"}]}', 5);
   expect(r.pools.map((p) => p.key)).toEqual(['v5-7']);
 });
+
+test('a v6 pool has no last day: life is 0 and the winner takes the whole rest', () => {
+  const p = parsePool(fx('v6-pool.json'), 6);
+  expect(p).toMatchObject({ key: 'v6-1', version: 6, life: 0, liveBps: 10000 });
+});

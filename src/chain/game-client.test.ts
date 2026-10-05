@@ -6,6 +6,7 @@ import { GameClient } from '@/chain/game-client';
 import { parsePool } from '@/chain/parse';
 import { REALMS } from '@/chain/realms';
 import type { ActiveSession } from '@/session/types';
+import { bytesToHex, decodeAddress } from '@/utils/bech32';
 
 const fx = (n: string) => readFileSync(join(__dirname, '__fixtures__', n), 'utf8');
 const session: ActiveSession = {
@@ -15,11 +16,12 @@ const session: ActiveSession = {
 
 test('allPools merges every version and survives one failing realm', async () => {
   const api = new FakeChainApi();
+  api.renders.set(`${REALMS[6]}:json`, fx('v6-realm.json'));
   api.renders.set(`${REALMS[5]}:json`, fx('v5-realm.json'));
   api.renders.set(`${REALMS[1]}:json`, fx('v1-realm.json'));
   const g = new GameClient(api, () => 'gnoland-1');
   const r = await g.allPools();
-  expect(r.pools.map((p) => p.key)).toEqual(['v5-1', 'v5-2', 'v5-99', 'v1-6']);
+  expect(r.pools.map((p) => p.key)).toEqual(['v6-1', 'v6-2', 'v5-1', 'v5-2', 'v5-99', 'v1-6']);
   expect(r.failed.sort()).toEqual([2, 3, 4]);
 });
 
@@ -37,6 +39,12 @@ test('bid sends price × boost + shot with the right args, gas and signer', asyn
   expect(c.gasFee).toBe('39600ugnot');
   expect(c.gasWanted).toBe(39600000n);
   expect(c.signerHex).toHaveLength(40);
+});
+
+test('teams are read from the current realm', async () => {
+  const api = new FakeChainApi();
+  api.renders.set(`${REALMS[6]}:teams`, fx('v5-teams.json'));
+  await expect(new GameClient(api, () => 'gnoland-1').teams()).resolves.toBeDefined();
 });
 
 test('a session from another chain is refused before anything is signed', async () => {
@@ -57,6 +65,33 @@ test('chain errors are classified', async () => {
   await expect(g.withdraw(session, 5)).rejects.toMatchObject({ kind: 'expired' });
 });
 
+// gnonative passes on only "session not allowed error": the cause is read back from the session on chain.
+function onChainSession(api: FakeChainApi, allowPaths: string[]) {
+  api.sessions.set(`${bytesToHex(decodeAddress(session.master))}/${bytesToHex(decodeAddress(session.address))}`, {
+    expiresAt: 0n, spendLimit: [], spendPeriod: 3600n, spendUsed: [], spendReset: 0n, allowPaths,
+  });
+}
+
+test('a refusal on a realm the session does not cover is not-allowed', async () => {
+  const api = new FakeChainApi();
+  onChainSession(api, [`vm/exec:${REALMS[5]}`]);
+  api.failNextCall = new Error('session not allowed error');
+  await expect(new GameClient(api, () => 'gnoland-1').withdraw(session, 6)).rejects.toMatchObject({ kind: 'not-allowed' });
+});
+
+test('a refusal on a covered realm stays a budget refusal', async () => {
+  const api = new FakeChainApi();
+  onChainSession(api, [`vm/exec:${REALMS[6]}`]);
+  api.failNextCall = new Error('session not allowed error');
+  await expect(new GameClient(api, () => 'gnoland-1').withdraw(session, 6)).rejects.toMatchObject({ kind: 'budget' });
+});
+
+test('a refusal stays a budget refusal when the session cannot be read', async () => {
+  const api = new FakeChainApi();
+  api.failNextCall = new Error('session not allowed error');
+  await expect(new GameClient(api, () => 'gnoland-1').withdraw(session, 6)).rejects.toMatchObject({ kind: 'budget' });
+});
+
 test('withdraw is refused on versions without Withdraw', async () => {
   const g = new GameClient(new FakeChainApi(), () => 'gnoland-1');
   await expect(g.withdraw(session, 2)).rejects.toThrow(/no Withdraw/);
@@ -64,8 +99,8 @@ test('withdraw is refused on versions without Withdraw', async () => {
 
 test('createPool sends the seed and the arguments in realm order', async () => {
   const api = new FakeChainApi();
-  await new GameClient(api, () => 'gnoland-1').createPool(session, { name: 'x', window: 600, basePrice: 1000, life: 0, seed: 5000 });
-  expect(api.calls[0]).toMatchObject({ pkg: REALMS[5], fnc: 'CreatePool', args: ['x', '600', '1000', '0'] });
+  await new GameClient(api, () => 'gnoland-1').createPool(session, { name: 'x', window: 600, basePrice: 1000, seed: 5000 });
+  expect(api.calls[0]).toMatchObject({ pkg: REALMS[6], fnc: 'CreatePool', args: ['x', '600', '1000'] });
   expect(api.calls[0].send).toEqual([{ denom: 'ugnot', amount: 5000n }]);
 });
 
@@ -74,7 +109,7 @@ test('every transaction refuses a session from another chain', async () => {
   const g = new GameClient(api, () => 'dev');
   const pool = parsePool(fx('v5-pool.json'), 5);
   await expect(g.bid(session, pool, { ref: '', flag: '', boost: 1, shot: 0 })).rejects.toMatchObject({ kind: 'wrong-chain' });
-  await expect(g.createPool(session, { name: 'x', window: 600, basePrice: 1000, life: 0, seed: 0 })).rejects.toMatchObject({ kind: 'wrong-chain' });
+  await expect(g.createPool(session, { name: 'x', window: 600, basePrice: 1000, seed: 0 })).rejects.toMatchObject({ kind: 'wrong-chain' });
   await expect(g.withdraw(session, 5)).rejects.toMatchObject({ kind: 'wrong-chain' });
   expect(api.calls).toHaveLength(0);
 });
