@@ -65,3 +65,6 @@ export function rxWho(line: ChatLine, emoji: string): string {
   const names = line.rxwho[emoji] ?? [];
   return names.length > 12 ? `${names.slice(0, 12).join(', ')} +${names.length - 12}` : names.join(', ');
 }
+
+/** The Chat tab's accessibility label: the badge, in words. */
+export const chatTabLabel = (unread: number) => (unread > 0 ? `Chat, ${unread > 99 ? '99+' : unread} unread` : 'Chat');

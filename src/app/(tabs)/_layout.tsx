@@ -3,6 +3,7 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ColorValue } from 'react-native';
 
 import { unreadCount } from '@/offchain/chat/merge';
+import { chatTabLabel } from '@/screens/chat/line-model';
 import { useChat } from '@/state/app-services';
 import { colors } from '@/theme';
 
@@ -28,6 +29,7 @@ export default function TabsLayout() {
         name="chat"
         options={{
           title: 'Chat', headerShown: false, tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+          tabBarAccessibilityLabel: chatTabLabel(unread),
           tabBarIcon: icon({ ios: 'bubble.left.and.bubble.right.fill', android: 'forum' }),
         }}
       />

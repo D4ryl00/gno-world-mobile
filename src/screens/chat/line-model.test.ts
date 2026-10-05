@@ -1,5 +1,5 @@
 import { line } from '@/offchain/chat/testing';
-import { ago, canEdit, canWithdraw, placeholder, pollBars, rxWho, splitLinks, typingText } from '@/screens/chat/line-model';
+import { ago, canEdit, canWithdraw, chatTabLabel, placeholder, pollBars, rxWho, splitLinks, typingText } from '@/screens/chat/line-model';
 
 const T = 1_790_000_000;
 
@@ -68,4 +68,10 @@ test('who reacted: the names, then "+N" past twelve', () => {
   const many = Array.from({ length: 14 }, (_, i) => `p${i}`);
   expect(rxWho(line(1, { rxwho: { '❤️': many } }), '❤️')).toBe(`${many.slice(0, 12).join(', ')} +2`);
   expect(rxWho(line(1), '❤️')).toBe('');
+});
+
+test('the Chat tab says how many lines are unread', () => {
+  expect(chatTabLabel(0)).toBe('Chat');
+  expect(chatTabLabel(3)).toBe('Chat, 3 unread');
+  expect(chatTabLabel(150)).toBe('Chat, 99+ unread');
 });

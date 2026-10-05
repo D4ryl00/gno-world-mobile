@@ -23,7 +23,14 @@ export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchain
     <Pressable onLongPress={() => onLongPress(line)} delayLongPress={300} accessible={false} style={[styles.row, mine && styles.mine]}>
       {line.av ? <Image source={{ uri: avatarUrl(offchainUrl, line.av) }} style={styles.av} /> : <View style={styles.av} />}
       <View style={styles.main}>
-        <Text style={styles.who} numberOfLines={1}>
+        {/* the row is not one accessible element: its menu is an accessibility action on the name line */}
+        <Text style={styles.who} numberOfLines={1} accessible
+          accessibilityLabel={`${line.name}${line.reserved ? ' ✓' : ''}, ${ago(line.t, now)}${line.edited ? ', edited' : ''}`}
+          accessibilityHint="actions: reply, react, edit"
+          accessibilityActions={[{ name: 'menu', label: 'reply, react, edit' }, { name: 'longpress' }]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === 'menu' || e.nativeEvent.actionName === 'longpress') onLongPress(line);
+          }}>
           {line.bot ? '🤖' : flagEmoji(line.cc)} <Text style={styles.name}>{line.name}</Text>
           {line.reserved ? <Text style={styles.check}> ✓</Text> : null}
           <Text style={styles.meta}> ·{line.tag} {ago(line.t, now)}{line.edited ? ' · edited' : ''}</Text>

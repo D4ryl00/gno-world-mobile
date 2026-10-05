@@ -13,3 +13,14 @@ test('holding a reaction shows who reacted', () => {
   fireEvent(screen.getByText('❤️ 2'), 'longPress');
   expect(screen.getByText('❤️ ann, bob')).toBeTruthy();
 });
+
+test('the line menu is an accessibility action on the name', () => {
+  const onLongPress = jest.fn();
+  const l = line(1, { name: 'ann' });
+  render(
+    <ChatLineRow line={l} mine={false} now={Date.now()} offchainUrl="http://fake" myReactions={[]} myVote={undefined}
+      onLongPress={onLongPress} onJump={jest.fn()} onReact={jest.fn()} onVote={jest.fn()} />,
+  );
+  fireEvent(screen.getByLabelText(/^ann/), 'accessibilityAction', { nativeEvent: { actionName: 'menu' } });
+  expect(onLongPress).toHaveBeenCalledWith(l);
+});
