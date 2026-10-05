@@ -82,6 +82,8 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
   const seenKey = () => (d.scope ? `${SEEN_KEY}:${d.scope()}` : SEEN_KEY);
   let typingAt = 0;
   let typingN = 0;
+  // bumped when the view is replaced (restart, a new gen): an answer to a request made before is about another view
+  let epoch = 0;
 
   const store = createStore<ChatState>()((set, get) => {
     const name = () => get().identity.reservedName || get().identity.name || 'anon';
@@ -111,6 +113,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           );
           if (signal.aborted) return;
           if (!first && genChanged(v, r)) {
+            epoch++;
             set({ ...EMPTY_VIEW });
             first = true;
             seenLoaded = null;
@@ -166,6 +169,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       restart: () => {
         get().stop();
         seenLoaded = null; // another server, or the same one anew: read its mark again
+        epoch++;
         set({ ...EMPTY_VIEW, mine: [], myReactions: {}, myVotes: {} });
         get().start();
       },
@@ -173,9 +177,10 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         const oldest = get().lines[0]?.id;
         if (olderBusy || !get().more || !oldest) return;
         olderBusy = true;
+        const e = epoch;
         try {
           const r = await d.client.older(oldest);
-          set(applyOlder(get(), r));
+          if (e === epoch) set(applyOlder(get(), r));
         } catch {
           // history is best effort: the next scroll tries again
         } finally {
@@ -185,19 +190,23 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       send: async (body, re) => {
         const text = body.trim();
         if (!text) return false;
+        const e = epoch;
         const ok = await act(async () => {
           const l = await d.client.post(name(), text, re);
-          set((s) => ({ ...upsertLine(s, l), mine: [...s.mine, l.id] }));
+          if (e === epoch) set((s) => ({ ...upsertLine(s, l), mine: [...s.mine, l.id] }));
         });
         if (ok) typingAt = typingN = 0; // the server drops the sender's typing with the line
         return ok;
       },
-      edit: (id, body) =>
-        act(async () => {
+      edit: (id, body) => {
+        const e = epoch;
+        return act(async () => {
           const l = await d.client.edit(id, body.trim());
-          set((s) => upsertLine(s, l));
-        }),
+          if (e === epoch) set((s) => upsertLine(s, l));
+        });
+      },
       withdraw: async () => {
+        const e = epoch;
         const taken: { id: number | null } = { id: null };
         const ok = await act(async () => {
           taken.id = await d.client.withdraw();
@@ -208,12 +217,14 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           set({ error: 'Only your newest line in the chat, under fifteen minutes old, can be taken back.' });
           return false;
         }
-        set((s) => removeLine(s, id));
+        if (e === epoch) set((s) => removeLine(s, id));
         return true;
       },
       react: async (id, emoji) => {
+        const e = epoch;
         await act(async () => {
           const r = await d.client.react(id, emoji, name());
+          if (e !== epoch) return;
           set((s) => {
             const had = (s.myReactions[id] ?? []).filter((e) => e !== emoji);
             return { ...patchLine(s, id, { rx: r.rx }), myReactions: { ...s.myReactions, [id]: r.mine ? [...had, emoji] : had } };
@@ -221,8 +232,10 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         });
       },
       vote: async (id, opt) => {
+        const e = epoch;
         await act(async () => {
           const r = await d.client.vote(id, opt);
+          if (e !== epoch) return;
           set((s) => ({ ...(r.poll ? patchLine(s, id, { poll: r.poll }) : s), myVotes: { ...s.myVotes, [id]: r.mine } }));
         });
       },

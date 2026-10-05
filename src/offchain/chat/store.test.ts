@@ -331,3 +331,38 @@ test('after a restart on another server, new lines count as unread again', async
   expect(unreadCount(s, s.lastSeen, s.mine)).toBe(1);
   s.stop();
 });
+
+test('an older page that answers after a restart (another server) is dropped', async () => {
+  const answers = [reply({ msgs: [line(10)] })];
+  const h = harness(answers);
+  h.store.getState().start();
+  await flush();
+  let release: (v: unknown) => void = () => undefined;
+  h.client.older.mockReturnValueOnce(new Promise((r) => (release = r)));
+  const pending = h.store.getState().loadOlder();
+  answers.push(reply({ msgs: [line(20)] }));
+  h.store.getState().restart();
+  await flush();
+  release({ msgs: [line(9)], more: true });
+  await pending;
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([20]);
+  h.store.getState().stop();
+});
+
+test('a post that answers after a restart neither adds its line nor marks that id mine', async () => {
+  const answers = [reply({ msgs: [line(10)] })];
+  const h = harness(answers);
+  h.store.getState().start();
+  await flush();
+  let release: (v: unknown) => void = () => undefined;
+  h.client.post.mockReturnValueOnce(new Promise((r) => (release = r)));
+  const pending = h.store.getState().send('hello');
+  answers.push(reply({ msgs: [line(20)] }));
+  h.store.getState().restart();
+  await flush();
+  release(line(11, { body: 'hello' }));
+  await pending;
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([20]);
+  expect(h.store.getState().mine).toEqual([]);
+  h.store.getState().stop();
+});
