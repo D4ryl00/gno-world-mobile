@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 
 import { GameClient } from '../src/chain/game-client';
-import { REALMS, SESSION_ALLOW_PATHS } from '../src/chain/realms';
+import { CURRENT_VERSION, REALMS, SESSION_ALLOW_PATHS } from '../src/chain/realms';
 import { createCommand, replaceCommand, revokeCommand } from '../src/session/fallback';
 import { buildSessionLink, canonicalPayload, signLink } from '../src/session/gnoconnect';
 import { createSessionKey, unlockKey, type SecretStore } from '../src/session/keys';
@@ -57,13 +57,13 @@ test('desktop fallback: create the session, then play with it', async () => {
   await unlockKey(api, secrets, key, MASTER);
   session = { ...key, master: MASTER, chainId: 'dev' };
 
-  await game.createPool(session, { name: 'e2e', window: 600, basePrice: 1_000_000, life: 0, seed: 0 });
-  const pools = (await game.realm(5)).pools;
+  await game.createPool(session, { name: 'e2e', window: 600, basePrice: 1_000_000, seed: 0 });
+  const pools = (await game.realm(CURRENT_VERSION)).pools;
   const mine = pools.find((p) => p.name === 'e2e' && p.creator === MASTER)!;
   expect(mine).toBeDefined();
 
   await game.bid(session, mine, { ref: '', flag: 'FR', boost: 1, shot: 0 });
-  const after = await game.pool(5, mine.id);
+  const after = await game.pool(CURRENT_VERSION, mine.id);
   expect(after.bids).toBe(1);
   expect(after.lastBidder).toBe(MASTER); // the realm sees the identity, not the session key
   expect(after.flag).toBe('FR');
@@ -73,7 +73,7 @@ test('desktop fallback: create the session, then play with it', async () => {
 });
 
 test('the budget is enforced by the chain and classified', async () => {
-  const p = (await game.realm(5)).pools.find((x) => x.name === 'e2e')!;
+  const p = (await game.realm(CURRENT_VERSION)).pools.find((x) => x.name === 'e2e')!;
   await expect(game.bid(session, p, { ref: '', flag: '', boost: 10, shot: 0 })).rejects.toMatchObject({ kind: 'budget' });
   // corroborate: the refusal is the budget, not some other session refusal read as one
   const st = await querySession(api, MASTER, session.address);
@@ -91,5 +91,5 @@ test('replace via the desktop fallback, then revoke', async () => {
 });
 
 test('reading other versions does not need a session', async () => {
-  await expect(api.render(REALMS[5], 'teams')).resolves.toBeDefined();
+  await expect(api.render(REALMS[CURRENT_VERSION], 'teams')).resolves.toBeDefined();
 });

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const RPC = process.env.RPC ?? 'https://rpc.gno.land:443';
 const NS = 'gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr';
-const ROOTS = ['bubblerumble', 'bubblerumble2', 'bubblerumble3', 'bubblerumble4', 'bubblerumble5', 'bubble', 'wbubble']
+const ROOTS = ['bubblerumble', 'bubblerumble2', 'bubblerumble3', 'bubblerumble4', 'bubblerumble5', 'bubblerumble6', 'bubble', 'wbubble']
   .map((n) => `${NS}/${n}`);
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'devchain');
 

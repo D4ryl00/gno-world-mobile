@@ -1,6 +1,6 @@
 # devchain
 
-Code of the Bubble Rumble realms and their dependencies as deployed on gno.land, fetched from https://rpc.gno.land:443 at height 501557 by `npm run devchain:update` (scripts/devchain-update.mjs). Do not edit by hand.
+Code of the Bubble Rumble realms and their dependencies as deployed on gno.land, fetched from https://rpc.gno.land:443 at height 573071 by `npm run devchain:update` (scripts/devchain-update.mjs). Do not edit by hand.
 
 - gno.land/p/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/checkpoint/v0
 - gno.land/p/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/governor/v0
@@ -21,5 +21,6 @@ Code of the Bubble Rumble realms and their dependencies as deployed on gno.land,
 - gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble3
 - gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble4
 - gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble5
+- gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble6
 - gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/wbubble
 - gno.land/r/nt/grc20reg/v0
