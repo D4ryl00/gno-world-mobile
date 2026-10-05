@@ -50,6 +50,8 @@ export interface ChatDeps {
   random?: () => number;
   /** ms */
   now?: () => number;
+  /** the server the chat talks to: each keeps its own last seen line */
+  scope?: () => string;
 }
 
 export const SEEN_KEY = 'br.chat.seen';
@@ -77,6 +79,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
   let run: AbortController | null = null;
   let olderBusy = false;
   let seenLoaded: number | null = null; // the stored last seen id; null until read
+  const seenKey = () => (d.scope ? `${SEEN_KEY}:${d.scope()}` : SEEN_KEY);
   let typingAt = 0;
   let typingN = 0;
 
@@ -85,12 +88,13 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
 
     const settleSeen = async () => {
       if (seenLoaded !== null) return;
-      const raw = await d.kv.getItem(SEEN_KEY).catch(() => null);
+      const raw = Number((await d.kv.getItem(seenKey()).catch(() => null)) ?? 0);
       const newest = get().lines.at(-1)?.id ?? 0;
-      // first launch: the backlog is not "unread"
-      seenLoaded = raw !== null && Number(raw) > 0 ? Number(raw) : newest;
+      // first launch: the backlog is not "unread"; a mark beyond the newest line is stale (the log was reset)
+      const valid = raw > 0 && raw <= newest;
+      seenLoaded = valid ? raw : newest;
       set({ lastSeen: seenLoaded });
-      if (raw === null) void d.kv.setItem(SEEN_KEY, String(seenLoaded)).catch(() => undefined);
+      if (!valid) void d.kv.setItem(seenKey(), String(seenLoaded)).catch(() => undefined);
     };
 
     const loop = async (signal: AbortSignal) => {
@@ -109,6 +113,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           if (!first && genChanged(v, r)) {
             set({ ...EMPTY_VIEW });
             first = true;
+            seenLoaded = null;
             continue;
           }
           set({ ...applyPoll(first ? EMPTY_VIEW : get(), r), phase: 'live' });
@@ -160,6 +165,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       },
       restart: () => {
         get().stop();
+        seenLoaded = null; // another server, or the same one anew: read its mark again
         set({ ...EMPTY_VIEW, mine: [], myReactions: {}, myVotes: {} });
         get().start();
       },
@@ -233,7 +239,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         if (newest <= get().lastSeen) return;
         seenLoaded = newest;
         set({ lastSeen: newest });
-        void d.kv.setItem(SEEN_KEY, String(newest)).catch(() => undefined);
+        void d.kv.setItem(seenKey(), String(newest)).catch(() => undefined);
       },
       setName: async (n) => {
         if (get().identity.reservedName) return; // a reserved name is released first

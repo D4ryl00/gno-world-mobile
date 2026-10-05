@@ -12,10 +12,13 @@ const flush = async () => {
 };
 
 /** Poll answers are queued; once the queue is empty a poll hangs until it is aborted. */
-function harness(answers: (ChatPollReply | Error)[], opts: { identity?: ChatIdentity; seen?: string } = {}) {
+function harness(
+  answers: (ChatPollReply | Error)[],
+  opts: { identity?: ChatIdentity; seen?: string; kv?: Map<string, string>; scope?: string } = {},
+) {
   const queries: PollQuery[] = [];
   const sleeps: number[] = [];
-  const kv = new Map<string, string>(opts.seen ? [[SEEN_KEY, opts.seen]] : []);
+  const kv = opts.kv ?? new Map<string, string>(opts.seen ? [[SEEN_KEY, opts.seen]] : []);
   let ident: ChatIdentity = opts.identity ?? NO_IDENTITY;
   let clock = 1_000_000;
   const client = {
@@ -44,6 +47,7 @@ function harness(answers: (ChatPollReply | Error)[], opts: { identity?: ChatIden
     sleep: async (ms) => void sleeps.push(ms),
     random: () => 0.5,
     now: () => clock,
+    scope: opts.scope === undefined ? undefined : () => opts.scope!,
   });
   return { store, client, queries, sleeps, kv, tick: (ms: number) => (clock += ms) };
 }
@@ -288,4 +292,42 @@ test('an avatar upload keeps its id and key', async () => {
   h.client.uploadAvatar.mockResolvedValueOnce({ id: 'a1', key: 'ak' });
   expect(await h.store.getState().setAvatar(new Uint8Array([1]), 'image/jpeg')).toBe(true);
   expect(h.store.getState().identity).toMatchObject({ av: 'a1', avkey: 'ak' });
+});
+
+test('a last seen line beyond the newest one is stale (another server, a log reset): the newest is seen', async () => {
+  const h = harness([reply({ msgs: [line(1), line(2), line(3)] }), reply({ msgs: [line(4)] })], { seen: '9068' });
+  h.store.getState().start();
+  await flush();
+  const s = h.store.getState();
+  expect(s.lastSeen).toBe(3);
+  expect(unreadCount(s, s.lastSeen, s.mine)).toBe(1);
+  s.stop();
+});
+
+test('each server keeps its own last seen line', async () => {
+  const kv = new Map<string, string>();
+  const a = harness([reply({ msgs: [line(50)] })], { kv, scope: 'https://a' });
+  a.store.getState().start();
+  await flush();
+  a.store.getState().stop();
+  const b = harness([reply({ msgs: [line(1), line(2)] })], { kv, scope: 'https://b' });
+  b.store.getState().start();
+  await flush();
+  expect(b.store.getState().lastSeen).toBe(2);
+  expect([...kv.keys()].sort()).toEqual([`${SEEN_KEY}:https://a`, `${SEEN_KEY}:https://b`]);
+  b.store.getState().stop();
+});
+
+test('after a restart on another server, new lines count as unread again', async () => {
+  const answers = [reply({ msgs: [line(9000)] })];
+  const h = harness(answers);
+  h.store.getState().start();
+  await flush();
+  answers.push(reply({ msgs: [line(1), line(2)] }), reply({ msgs: [line(3)] }));
+  h.store.getState().restart();
+  await flush();
+  const s = h.store.getState();
+  expect(s.lastSeen).toBe(2);
+  expect(unreadCount(s, s.lastSeen, s.mine)).toBe(1);
+  s.stop();
 });
