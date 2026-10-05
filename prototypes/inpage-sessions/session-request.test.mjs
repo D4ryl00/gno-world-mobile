@@ -114,3 +114,8 @@ test('the inline hashes agree with Node across block boundaries', async () => {
     assert.equal(Buffer.from(ripemd160(m)).toString('hex'), createHash('ripemd160').update(m).digest('hex'), `ripemd160 ${n}`);
   }
 });
+
+test('a field the standard does not define yet is signed too, as on links', () => {
+  const p = canonicalPayload('disconnect', { pubkey: 'k', chainid: 'dev', signer: 'g1me', state: 's', iat: 1, zzz: 'later', sig: 'AA' });
+  assert.ok(p.endsWith('\nzzz=later'));
+});

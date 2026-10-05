@@ -3,8 +3,6 @@
 // numbers in decimal, `allow` one line per entry, absent fields omitted, and in-page never a `callback`.
 // Plain ES module with no dependency, so the static page and Node's test runner load the same file.
 
-const KNOWN = ['allow', 'callback', 'chainid', 'expires', 'iat', 'old', 'period', 'pubkey', 'rpc', 'signer', 'spend', 'state'];
-
 /** Control characters as Go's unicode.IsControl sees them: C0, DEL and C1. */
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 
@@ -18,12 +16,15 @@ function byCodePoint(a, b) {
   return x.length - y.length;
 }
 
-/** The proof-of-possession payload (gnoconnect.md, "Proof of possession"). `sig` and `oldsig` are never part of it. */
+/**
+ * The proof-of-possession payload (gnoconnect.md, "Proof of possession"): every field but `sig` and `oldsig`,
+ * those the standard does not define yet included, as on links. Pass `callback` only to build a link's payload.
+ */
 export function canonicalPayload(host, fields) {
   const kvs = [];
-  for (const k of KNOWN) {
-    const v = fields[k];
-    if (v === undefined || v === null) continue;
+  for (const [k, v] of Object.entries(fields)) {
+    if (k === 'sig' || k === 'oldsig' || v === undefined || v === null) continue;
+    if (k.includes('=')) throw new Error(`= in the field name ${k}`);
     for (const one of Array.isArray(v) ? v : [v]) kvs.push([k, String(one)]);
   }
   for (const [k, v] of kvs) {
