@@ -40,7 +40,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bubble Rumble uses a photo you pick as your chat picture."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
