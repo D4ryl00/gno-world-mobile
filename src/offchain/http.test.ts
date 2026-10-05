@@ -123,3 +123,54 @@ test('a browser id that never comes is covered by the timeout', async () => {
   await expect(oc.get('/api/where')).rejects.toMatchObject({ status: 0 });
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+const ok = (body: unknown = { ok: 1 }) => new Response(JSON.stringify(body), { status: 200 });
+
+test('per-request headers are added to the browser id', async () => {
+  const fetchMock = jest.fn(async (_u: string, _i: RequestInit) => ok());
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  await oc.post('/api/chat', { body: 'hi' }, { headers: { 'X-Name-Key': 'k' } });
+  const h = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+  expect(h).toEqual({ 'X-Bid': 'b', 'X-Name-Key': 'k', 'Content-Type': 'application/json' });
+});
+
+test('a raw body goes as is, with its content type', async () => {
+  const fetchMock = jest.fn(async (_u: string, _i: RequestInit) => ok({ id: 'a', key: 'k' }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  const bytes = new Uint8Array([1, 2, 3]);
+  await oc.post('/api/avatar', undefined, { raw: { body: bytes, contentType: 'image/jpeg' } });
+  const init = fetchMock.mock.calls[0][1];
+  expect(init.body).toBe(bytes);
+  expect((init.headers as Record<string, string>)['Content-Type']).toBe('image/jpeg');
+});
+
+test('patch and del use their verbs', async () => {
+  const fetchMock = jest.fn(async (_u: string, _i: RequestInit) => ok());
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  await oc.patch('/api/chat?id=3', { body: 'x' });
+  await oc.del('/api/name');
+  expect(fetchMock.mock.calls.map((c) => c[1].method)).toEqual(['PATCH', 'DELETE']);
+});
+
+test('429 carries Retry-After in seconds', async () => {
+  const fetchMock = jest.fn(async () => new Response('{}', { status: 429, headers: { 'Retry-After': '7' } }));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  await expect(oc.get('/api/chat')).rejects.toMatchObject({ status: 429, retryAfter: 7 });
+});
+
+test('a per-request timeout overrides the default', async () => {
+  const fetchMock = jest.fn((_u: string, init: RequestInit) =>
+    new Promise<Response>((_r, reject) => init.signal!.addEventListener('abort', () => reject(new Error('aborted')))));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never, timeoutMs: 60000 });
+  await expect(oc.get('/api/chat', { timeoutMs: 10 })).rejects.toMatchObject({ status: 0 });
+});
+
+test('an outside abort ends the request', async () => {
+  const fetchMock = jest.fn((_u: string, init: RequestInit) =>
+    new Promise<Response>((_r, reject) => init.signal!.addEventListener('abort', () => reject(new Error('aborted')))));
+  const oc = createOffchain({ baseUrl: () => 'https://x', bid: async () => 'b', fetch: fetchMock as never });
+  const ctl = new AbortController();
+  const p = oc.get('/api/chat', { signal: ctl.signal });
+  ctl.abort();
+  await expect(p).rejects.toMatchObject({ status: 0 });
+});
