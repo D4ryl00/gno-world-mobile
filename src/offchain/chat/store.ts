@@ -245,9 +245,12 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         return ok;
       },
       edit: (id, body) => {
+        const text = body.trim();
+        // nothing changed: no request, and the line is not marked edited
+        if (get().lines.find((l) => l.id === id)?.body === text) return Promise.resolve(true);
         const e = epoch;
         return act(async () => {
-          const l = await d.client.edit(id, body.trim());
+          const l = await d.client.edit(id, text);
           if (e === epoch) set((s) => upsertLine(s, l));
         });
       },

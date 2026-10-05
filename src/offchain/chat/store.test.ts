@@ -525,3 +525,12 @@ test('the remembered marks keep the newest 400 lines', async () => {
   expect(kept[401]).toEqual(['👍']);
   h.store.getState().stop();
 });
+
+test('an edit that changes nothing sends nothing', async () => {
+  const h = harness([reply({ msgs: [line(5, { body: 'same' })] })]);
+  h.store.getState().start();
+  await flush();
+  expect(await h.store.getState().edit(5, '  same ')).toBe(true);
+  expect(h.client.edit).not.toHaveBeenCalled();
+  h.store.getState().stop();
+});
