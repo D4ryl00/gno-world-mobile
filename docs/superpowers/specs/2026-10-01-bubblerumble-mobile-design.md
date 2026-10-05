@@ -181,7 +181,7 @@ déjà `connect` (branche `feat/deeplink-tx`) : P2 l'étend et ajoute le host
 | Réglage | Défaut | Modifiable |
 |---|---|---|
 | Réseau | `gnoland-1`, `https://rpc.gno.land:443` | oui (gnodev : `dev`, `127.0.0.1:26657`) |
-| Realm | `…/bubblerumble5` (+ v1–v4 pour les anciens pools) | non |
+| Realm | `…/bubblerumble6` (+ v1–v5 pour les anciens pools ; le site est passé à v6 le 2026-10-03) | non |
 | Serveur off-chain | `https://bubblerumble.net` | oui, URL libre |
 | Wallet | schéma `land.gno.gnokey` | non |
 
@@ -195,8 +195,9 @@ déjà `connect` (branche `feat/deeplink-tx`) : P2 l'étend et ajoute le host
   3. Elle envoie à gnokey-mobile un `connect` avec sa clé publique (`pubkey`),
      les entrées, le budget et la durée, et la preuve de possession via
      `SignBytes`.
-- **Entrées autorisées** (7 sur 8) : `vm/exec:` pour bubblerumble5, 4, 3, 2 et
-  1, `bubble` et `wbubble`.
+- **Entrées autorisées** (8 sur 8) : `vm/exec:` pour bubblerumble6, 5, 4, 3, 2
+  et 1, `bubble` et `wbubble`. Une session accordée avant v6 n'a pas v6 : l'écran Session
+  propose de la renouveler, et un refus de la chaîne sur v6 le dit.
 - **Repli :** la dapp affiche elle-même la commande `gnokey maketx session
   create …` et un QR, puis détecte la session par polling. Trois cas y mènent :
   - gnokey-mobile répond au `connect`, mais sans session pour la clé de la dapp
@@ -238,7 +239,7 @@ les données.
 | Équipes (drapeaux) | `Render teams` |
 | Parrainage : lien d'invitation `?ref=`, ouverture de la dapp par lien (Universal / App Links en option, schéma `bubblerumble://` sinon), `ref` transmis à `Bid` | lien, `Bid` |
 | Partage d'un pool (X, Telegram, système) | — |
-| Anciens pools v1–v4 : lecture, Claim et Withdraw (Withdraw n'existe qu'à partir de v3) | realms v1–v4 |
+| Anciens pools v1–v5 : lecture, Claim et Withdraw (Withdraw n'existe qu'à partir de v3) | realms v1–v5 |
 | Présence : battement toutes les 20 s pendant que l'app est au premier plan ; il renvoie le pays du client | `POST /presence?id=<pid>` (`X-Bid`) |
 | **Blocage US**, comme le site : si le pays renvoyé est `US`, boop, création et shots sont désactivés avec le texte du site (« Due to US regulations, play is not offered to visitors from the United States. »). Claim et Withdraw restent possibles, comme sur le site. Si le serveur est injoignable, le jeu reste ouvert, comme sur le site | `/presence` |
 | Liens de partage au format du site (`https://bubblerumble.net/?ref=<addr>#v5-12`), lisibles par le web | — |
@@ -313,7 +314,7 @@ cas de divergence, c'est le comportement du site qui fait foi.
 - **Unitaires** (jest) : payload de preuve, construction des liens GnoConnect,
   parsing des callbacks, calculs (prix `base·√N`, horloge, cote du shot, budget
   restant), parseurs JSON du realm et du serveur.
-- **Intégration** sur gnodev (script) : `bubblerumble5` chargé ; création de
+- **Intégration** sur gnodev (script) : `bubblerumble6` chargé ; création de
   session par repli ; `CreatePool`, `Bid`, `Claim`, `Withdraw` en session ;
   renouvellement (commandes équivalentes à `connect` avec `old`), puis
   révocation (équivalent de `disconnect`).
@@ -568,6 +569,17 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   #5970 (`d51d5d9af`), #6016 (`8158ab13c`, push forcé), fork Adena (`bd396e6e`). Ledger (non
   versionné) : `.superpowers/sdd/2026-10-04-gnoconnect-inpage-sessions/progress.md`.
 
+- Passage à `bubblerumble6` (le site y est passé le 2026-10-03 à 02:02 UTC ; v6 = v5 sans dernier
+  jour : un pool vit tant qu'on le boope, `CreatePool` perd `life`). v6 est le realm courant
+  (`CURRENT_VERSION`), v5 rejoint les anciens ; création sans « Life » ; entrées autorisées 8 sur 8 ;
+  `devchain/` inclut v6, e2e sur v6 (5/5). Trouvé sur simulateur : gnonative ne transmet que
+  « session not allowed error », lu jusque-là comme un budget épuisé ; `GameClient` relit la session
+  sur la chaîne et répond `not-allowed` (« renew it ») quand elle ne couvre pas le realm. Vérifié sur
+  le simulateur iOS : pools v6 de mainnet, formulaire sans « Life », avertissement sur une session
+  sans v6, refus expliqué, renouvellement via gnokey-mobile puis création d'un pool v6. Les pools v5
+  restent listés et boopables tant qu'ils vivent, comme v1–v4 (le site masque ceux qui n'ont pas été
+  joués avant le passage).
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -632,7 +644,12 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      `feat/deeplink-tx` (PR #138), gno passé sur la ligne `chain/mainnet` (`5cdbc25fc`) comme
      gnonative — **livré le 2026-10-03** (voir Livré) ; P2-M2 (iOS) et P2-M3 (Android) **livrés le
      2026-10-03** (voir Livré) : P2 est complet sur les deux plateformes ;
-   - P3-M2 : social, off-chain (§5.4) ;
+   - P3-M2 : social, off-chain (§5.4), découpé le 2026-10-05 en quatre jalons, chacun avec sa spec
+     et son plan : M2a chat principal (avec nom réservé, profil, avatar), M2b rooms, DM et amis,
+     M2c pièces jointes et vocaux, M2d appairage avec le navigateur et présence « people here ».
+     Vérification sur un faux serveur local écrit d'après le JS du site (pas de serveur de test
+     public) ; la production n'est lue qu'en lecture seule, plus un passage manuel court dans une
+     room privée ;
    - P3-M3 : économie et extras (§5.4) ;
    - mise à jour du standard GnoConnect dans `~/gno-external-wallets` ou `~/gno-inpage-wallets`
      (§7, étape 6) — **faite le 2026-10-04** (voir Livré).
