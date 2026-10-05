@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { avatarUrl } from '@/offchain/chat/client';
@@ -9,16 +9,18 @@ import { flagEmoji } from '@/utils/flag';
 
 import { ago, placeholder, pollBars, rxWho, splitLinks } from './line-model';
 
-export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote, onLongPress, onJump, onReact, onVote }: {
+/** Memoised: a row renders again only when its line, its marks, the clock or a handler changes. */
+export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote, onLongPress, onJump, onReact, onVote }: {
   line: ChatLine; mine: boolean; now: number; offchainUrl: string; myReactions: string[]; myVote: number | undefined;
-  onLongPress: () => void; onJump: (id: number) => void; onReact: (emoji: string) => void; onVote: (opt: number) => void;
+  onLongPress: (l: ChatLine) => void; onJump: (id: number) => void; onReact: (l: ChatLine, emoji: string) => void;
+  onVote: (l: ChatLine, opt: number) => void;
 }) {
   const extra = placeholder(line);
   const [who, setWho] = useState<string | null>(null);
   const poll = line.poll ? pollBars(line.poll, myVote) : null;
   return (
     // not one accessible element: poll options, reactions and links stay reachable on their own
-    <Pressable onLongPress={onLongPress} delayLongPress={300} accessible={false} style={[styles.row, mine && styles.mine]}>
+    <Pressable onLongPress={() => onLongPress(line)} delayLongPress={300} accessible={false} style={[styles.row, mine && styles.mine]}>
       {line.av ? <Image source={{ uri: avatarUrl(offchainUrl, line.av) }} style={styles.av} /> : <View style={styles.av} />}
       <View style={styles.main}>
         <Text style={styles.who} numberOfLines={1}>
@@ -35,7 +37,7 @@ export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote,
           <View style={styles.poll}>
             <Text style={styles.body}>📊 {line.poll!.q}</Text>
             {poll.bars.map((b, i) => (
-              <Pressable key={i} accessibilityRole="button" onPress={() => onVote(i)} style={[styles.opt, b.mine && styles.optMine]}>
+              <Pressable key={i} accessibilityRole="button" onPress={() => onVote(line, i)} style={[styles.opt, b.mine && styles.optMine]}>
                 <View style={[styles.optFill, { width: `${b.pct}%` }]} />
                 <Text style={styles.optText}>{b.label} · {b.count}{poll.total ? ` · ${b.pct}%` : ''}</Text>
               </Pressable>
@@ -53,7 +55,7 @@ export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote,
           <View style={styles.rxRow}>
             {Object.entries(line.rx).map(([e, n]) => (
               <Pressable key={e} accessibilityRole="button" accessibilityLabel={`${e} ${n}${rxWho(line, e) ? `, ${rxWho(line, e)}` : ''}`}
-                accessibilityHint="hold to see who" onPress={() => onReact(e)} onLongPress={() => setWho(who === e ? null : e)}
+                accessibilityHint="hold to see who" onPress={() => onReact(line, e)} onLongPress={() => setWho(who === e ? null : e)}
                 style={[styles.rx, myReactions.includes(e) && styles.rxMine]}>
                 <Text style={styles.rxText}>{e} {n}</Text>
               </Pressable>
@@ -64,7 +66,7 @@ export function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote,
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: space.s, paddingHorizontal: space.l, paddingVertical: space.s },

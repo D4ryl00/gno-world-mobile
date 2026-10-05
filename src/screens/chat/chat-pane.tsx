@@ -16,6 +16,8 @@ import { LineMenu } from './line-menu';
 import { canEdit, canWithdraw, typingText } from './line-model';
 import { Pins } from './pins';
 
+const NO_REACTIONS: string[] = [];
+
 export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
   store: StoreApi<ChatState>; offchainUrl: string; onOpenIdentity?: () => void;
 }) {
@@ -39,10 +41,22 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
     }, [store, newestId]),
   );
 
-  const jumpTo = (id: number) => {
-    const index = data.findIndex((l) => l.id === id);
-    if (index >= 0) list.current?.scrollToIndex({ index, viewPosition: 0.5 });
-  };
+  const openMenu = useCallback((l: ChatLine) => setMenuFor(l), []);
+  const react = useCallback((l: ChatLine, e: string) => void store.getState().react(l.id, e), [store]);
+  const vote = useCallback((l: ChatLine, i: number) => void store.getState().vote(l.id, i), [store]);
+  // reads the store, not `data`: stays the same function while lines arrive
+  const jumpTo = useCallback((id: number) => {
+    const lines = store.getState().lines;
+    const i = lines.findIndex((l) => l.id === id);
+    if (i >= 0) list.current?.scrollToIndex({ index: lines.length - 1 - i, viewPosition: 0.5 });
+  }, [store]);
+  const renderItem = useCallback(({ item }: { item: ChatLine }) => (
+    <ChatLineRow
+      line={item} mine={mine(item)} now={now} offchainUrl={offchainUrl}
+      myReactions={s.myReactions[item.id] ?? NO_REACTIONS} myVote={s.myVotes[item.id]}
+      onLongPress={openMenu} onJump={jumpTo} onReact={react} onVote={vote}
+    />
+  ), [mine, now, offchainUrl, s.myReactions, s.myVotes, openMenu, jumpTo, react, vote]);
   const myName = s.identity.reservedName || s.identity.name;
   const typing = typingText(s.typing, myName);
 
@@ -67,14 +81,7 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
         onEndReached={() => void store.getState().loadOlder()}
         onEndReachedThreshold={0.5}
         onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
-        renderItem={({ item }) => (
-          <ChatLineRow
-            line={item} mine={mine(item)} now={now} offchainUrl={offchainUrl}
-            myReactions={s.myReactions[item.id] ?? []} myVote={s.myVotes[item.id]}
-            onLongPress={() => setMenuFor(item)} onJump={jumpTo}
-            onReact={(e) => void store.getState().react(item.id, e)} onVote={(i) => void store.getState().vote(item.id, i)}
-          />
-        )}
+        renderItem={renderItem}
       />
       <Composer
         reply={reply} editing={editing} typing={typing} error={s.error}

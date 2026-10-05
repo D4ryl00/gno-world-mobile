@@ -6,9 +6,14 @@ import { NO_IDENTITY } from '@/offchain/chat/identity';
 import { createChatStore } from '@/offchain/chat/store';
 import { line, reply } from '@/offchain/chat/testing';
 import { ChatPane } from '@/screens/chat/chat-pane';
+import { splitLinks } from '@/screens/chat/line-model';
 
 jest.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock('@/screens/chat/line-model', () => {
+  const actual = jest.requireActual('@/screens/chat/line-model');
+  return { ...actual, splitLinks: jest.fn(actual.splitLinks) };
+});
 
 test('the screen shows lines, pins, the bot mark, a placeholder and the unreachable banner', async () => {
   const client = {
@@ -37,7 +42,7 @@ test('the screen shows lines, pins, the bot mark, a placeholder and the unreacha
 });
 
 test('on Android the pane lifts its content above the keyboard itself (edge-to-edge: the window is not resized)', async () => {
-  jest.replaceProperty(Platform, 'OS', 'android');
+  const os = jest.replaceProperty(Platform, 'OS', 'android');
   const client = { poll: jest.fn().mockRejectedValue(new Error('down')) } as unknown as ChatClient;
   const store = createChatStore({
     client, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
@@ -48,6 +53,7 @@ test('on Android the pane lifts its content above the keyboard itself (edge-to-e
   render(<ChatPane store={store} offchainUrl="http://fake" />);
   expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
   act(() => store.getState().stop());
+  os.restore();
 });
 
 test('Reply picked while editing leaves the edit: send posts a reply, and the edited text is not carried over', async () => {
@@ -76,5 +82,23 @@ test('Reply picked while editing leaves the edit: send posts a reply, and the ed
   fireEvent.press(screen.getByLabelText('send'));
   await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', 2));
   expect(edit).not.toHaveBeenCalled();
+  act(() => store.getState().stop());
+});
+
+test('a typing update, a new count of people here or a new "you" does not re-render the lines', async () => {
+  const client = {
+    poll: jest.fn().mockResolvedValueOnce(reply({ msgs: [line(1), line(2), line(3)] })).mockRejectedValue(new Error('down')),
+  } as unknown as ChatClient;
+  const store = createChatStore({
+    client, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
+    kv: { getItem: async () => null, setItem: async () => undefined }, sleep: () => new Promise(() => undefined),
+  });
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  const before = (splitLinks as jest.Mock).mock.calls.length;
+  act(() => store.setState({ typing: [{ name: 'bob', n: 3 }], here: 9, you: { cc: 'FR', tag: 'aaaa' } }));
+  expect(screen.getByText('Chat · 9 here')).toBeTruthy();
+  expect((splitLinks as jest.Mock).mock.calls.length).toBe(before);
   act(() => store.getState().stop());
 });
