@@ -1,0 +1,8 @@
+{
+  "name": "inpage-sessions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
