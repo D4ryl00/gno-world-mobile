@@ -24,7 +24,7 @@ avec un avatar, comme sur le site. Le serveur off-chain ne gêne jamais le jeu.
 - lecture du chat principal : long-polling, historique en remontant, lignes éditées et supprimées,
   lignes du bot du site (🤖), épingles (lecture), « en train d'écrire », nombre de présents ;
 - écriture : poster, répondre à une ligne, éditer sa ligne (moins de 15 min), reprendre sa dernière
-  ligne (la plus récente du chat, à soi, moins de 15 min), réactions 👍 🔥 ❤️ 😂 👎 (bascule), vote
+  ligne (la plus récente du chat, à soi, moins de 15 min), réactions 👍 🔥 ❤️ 😂 🤔 🤝 👎 (bascule ; la liste `CHATRX` du site, que le serveur accepte), vote
   dans un sondage existant ;
 - nom libre, et réservation (✓) par la séquence du site, avec le rapport de boop ;
 - avatar : choisir une photo, l'envoyer ;
@@ -70,7 +70,7 @@ de `you`, ou si l'app l'a postée.
 | poster | `POST /api/chat` `{name, body, re?, av?, avkey?}` → `{msg}` |
 | éditer | `PATCH /api/chat?id=<id>` `{body}` → `{msg}` |
 | reprendre sa dernière ligne | `POST /api/chat/withdraw` → `{deleted}` |
-| réagir | `POST /api/chat/react` `{id, emoji, name}` → `rx`, `rxwho` |
+| réagir | `POST /api/chat/react` `{id, emoji, name}` → `{rx, mine}` |
 | voter | `POST /api/chat/vote` `{id, opt}` → `{mine, poll}` |
 | en train d'écrire | `POST /api/chat/typing` `{name, n}` (n = 0 pour effacer), 3 s au plus |
 | réserver un nom | `POST /api/name` `{name}` → `{name, key, addr}` ; `GET /api/name?name=` ; `DELETE /api/name` |
