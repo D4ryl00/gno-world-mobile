@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
@@ -47,5 +47,34 @@ test('on Android the pane lifts its content above the keyboard itself (edge-to-e
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
   render(<ChatPane store={store} offchainUrl="http://fake" />);
   expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
+  act(() => store.getState().stop());
+});
+
+test('Reply picked while editing leaves the edit: send posts a reply, and the edited text is not carried over', async () => {
+  const t = Math.floor(Date.now() / 1000) - 60;
+  const post = jest.fn(async () => line(3, { body: 'hi' }));
+  const edit = jest.fn();
+  const client = {
+    poll: jest.fn()
+      .mockResolvedValueOnce(reply({ msgs: [line(1, { t, tag: 'aaaa', body: 'my line' }), line(2, { t, name: 'bob', body: 'his line' })] }))
+      .mockRejectedValue(new Error('down')),
+    post, edit, typing: jest.fn(async () => undefined),
+  } as unknown as ChatClient;
+  const store = createChatStore({
+    client, identity: { load: async () => ({ ...NO_IDENTITY, name: 'ann' }), save: async () => ({ ...NO_IDENTITY, name: 'ann' }) },
+    kv: { getItem: async () => null, setItem: async () => undefined }, sleep: () => new Promise(() => undefined),
+  });
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  fireEvent(screen.getByText('my line'), 'longPress');
+  fireEvent.press(screen.getByText('Edit'));
+  fireEvent(screen.getByText('his line'), 'longPress');
+  fireEvent.press(screen.getByText('Reply'));
+  expect(screen.getByPlaceholderText('say something').props.value).toBe('');
+  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  fireEvent.press(screen.getByLabelText('send'));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', 2));
+  expect(edit).not.toHaveBeenCalled();
   act(() => store.getState().stop());
 });

@@ -102,8 +102,14 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
         canEdit={!!menuFor && canEdit(menuFor, mine(menuFor), now)}
         canWithdraw={!!menuFor && canWithdraw(menuFor, newestId, mine(menuFor), now)}
         onClose={() => setMenuFor(null)}
-        onReply={(l) => setReply(l)}
-        onEdit={(l) => setEditing(l)}
+        onReply={(l) => {
+          setEditing(null); // one at a time: a reply sent while still editing would overwrite the edited line
+          setReply(l);
+        }}
+        onEdit={(l) => {
+          setReply(null);
+          setEditing(l);
+        }}
         onReact={(l, e) => void store.getState().react(l.id, e)}
         onWithdraw={() => void store.getState().withdraw()}
       />

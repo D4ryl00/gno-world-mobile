@@ -11,11 +11,11 @@ export function Composer({ reply, editing, typing, error, needsName, onNeedName,
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  // a line picked for editing fills the field once (state adjusted while rendering, not in an effect)
+  // a line picked for editing fills the field once, and leaving the edit empties it (state adjusted while rendering)
   const [shown, setShown] = useState<ChatLine | null>(null);
   if (editing !== shown) {
     setShown(editing);
-    if (editing) setText(editing.body);
+    setText(editing ? editing.body : '');
   }
   const strip = editing ? 'editing your line' : reply ? `replying to ${reply.name}: ${reply.body}` : '';
   const send = async () => {
