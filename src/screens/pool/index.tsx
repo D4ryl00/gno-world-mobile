@@ -9,6 +9,7 @@ import { Card } from '@/components/card';
 import { Page } from '@/components/page';
 import { Countdown } from '@/components/countdown';
 import { useNow } from '@/hooks/use-now';
+import { reportBoop } from '@/offchain/chat/boop-report';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
 import { remaining, resetsIn } from '@/session/status';
 import { useServices, useSession } from '@/state/app-services';
@@ -28,7 +29,7 @@ import { createTxRunner } from './tx-runner';
 
 export function PoolScreen({ poolKey }: { poolKey: string }) {
   const k = useMemo(() => parsePoolKey(poolKey), [poolKey]);
-  const { game } = useServices();
+  const { game, chatClient } = useServices();
   const active = useSession((s) => s.active);
   const status = useSession((s) => s.status);
   const refresh = useSession((s) => s.refresh);
@@ -97,6 +98,12 @@ export function PoolScreen({ poolKey }: { poolKey: string }) {
       }
       if (c.flag) settingsStore.getState().setFlag(c.flag);
       await game.bid(active!, pool, { ref: effectiveRef, flag: c.flag, boost: c.boost, shot: c.shot });
+      // as the site does: the off-chain server ties this client to the account that booped (name reservation)
+      void reportBoop({
+        report: chatClient.reportBoop, readPool: () => game.pool(pool.version, pool.id),
+        addr: active!.master, version: pool.version, poolId: pool.id,
+        now: Date.now, sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      });
     });
 
   const closedUnpaid = pool.over && !pool.paid && !pool.cancelled;
