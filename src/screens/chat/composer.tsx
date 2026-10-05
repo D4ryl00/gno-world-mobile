@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ChatLine } from '@/offchain/chat/types';
 import { colors, radius, space } from '@/theme';
 
-export function Composer({ reply, editing, typing, error, needsName, onNeedName, onCancel, onChange, onSend, onDismissError, bottomInset }: {
+export interface ComposerHandle {
+  focus(): void;
+  /** sends what the field holds, as the send button does */
+  send(): void;
+}
+
+export function Composer({ ref, reply, editing, typing, error, needsName, onNeedName, onCancel, onChange, onSend, onDismissError, bottomInset }: {
+  ref?: Ref<ComposerHandle>;
   reply: ChatLine | null; editing: ChatLine | null; typing: string; error: string; needsName: boolean;
   onNeedName?: () => void; onCancel: () => void; onChange: (n: number) => void;
   onSend: (text: string) => Promise<boolean>; onDismissError: () => void; bottomInset: number;
@@ -28,6 +35,8 @@ export function Composer({ reply, editing, typing, error, needsName, onNeedName,
       onChange(0);
     }
   };
+  const input = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), send: () => void send() }));
   return (
     <View style={[styles.box, { paddingBottom: space.s + bottomInset }]}>
       {typing ? <Text style={styles.typing} numberOfLines={1}>{typing}</Text> : null}
@@ -49,7 +58,7 @@ export function Composer({ reply, editing, typing, error, needsName, onNeedName,
       ) : null}
       <View style={styles.row}>
         <TextInput
-          style={styles.input} value={text} multiline placeholder="say something" placeholderTextColor={colors.muted}
+          ref={input} style={styles.input} value={text} multiline placeholder="say something" placeholderTextColor={colors.muted}
           onChangeText={(t) => {
             setText(t);
             onChange(t.length);

@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore, type StoreApi } from 'zustand';
@@ -11,15 +11,17 @@ import type { ChatLine } from '@/offchain/chat/types';
 import { colors, space } from '@/theme';
 
 import { ChatLineRow } from './chat-line';
-import { Composer } from './composer';
+import { Composer, type ComposerHandle } from './composer';
 import { LineMenu } from './line-menu';
 import { canEdit, canWithdraw, typingText } from './line-model';
 import { Pins } from './pins';
 
 const NO_REACTIONS: string[] = [];
 
-export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
+export function ChatPane({ store, offchainUrl, onOpenIdentity, identityOpen }: {
   store: StoreApi<ChatState>; offchainUrl: string; onOpenIdentity?: () => void;
+  /** the name sheet is showing */
+  identityOpen?: boolean;
 }) {
   const s = useStore(store);
   const insets = useSafeAreaInsets();
@@ -28,6 +30,8 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
   const [reply, setReply] = useState<ChatLine | null>(null);
   const [editing, setEditing] = useState<ChatLine | null>(null);
   const [menuFor, setMenuFor] = useState<ChatLine | null>(null);
+  const composer = useRef<ComposerHandle>(null);
+  const heldBack = useRef(false); // Send pressed without a name: the sheet is open for it
 
   // newest first for the inverted list
   const data = useMemo(() => [...s.lines].reverse(), [s.lines]);
@@ -58,6 +62,14 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
     />
   ), [mine, now, offchainUrl, s.myReactions, s.myVotes, openMenu, jumpTo, react, vote]);
   const myName = s.identity.reservedName || s.identity.name;
+  // the held-back line goes out once a name is saved; closing the sheet without one drops it
+  useEffect(() => {
+    if (!heldBack.current) return;
+    if (myName) {
+      heldBack.current = false;
+      composer.current?.send();
+    } else if (!identityOpen) heldBack.current = false;
+  }, [myName, identityOpen]);
   const typing = typingText(s.typing, myName);
 
   return (
@@ -84,6 +96,7 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
         renderItem={renderItem}
       />
       <Composer
+        ref={composer}
         reply={reply} editing={editing} typing={typing} error={s.error}
         onCancel={() => {
           setReply(null);
@@ -100,7 +113,10 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
           return ok;
         }}
         needsName={!myName}
-        onNeedName={onOpenIdentity}
+        onNeedName={() => {
+          heldBack.current = true;
+          onOpenIdentity?.();
+        }}
         onDismissError={() => store.getState().clearError()}
         bottomInset={0}
       />
@@ -112,10 +128,12 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity }: {
         onReply={(l) => {
           setEditing(null); // one at a time: a reply sent while still editing would overwrite the edited line
           setReply(l);
+          composer.current?.focus();
         }}
         onEdit={(l) => {
           setReply(null);
           setEditing(l);
+          composer.current?.focus();
         }}
         onReact={(l, e) => void store.getState().react(l.id, e)}
         onWithdraw={() => void store.getState().withdraw()}

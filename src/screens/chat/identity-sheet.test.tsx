@@ -91,3 +91,12 @@ test('the sheet shows its own error, not the composer\'s, and closing it clears 
   expect(onClose).toHaveBeenCalled();
   expect(store.getState().identityError).toBe('');
 });
+
+test('"anon" is proposed and can be saved as is', async () => {
+  const store = make(NO_IDENTITY);
+  await store.ready;
+  render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" canReserve={false} />);
+  expect(screen.getByLabelText('name').props.value).toBe('anon');
+  fireEvent.press(screen.getByText('Save name'));
+  await waitFor(() => expect(store.getState().identity.name).toBe('anon'));
+});

@@ -13,14 +13,14 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
 }) {
   const identity = useStore(store, (s) => s.identity);
   const error = useStore(store, (s) => s.identityError);
-  const [name, setName] = useState(identity.name);
+  const [name, setName] = useState(identity.name || 'anon'); // "anon" is proposed (M2a spec §5)
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState('');
   // the saved name (e.g. as the server spelled it on reserving) refills the field
   const [savedName, setSavedName] = useState(identity.name);
   if (identity.name !== savedName) {
     setSavedName(identity.name);
-    setName(identity.name);
+    setName(identity.name || 'anon');
   }
   const reserved = !!identity.reservedName;
   const close = () => {

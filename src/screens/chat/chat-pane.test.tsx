@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
-import { NO_IDENTITY } from '@/offchain/chat/identity';
+import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
 import { createChatStore } from '@/offchain/chat/store';
 import { line, reply } from '@/offchain/chat/testing';
 import { ChatPane } from '@/screens/chat/chat-pane';
@@ -100,5 +100,62 @@ test('a typing update, a new count of people here or a new "you" does not re-ren
   act(() => store.setState({ typing: [{ name: 'bob', n: 3 }], here: 9, you: { cc: 'FR', tag: 'aaaa' } }));
   expect(screen.getByText('Chat · 9 here')).toBeTruthy();
   expect((splitLinks as jest.Mock).mock.calls.length).toBe(before);
+  act(() => store.getState().stop());
+});
+
+function storeWith(identity: ChatIdentity, msgs = [line(2, { name: 'bob', body: 'his line' })]) {
+  const post = jest.fn(async (_n: string, body: string) => line(9, { body }));
+  const client = {
+    poll: jest.fn().mockResolvedValueOnce(reply({ msgs })).mockRejectedValue(new Error('down')),
+    post, typing: jest.fn(async () => undefined),
+  } as unknown as ChatClient;
+  let ident = identity;
+  const store = createChatStore({
+    client, identity: { load: async () => ident, save: async (p) => (ident = { ...ident, ...p }) },
+    kv: { getItem: async () => null, setItem: async () => undefined }, sleep: () => new Promise(() => undefined),
+  });
+  return { store, post };
+}
+
+test('Reply puts the cursor in the field', async () => {
+  const { store } = storeWith({ ...NO_IDENTITY, name: 'ann' });
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  const focus = screen.UNSAFE_getByType(TextInput).instance.focus as jest.Mock;
+  focus.mockClear();
+  fireEvent(screen.getByText('his line'), 'longPress');
+  fireEvent.press(screen.getByText('Reply'));
+  expect(focus).toHaveBeenCalled();
+  act(() => store.getState().stop());
+});
+
+test('a line held back for a name goes out once the name is saved', async () => {
+  const { store, post } = storeWith(NO_IDENTITY);
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  const onOpenIdentity = jest.fn();
+  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} />);
+  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  fireEvent.press(screen.getByLabelText('send'));
+  expect(onOpenIdentity).toHaveBeenCalled();
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen />);
+  expect(post).not.toHaveBeenCalled();
+  await act(() => store.getState().setName('ann'));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', undefined));
+  act(() => store.getState().stop());
+});
+
+test('closing the sheet without a name drops the held-back line', async () => {
+  const { store, post } = storeWith(NO_IDENTITY);
+  store.getState().start();
+  await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
+  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
+  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  fireEvent.press(screen.getByLabelText('send'));
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
+  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
+  await act(() => store.getState().setName('ann'));
+  expect(post).not.toHaveBeenCalled();
   act(() => store.getState().stop());
 });

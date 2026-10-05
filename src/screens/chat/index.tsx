@@ -13,7 +13,7 @@ export function ChatScreen() {
   const [sheet, setSheet] = useState(false);
   return (
     <>
-      <ChatPane store={chat} offchainUrl={offchainUrl} onOpenIdentity={() => setSheet(true)} />
+      <ChatPane store={chat} offchainUrl={offchainUrl} onOpenIdentity={() => setSheet(true)} identityOpen={sheet} />
       <IdentitySheet store={chat} visible={sheet} onClose={() => setSheet(false)} offchainUrl={offchainUrl} canReserve={!!active} />
     </>
   );
