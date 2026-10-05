@@ -1,6 +1,6 @@
 import type { ChatLine, ChatOlderReply, ChatPollReply, ChatYou, Typing } from './types';
 
-/** Lines kept in memory; older ones come back by scrolling up. */
+/** Lines a poll keeps in memory; older ones come back by scrolling up. */
 export const MAX_LINES = 500;
 
 export interface ChatView {
@@ -15,9 +15,11 @@ export interface ChatView {
   gen: number | null;
   /** older history may exist */
   more: boolean;
+  /** older pages were loaded: polls keep them (the reader is up there) until the view is rebuilt */
+  scrolledBack: boolean;
 }
 
-export const EMPTY_VIEW: ChatView = { lines: [], pins: [], typing: [], here: 0, you: null, since: 0, gen: null, more: true };
+export const EMPTY_VIEW: ChatView = { lines: [], pins: [], typing: [], here: 0, you: null, since: 0, gen: null, more: true, scrolledBack: false };
 
 const byId = (a: ChatLine, b: ChatLine) => a.id - b.id;
 
@@ -35,7 +37,7 @@ export function applyPoll(v: ChatView, r: ChatPollReply): ChatView {
   const held = new Set(v.lines.map((l) => l.id));
   const gone = new Set(r.gone);
   let lines = upsertAll(v.lines, [...r.msgs, ...r.upd.filter((l) => held.has(l.id))]).filter((l) => !gone.has(l.id));
-  const trimmed = lines.length > MAX_LINES;
+  const trimmed = !v.scrolledBack && lines.length > MAX_LINES;
   if (trimmed) lines = lines.slice(lines.length - MAX_LINES);
   const newest = r.msgs.reduce((m, l) => Math.max(m, l.id), 0);
   return {
@@ -47,11 +49,12 @@ export function applyPoll(v: ChatView, r: ChatPollReply): ChatView {
     since: Math.max(v.since, newest, r.next ?? 0),
     gen: r.gen ?? v.gen,
     more: trimmed ? true : v.more,
+    scrolledBack: v.scrolledBack,
   };
 }
 
 export function applyOlder(v: ChatView, r: ChatOlderReply): ChatView {
-  return { ...v, lines: upsertAll(v.lines, r.msgs), more: r.more && r.msgs.length > 0 };
+  return { ...v, lines: upsertAll(v.lines, r.msgs), more: r.more && r.msgs.length > 0, scrolledBack: v.scrolledBack || r.msgs.length > 0 };
 }
 
 export const upsertLine = <V extends ChatView>(v: V, l: ChatLine): V => ({ ...v, lines: upsertAll(v.lines, [l]) });

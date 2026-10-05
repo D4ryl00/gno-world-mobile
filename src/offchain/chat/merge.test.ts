@@ -81,3 +81,17 @@ test('unread counts other people\'s lines after the last seen one', () => {
   expect(unreadCount({ lines, you: { cc: '', tag: 'aaaa' } }, 1, [4])).toBe(1);
   expect(unreadCount({ lines, you: null }, 4, [])).toBe(0);
 });
+
+test('history scrolled back to survives the next polls, even past MAX_LINES', () => {
+  const recent = Array.from({ length: 80 }, (_, i) => line(MAX_LINES + 100 + i));
+  let v = applyPoll(EMPTY_VIEW, reply({ msgs: recent }));
+  for (let p = 0; p < 6; p++) {
+    const oldest = v.lines[0].id;
+    v = applyOlder(v, { msgs: Array.from({ length: 100 }, (_, i) => line(oldest - 100 + i)), more: true });
+  }
+  const held = v.lines.length;
+  expect(held).toBeGreaterThan(MAX_LINES);
+  v = applyPoll(v, reply({ msgs: [line(10_000)] }));
+  expect(v.lines).toHaveLength(held + 1);
+  expect(v.lines[0].id).toBe(MAX_LINES + 100 - 600);
+});
