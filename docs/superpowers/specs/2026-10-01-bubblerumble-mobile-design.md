@@ -607,15 +607,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   photo ne demande plus l'accès aux photos (inutile en SDK 57) et un échec le dit sans bloquer la
   feuille ; l'historique remonté n'est plus rogné par le poll suivant ; « Répondre » pendant une
   édition quitte l'édition (avant : la réponse écrasait sa propre ligne). Les réponses long-poll de
-  la production portent bien `pins`. **Mineurs reportés** (détail dans le ledger) : `mine`/réactions/
-  votes gardés après un changement de gen ; tout état autre qu'`active` (centre de notifications,
-  sélecteur Android) relance le chat depuis les 80 dernières lignes ; « anon » seulement en
-  placeholder et la ligne en attente pas renvoyée après le nom ; re-rendus de tout le panneau ; un seul
-  champ d'erreur pour le chat et la feuille ; ses réactions et votes oubliés au relancement (`rxwho`
-  inutilisé) ; avatar non réduit (le site non plus) ; menu d'une ligne atteint par VoiceOver seulement
-  par appui long ; non-lus absents du libellé d'accessibilité de l'onglet ; Répondre/Éditer ne
-  donnent pas le focus au champ ; une édition inchangée marque « edited » ; avertissement de dev
-  `Response.blob()` (voir expo-blob en M2c) ; le faux serveur redémarre en gen 1. Ledger (non
+  la production portent bien `pins`. Ses 13 mineurs reportés sont **réglés le 2026-10-05** (plan `docs/superpowers/plans/2026-10-05-p3-m2a-minors.md`, `12af22b`..`d0fd53e` puis le relevé ci-dessous) : un changement de gen oublie les lignes, réactions et votes de l'app et la marque « vu » porte sa gen ; seul l'arrière-plan arrête le chat, qui reprend à son curseur (le centre de notifications ne recharge plus) ; une erreur pour le champ, une pour la feuille ; ses réactions et votes gardés par serveur et par gen (comme `br.rx` du site, 400 lignes) et « qui a réagi » en appui long ; une édition inchangée n'envoie rien ; les lignes ne se redessinent plus à chaque poll ; Répondre/Éditer donnent le focus, « anon » proposé et la ligne retenue part une fois nommé ; libellé d'accessibilité « Chat, N unread » (celui du navigateur sinon) et menu d'une ligne en action d'accessibilité ; avatar envoyé en JPEG de 256 px (`expo-image-manipulator`, plus de `Response.blob()`) ; le faux serveur démarre chaque fois sur une nouvelle gen. 330 tests jest, `npm run e2e:chat` 19/19 ; vérifié sur le simulateur iOS et l'émulateur Android (clavier ancré). Ledger (non
   versionné) : `.superpowers/sdd/2026-10-05-p3-m2a-chat/progress.md`.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
@@ -705,4 +697,9 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    `automaticallyAdjustKeyboardInsets`, propre à iOS ; avec edge-to-edge la fenêtre garde sa taille.
    Vu clavier ancré sur l'émulateur (1080×2400, `hw.keyboard=no`) : les champs restent visibles, le
    bouton du nouveau pool aussi, mais le bouton Save des réglages passe sous le clavier (il faut le
-   fermer d'abord) ; un petit écran cacherait davantage. À traiter comme le chat.
+   fermer d'abord) ; un petit écran cacherait davantage. **Essayé le 2026-10-05 puis retiré** : une
+   place de la hauteur du clavier sous le contenu ne sert à rien, `Page` fermant le clavier au premier
+   glissé (`on-drag`) — et ce glissé montre déjà le bouton, comme le faisait `adjustResize`. Reste
+   ouvert : un champ bas sur un petit écran reste sous le clavier pendant la saisie ; le
+   `KeyboardAvoidingView` de RN 0.86 mesure son cadre par rapport à son parent (`onLayout`), il lui
+   faudrait `keyboardVerticalOffset` = la position de l'écran dans la fenêtre (sous un en-tête de pile).
