@@ -49,7 +49,7 @@ function harness(
     now: () => clock,
     scope: opts.scope === undefined ? undefined : () => opts.scope!,
   });
-  return { store, client, queries, sleeps, kv, tick: (ms: number) => (clock += ms) };
+  return { store, client, queries, sleeps, kv, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
 }
 
 test('the first poll takes the recent lines, the next ones wait on the cursor', async () => {
@@ -364,5 +364,16 @@ test('a post that answers after a restart neither adds its line nor marks that i
   await pending;
   expect(h.store.getState().lines.map((l) => l.id)).toEqual([20]);
   expect(h.store.getState().mine).toEqual([]);
+  h.store.getState().stop();
+});
+
+test('a restart (another server) reloads the identity: a reservation made elsewhere is not shown', async () => {
+  const h = harness([reply({ msgs: [line(1)] })], { identity: { ...NO_IDENTITY, name: 'ann', reservedName: 'ann', nameKey: 'k' } });
+  await h.store.ready;
+  expect(h.store.getState().identity.reservedName).toBe('ann');
+  h.setIdentity({ ...NO_IDENTITY, name: 'ann' }); // what the identity store holds for the new server
+  h.store.getState().restart();
+  await flush();
+  expect(h.store.getState().identity).toEqual({ ...NO_IDENTITY, name: 'ann' });
   h.store.getState().stop();
 });

@@ -56,7 +56,7 @@ export function AppServices({ children }: PropsWithChildren) {
       baseUrl: () => settingsStore.getState().offchainUrl,
       bid: () => browserId(secureStore, randomHex),
     });
-    const identity = createIdentityStore(secureStore);
+    const identity = createIdentityStore(secureStore, () => settingsStore.getState().offchainUrl);
     const chatClient = createChatClient(offchain, () => identity.load());
     const chat = createChatStore({
       client: chatClient, identity, kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl,

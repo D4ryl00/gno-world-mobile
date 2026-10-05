@@ -171,6 +171,11 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         seenLoaded = null; // another server, or the same one anew: read its mark again
         epoch++;
         set({ ...EMPTY_VIEW, mine: [], myReactions: {}, myVotes: {} });
+        // the reserved name and the avatar are per server: read what this one issued
+        const e = epoch;
+        void d.identity.load().then((identity) => {
+          if (e === epoch) set({ identity });
+        }, () => undefined);
         get().start();
       },
       loadOlder: async () => {

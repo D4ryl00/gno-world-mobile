@@ -24,3 +24,16 @@ test('clearing a field stores an empty string', async () => {
   await ids.save({ nameKey: 'k', reservedName: 'ann' });
   expect(await ids.save({ nameKey: '', reservedName: '' })).toMatchObject({ nameKey: '', reservedName: '' });
 });
+
+test('with a scope, the reserved name, its key and the avatar belong to one server; the free name to all', async () => {
+  const s = memory();
+  let server = 'https://bubblerumble.net';
+  const ids = createIdentityStore(s, () => server);
+  await ids.save({ name: 'ann', nameKey: 'k', reservedName: 'ann', av: 'a1', avkey: 'ak' });
+  server = 'http://127.0.0.1:8787';
+  expect(await ids.load()).toEqual({ ...NO_IDENTITY, name: 'ann' });
+  server = 'https://bubblerumble.net';
+  expect(await ids.load()).toEqual({ name: 'ann', nameKey: 'k', reservedName: 'ann', av: 'a1', avkey: 'ak' });
+  // SecureStore takes only letters, digits, ".", "-" and "_" in a key
+  for (const k of s.m.keys()) expect(k).toMatch(/^[A-Za-z0-9._-]+$/);
+});
