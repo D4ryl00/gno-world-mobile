@@ -1,7 +1,10 @@
 // A stand-in for gno.world's chat, written from the site's public JS (2026-10-05): the M2a endpoints and
-// their rules, in memory. For the e2e tests and the simulator; never a reference for the real server.
-import { createHash, randomBytes } from 'node:crypto';
+// their rules, in memory. The name rules were read again on 2026-10-12 (a wallet proof or a boop from the last 3
+// minutes; one name a wallet). For the e2e tests and the simulator; never a reference for the real server.
+import { createHash, createPublicKey, ECDH, randomBytes, verify } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+
+import { bech32 } from 'bech32';
 
 export const REACTIONS = ['👍', '🔥', '❤️', '😂', '🤔', '🤝', '👎'];
 const WINDOW = 900; // edit and take-back, seconds
@@ -24,6 +27,36 @@ export interface FakeServer { url: string; close(): Promise<void> }
 
 const tagOf = (bid: string) => createHash('sha256').update(bid).digest('hex').slice(0, 4);
 const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+const BOOP_PROVES = 180; // seconds a boop proves the wallet, as the site says
+
+const addressOf = (pub: Buffer) =>
+  bech32.encode('g', bech32.toWords(createHash('ripemd160').update(createHash('sha256').update(pub).digest()).digest()));
+
+/** The site's proof check as seen from outside: the key's address must be addr, the phrase one handed out. */
+function proofError(body: Record<string, any>, addr: string, challenges: Set<string>): string {
+  try {
+    const pub = Buffer.from(String(body.pub), 'base64');
+    if (pub.length !== 33) return 'that key is not a key';
+    const owner = addressOf(pub);
+    if (owner !== addr) return `that signature does not prove this wallet: that key belongs to ${owner.slice(0, 8)}`;
+    const doc = JSON.parse(String(body.doc));
+    const msg = doc?.msgs?.[0]?.value;
+    const words = Buffer.from(String(msg?.data ?? ''), 'base64').toString('utf8');
+    if (msg?.signer !== addr || !challenges.has(words)) return 'that phrase is not one this box handed out';
+    const un = ECDH.convertKey(pub, 'secp256k1', undefined, undefined, 'uncompressed') as Buffer;
+    const key = createPublicKey({
+      key: { kty: 'EC', crv: 'secp256k1', x: un.subarray(1, 33).toString('base64url'), y: un.subarray(33).toString('base64url') },
+      format: 'jwk',
+    });
+    if (!verify('sha256', Buffer.from(String(body.doc)), { key, dsaEncoding: 'ieee-p1363' }, Buffer.from(String(body.sig), 'base64'))) {
+      return 'that signature does not check out';
+    }
+    challenges.delete(words); // a phrase is good once
+    return '';
+  } catch {
+    return 'that proof is unreadable';
+  }
+}
 
 function wire(l: Line) {
   const rx: Record<string, number> = {};
@@ -50,7 +83,8 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   const gone: { id: number; at: number }[] = [];
   const typing = new Map<string, { name: string; n: number; until: number }>();
   const names = new Map<string, { name: string; key: string; addr: string }>();
-  const boops = new Map<string, string>();
+  const boops = new Map<string, { addr: string; at: number }>();
+  const challenges = new Set<string>();
   const avatars = new Map<string, { key: string; bytes: Buffer; type: string }>();
   const waiters = new Set<() => void>();
   let failNext: { status: number; retryAfter: number } | null = null;
@@ -235,18 +269,34 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
       if (route === 'POST /api/bubble/boop') {
         const addr = String(body.addr ?? '');
         if (!/^g1[0-9a-z]{38}$/.test(addr) || !(Number(body.pool) > 0) || !(Number(body.n) > 0)) return send(res, 400, { error: 'bad boop report' });
-        boops.set(bid, addr);
+        boops.set(bid, { addr, at: now() });
         return send(res, 200, { ok: true });
       }
 
+      if (route === 'GET /api/name/challenge') {
+        const words = `fake: prove this wallet is yours · ${randomBytes(12).toString('base64url')}`;
+        challenges.add(words);
+        return send(res, 200, { words });
+      }
+
       if (route === 'POST /api/name') {
-        const addr = boops.get(bid);
-        if (!addr) return send(res, 403, { error: 'boop once from this app first — the name goes with the wallet that booped' });
+        const addr = String(body.addr ?? '');
+        if (!/^g1[0-9a-z]{38}$/.test(addr)) return send(res, 400, { error: 'connect your wallet first' });
+        const held = [...names.values()].find((e) => e.addr === addr);
+        if (held) return send(res, 409, { error: `this wallet holds the name ${held.name} already — one name a wallet` });
+        const boop = boops.get(bid);
+        if (!(boop?.addr === addr && now() - boop.at <= BOOP_PROVES)) {
+          if (!body.doc) {
+            return send(res, 409, { error: 'Connect your wallet and let it sign the phrase this page asks for — a boop from the last 3 minutes does the same.' });
+          }
+          const why = proofError(body, addr, challenges);
+          if (why) return send(res, 409, { error: why });
+        }
         const name = String(body.name ?? '').trim();
         if (!name || name.length > 32) return send(res, 400, { error: 'a name of 1 to 32 characters' });
         const taken = names.get(fold(name));
         if (taken && taken.addr !== addr) return send(res, 409, { error: 'that name or a look-alike is taken' });
-        const entry = { name, key: randomBytes(32).toString('hex'), addr };
+        const entry = { name, key: randomBytes(16).toString('hex'), addr };
         names.set(fold(name), entry);
         return send(res, 200, entry);
       }

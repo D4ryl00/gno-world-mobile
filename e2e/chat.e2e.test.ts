@@ -1,8 +1,11 @@
+import { randomBytes } from 'node:crypto';
+
 import { createChatClient } from '../src/offchain/chat/client';
 import { createIdentityStore } from '../src/offchain/chat/identity';
 import { createChatStore } from '../src/offchain/chat/store';
 import { createOffchain } from '../src/offchain/http';
 import { startFakeServer, type FakeServer } from '../scripts/fake-offchain/server';
+import { newTestWallet } from './test-wallet';
 
 let fake: FakeServer;
 beforeEach(async () => {
@@ -16,8 +19,17 @@ function app(bid: string) {
   const offchain = createOffchain({ baseUrl: () => fake.url, bid: async () => bid });
   const client = createChatClient(offchain, () => identity.load());
   const kv = new Map<string, string>();
-  const store = createChatStore({ client, identity, kv: { getItem: async (k) => kv.get(k) ?? null, setItem: async (k, v) => void kv.set(k, v) } });
-  return { store, client, identity };
+  // the links the store asks the wallet to open
+  const opened: string[] = [];
+  const wallet = {
+    open: async (url: string) => void opened.push(url),
+    randomHex: (n: number) => randomBytes(n / 2).toString('hex'),
+    network: () => ({ chainId: 'dev', remote: 'http://127.0.0.1:26657' }),
+  };
+  const store = createChatStore({
+    client, identity, kv: { getItem: async (k) => kv.get(k) ?? null, setItem: async (k, v) => void kv.set(k, v) }, wallet,
+  });
+  return { store, client, identity, opened };
 }
 
 const until = async (f: () => boolean, ms = 8000) => {
@@ -77,14 +89,16 @@ test('reactions, votes and typing travel', async () => {
   bob.store.getState().stop();
 });
 
-test('a boop report, then the name is reserved and its lines carry the mark', async () => {
+test('the wallet signs the phrase, then the name is reserved and its lines carry the mark', async () => {
   const ann = app('aaaaaaaaaaaaaaaa');
+  const w = newTestWallet();
   await ann.store.ready;
   await ann.store.getState().setName('Ann');
-  expect(await ann.store.getState().reserveName()).toBe(false);
-  expect(ann.store.getState().identityError).toMatch(/boop once/);
-  await ann.client.reportBoop('g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5', 1, 1, 6);
-  expect(await ann.store.getState().reserveName()).toBe(true);
+  expect(await ann.store.getState().reserveName(w.address)).toBe(false);
+  expect(ann.opened).toHaveLength(1);
+  expect(await ann.store.getState().onProofReply(w.answer(ann.opened[0]))).toBe(true);
+  expect(ann.store.getState().identityError).toBe('');
+  expect(ann.store.getState().identity.reservedName).toBe('Ann');
   expect(await ann.store.getState().send('signed')).toBe(true);
   expect(ann.store.getState().lines.at(-1)).toMatchObject({ name: 'Ann', reserved: true });
 
@@ -93,6 +107,31 @@ test('a boop report, then the name is reserved and its lines carry the mark', as
   await bob.store.getState().setName('ann');
   expect(await bob.store.getState().send('fake')).toBe(false);
   expect(bob.store.getState().error).toMatch(/reserved/);
+});
+
+test('a boop from the last 3 minutes reserves without the wallet', async () => {
+  const ann = app('aaaaaaaaaaaaaaaa');
+  await ann.store.ready;
+  await ann.store.getState().setName('Ann');
+  await ann.client.reportBoop('g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5', 1, 1, 6);
+  expect(await ann.store.getState().reserveName('g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5')).toBe(true);
+  expect(ann.opened).toHaveLength(0);
+});
+
+test('a wallet that already holds a name is told so after signing', async () => {
+  const w = newTestWallet();
+  const ann = app('aaaaaaaaaaaaaaaa');
+  await ann.store.ready;
+  await ann.store.getState().setName('Ann');
+  await ann.store.getState().reserveName(w.address);
+  await ann.store.getState().onProofReply(w.answer(ann.opened[0]));
+  const again = app('cccccccccccccccc');
+  await again.store.ready;
+  await again.store.getState().setName('Other');
+  await again.store.getState().reserveName(w.address);
+  expect(await again.store.getState().onProofReply(w.answer(again.opened[0]))).toBe(true);
+  expect(again.store.getState().identityError).toMatch(/holds the name Ann already/);
+  expect(again.store.getState().identity.reservedName).toBe('');
 });
 
 test('an avatar rides with the next line', async () => {

@@ -1,8 +1,11 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+import { proofFromReply } from '../src/offchain/chat/name-proof';
 import { parsePollReply } from '../src/offchain/chat/parse';
+import { buildChallengeLink } from '../src/session/gnoconnect';
 import { startFakeServer, type FakeServer } from '../scripts/fake-offchain/server';
+import { newTestWallet } from './test-wallet';
 
 let fake: FakeServer;
 let clock = 1_791_000_000;
@@ -100,18 +103,54 @@ test('typing shows to others, not to the typist, and n = 0 clears it', async () 
 });
 
 test('a name is reserved after a boop report, and guards its lines', async () => {
-  expect((await call('/api/name', { method: 'POST', body: { name: 'Ann' } })).status).toBe(403);
   const addr = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
+  expect((await call('/api/name', { method: 'POST', body: { name: 'Ann', addr } })).status).toBe(409);
   expect((await call('/api/bubble/boop', { method: 'POST', body: { addr, pool: 1, n: 3, v: 6 } })).status).toBe(200);
-  const r = await call('/api/name', { method: 'POST', body: { name: 'Ann' } });
+  const r = await call('/api/name', { method: 'POST', body: { name: 'Ann', addr } });
   expect(r.json).toMatchObject({ name: 'Ann', addr });
-  expect(r.json.key).toMatch(/^[0-9a-f]{64}$/);
+  expect(r.json.key).toMatch(/^[0-9a-f]{32}$/); // as production's, 2026-10-12
   expect((await call('/api/chat', { method: 'POST', bid: OTHER, body: { name: 'ann', body: 'x' } })).status).toBe(403);
   const mine = await call('/api/chat', { method: 'POST', key: r.json.key, body: { name: 'Ann', body: 'y' } });
   expect(mine.json.msg).toMatchObject({ name: 'Ann', v: true });
   expect((await call('/api/name?name=ann')).json).toMatchObject({ name: 'Ann', reserved: true });
+  expect((await call('/api/name', { method: 'POST', body: { name: 'Other', addr } })).json.error).toMatch(/holds the name Ann already/);
   expect((await call('/api/name', { method: 'DELETE', key: r.json.key })).status).toBe(200);
   expect((await call('/api/name', { method: 'DELETE', key: r.json.key })).status).toBe(404);
+});
+
+test('a boop older than 3 minutes no longer proves the wallet', async () => {
+  const addr = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
+  await call('/api/bubble/boop', { method: 'POST', body: { addr, pool: 1, n: 3, v: 6 } });
+  clock += 181;
+  expect((await call('/api/name', { method: 'POST', body: { name: 'Ann', addr } })).status).toBe(409);
+});
+
+test('the challenge is a phrase, as production answers it', async () => {
+  const { status, json } = await call('/api/name/challenge');
+  expect(status).toBe(200);
+  expect(Object.keys(json)).toEqual(['words']);
+  expect(typeof json.words).toBe('string');
+});
+
+test('a proof by another key, or of a phrase never handed out, is refused', async () => {
+  const w = newTestWallet();
+  const other = newTestWallet();
+  const { json } = await call('/api/name/challenge');
+  const link = (words: string) => buildChallengeLink({ challenge: words, signer: w.address, chainid: 'dev', callback: 'x://cb', state: 's' });
+  const proofOf = (wallet: ReturnType<typeof newTestWallet>, words: string) => {
+    const r = wallet.answer(link(words));
+    return proofFromReply({ ...r, address: w.address }, w.address);
+  };
+  const byOther = await call('/api/name', { method: 'POST', body: { name: 'Ann', ...proofOf(other, json.words) } });
+  expect(byOther.status).toBe(409);
+  expect(byOther.json.error).toMatch(/does not prove this wallet/);
+  const unknown = await call('/api/name', { method: 'POST', body: { name: 'Ann', ...proofOf(w, 'a phrase nobody gave') } });
+  expect(unknown.json.error).toMatch(/not one this box handed out/);
+  const ok = await call('/api/name', { method: 'POST', body: { name: 'Ann', ...proofOf(w, json.words) } });
+  expect(ok.status).toBe(200);
+  // a phrase is good once
+  const replay = await call('/api/name', { method: 'POST', body: { name: 'Bob', ...proofOf(newTestWallet(), json.words) } });
+  expect(replay.status).toBe(409);
 });
 
 test('an avatar uploads, serves, and rides with a line', async () => {
