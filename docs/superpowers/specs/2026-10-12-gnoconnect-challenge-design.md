@@ -144,14 +144,15 @@ inattendu.
 
 1. `POST /api/name {name, addr}` (`addr` = l'identité de la session) ; 200 → réservé (un boop de moins
    de 3 minutes suffit, comme sur le site).
-2. 409 qui demande une signature : `GET /api/name/challenge`, puis
+2. 409, quel que soit son texte (comme le site, qui passe alors toujours à la signature ; un 409
+   « this wallet holds the name … already » revient après la signature et s'affiche) :
+   `GET /api/name/challenge`, puis
    `land.gno.gnokey://connect?challenge=<words>&signer=<identité>&chainid=<réseau>&callback=gno.world://session-callback&state=<…>`.
 3. Retour `success` avec `signed` et `signature` : `POST /api/name {name, doc, sig, pub, addr}` avec
    `doc` = les octets `signed` décodés (déjà triés et échappés comme l'attend le site), `sig` en
    base64, `pub` = la clé compressée tirée du gpub, en base64. Un retour sans preuve : « your wallet
    cannot prove the account — boop, then reserve within 3 minutes ».
-4. Tout autre refus du serveur s'affiche tel quel (par exemple « this wallet holds the name …
-   already »).
+4. Tout autre refus du serveur, au premier ou au second `POST`, s'affiche tel quel.
 
 - La clé du nom reçue est gardée comme aujourd'hui (SecureStore, par serveur).
 - Le texte de la feuille : « your wallet signs a phrase on your computer — or boop, then reserve
