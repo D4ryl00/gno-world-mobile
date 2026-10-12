@@ -12,7 +12,7 @@ const OTHER = 'g1jyh59tr2t4yjmwajjax9mye369gkkujv7tegkk';
 
 const reply = (over: Partial<WalletReply>): WalletReply => ({
   status: 'success', code: '', state: '', address: '', session: '', expiresAt: 0, allow: [], spend: '', period: 0,
-  chainid: '', hash: '', revoked: '', ...over,
+  chainid: '', hash: '', revoked: '', pubkey: '', signed: '', signature: '', ...over,
 });
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

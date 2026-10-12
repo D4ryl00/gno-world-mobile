@@ -115,6 +115,23 @@ export function buildSessionLink(r: SessionRequest): string {
   return `${WALLET_SCHEME}://${r.host}?${p.map(([k, v]) => `${k}=${enc(v)}`).join('&')}`;
 }
 
+/** A `connect` asking the identity to sign `challenge` (gnoconnect.md, "Proving the identity"). */
+export interface ChallengeRequest {
+  challenge: string;
+  signer: string;
+  chainid: string;
+  rpc?: string;
+  callback: string;
+  state: string;
+}
+
+export function buildChallengeLink(r: ChallengeRequest): string {
+  const p: [string, string][] = [['challenge', r.challenge], ['signer', r.signer], ['chainid', r.chainid]];
+  if (r.rpc) p.push(['rpc', r.rpc]);
+  p.push(['callback', r.callback], ['state', r.state]);
+  return `${WALLET_SCHEME}://connect?${p.map(([k, v]) => `${k}=${enc(v)}`).join('&')}`;
+}
+
 type Signer = (data: Uint8Array) => Promise<Uint8Array>;
 
 export async function signLink(link: string, sign: Signer, signOld?: Signer): Promise<string> {
@@ -138,6 +155,12 @@ export interface WalletReply {
   hash: string;
   /** the address of `old`, when this transaction revoked it */
   revoked: string;
+  /** the identity's gpub (with a challenge: the key that signed) */
+  pubkey: string;
+  /** with a challenge: the bytes signed, base64url */
+  signed: string;
+  /** with a challenge: 64 bytes R‖S, base64url */
+  signature: string;
 }
 
 export function parseReplyEntries(es: [string, string][]): WalletReply | null {
@@ -151,7 +174,7 @@ export function parseReplyEntries(es: [string, string][]): WalletReply | null {
     status, code: last('code'), state: last('state'), address: last('address'), session: last('session'),
     expiresAt: Number(last('expires_at')) || 0, allow: es.filter(([k]) => k === 'allow').map(([, v]) => v),
     spend: last('spend'), period: Number(last('period')) || 0, chainid: last('chainid'), hash: last('hash'),
-    revoked: last('revoked'),
+    revoked: last('revoked'), pubkey: last('pubkey'), signed: last('signed'), signature: last('signature'),
   };
 }
 

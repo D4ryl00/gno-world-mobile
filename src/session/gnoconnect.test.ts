@@ -1,4 +1,4 @@
-import { buildSessionLink, canonicalPayload, grantsKey, parseReplyURL, signLink } from '@/session/gnoconnect';
+import { buildChallengeLink, buildSessionLink, CALLBACK_URL, canonicalPayload, grantsKey, parseReplyURL, signLink } from '@/session/gnoconnect';
 
 const GPUB = 'gpub1pgfj7ard9eg82cjtv4u4xetrwqer2dntxyfzxz3pqwy7ynrtu4aum2869uhjarjtsuer63evxrrm3d4sa3w6mkyzefv8yhklkkx';
 
@@ -166,4 +166,27 @@ test('signatures are appended whole, sig then oldsig, base64url without padding'
   expect(m).not.toBeNull();
   expect(Buffer.from(m![1], 'base64url')).toEqual(Buffer.from(a));
   expect(Buffer.from(m![2], 'base64url')).toEqual(Buffer.from(b));
+});
+
+test('a challenge link keeps every character of the phrase', () => {
+  const challenge = 'gno.world: prove this wallet is yours · a+b & 50% 🔑';
+  const link = buildChallengeLink({
+    challenge, signer: 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5', chainid: 'gnoland-1', rpc: 'https://rpc.gno.land:443',
+    callback: CALLBACK_URL, state: 'abcd',
+  });
+  expect(link.startsWith('land.gno.gnokey://connect?challenge=')).toBe(true);
+  expect(link.includes(' ')).toBe(false);
+  const q = new URL(link.replace('land.gno.gnokey://', 'https://x/')).searchParams;
+  expect(q.get('challenge')).toBe(challenge);
+  expect(q.get('signer')).toBe('g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5');
+  expect(q.get('chainid')).toBe('gnoland-1');
+  expect(q.get('rpc')).toBe('https://rpc.gno.land:443');
+  expect(q.get('callback')).toBe(CALLBACK_URL);
+  expect(q.get('state')).toBe('abcd');
+  expect(q.has('pubkey')).toBe(false);
+});
+
+test('a reply carries the proof fields', () => {
+  const r = parseReplyURL('gno.world://session-callback?status=success&address=g1x&pubkey=gpub1y&signed=e30&signature=AAAA&state=s');
+  expect(r).toMatchObject({ pubkey: 'gpub1y', signed: 'e30', signature: 'AAAA' });
 });
