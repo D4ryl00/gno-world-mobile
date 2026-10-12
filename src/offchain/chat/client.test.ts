@@ -97,5 +97,5 @@ test('a reservation answer without a key is an error', async () => {
 });
 
 test('avatar URLs follow the server', () => {
-  expect(avatarUrl('https://bubblerumble.net/', 'hx4b')).toBe('https://bubblerumble.net/api/avatar/hx4b.jpg');
+  expect(avatarUrl('https://gno.world/', 'hx4b')).toBe('https://gno.world/api/avatar/hx4b.jpg');
 });

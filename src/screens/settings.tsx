@@ -51,7 +51,7 @@ export function SettingsScreen() {
       </Card>
       <Card>
         <Text style={styles.h}>Off-chain server</Text>
-        <Text style={styles.muted}>Chat, presence and the rest of the site&apos;s services. The official server is bubblerumble.net.</Text>
+        <Text style={styles.muted}>Chat, presence and the rest of the site&apos;s services. The official server is gno.world.</Text>
         <Field label="Server URL" value={offchain} onChangeText={setOffchain} error={offchainErr} />
       </Card>
       <Button
@@ -61,7 +61,7 @@ export function SettingsScreen() {
           settingsStore.getState().setOffchainUrl(offchain);
         }}
       />
-      <Text style={styles.muted}>Bubble Rumble mobile {Constants.expoConfig?.version ?? ''}</Text>
+      <Text style={styles.muted}>gno.world mobile {Constants.expoConfig?.version ?? ''}</Text>
     </Page>
   );
 }

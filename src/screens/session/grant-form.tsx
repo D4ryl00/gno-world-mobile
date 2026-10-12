@@ -20,7 +20,7 @@ export function GrantForm({ submitLabel, initial, onSubmit }: { submitLabel: str
       {grant ? (
         <Text style={{ color: colors.muted }}>
           At most {gnot(grant.spendPerPeriod)} per hour, {gnot(worstCase(grant))} over {grant.expires / 86400} days.
-          Only Bubble Rumble&apos;s realms. Revocable at any time.
+          Only gno.world&apos;s realms. Revocable at any time.
         </Text>
       ) : (
         <Text style={{ color: colors.bad }}>{error}</Text>

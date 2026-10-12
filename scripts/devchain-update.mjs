@@ -1,5 +1,5 @@
 // Usage: node scripts/devchain-update.mjs   (npm run devchain:update)
-// Refreshes devchain/: the code of every Bubble Rumble realm as deployed on gno.land, plus every non-stdlib package
+// Refreshes devchain/: the code of every gno.world realm as deployed on gno.land, plus every non-stdlib package
 // they import (transitively), laid out by package path. `npm run gnodev` loads it offline.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -60,6 +60,6 @@ while (queue.length) {
 }
 writeFileSync(
   join(OUT, 'SOURCE.md'),
-  `# devchain\n\nCode of the Bubble Rumble realms and their dependencies as deployed on gno.land, fetched from ${RPC} at height ${height} by \`npm run devchain:update\` (scripts/devchain-update.mjs). Do not edit by hand.\n\n${[...seen].sort().map((p) => `- ${p}`).join('\n')}\n`,
+  `# devchain\n\nCode of the gno.world realms and their dependencies as deployed on gno.land, fetched from ${RPC} at height ${height} by \`npm run devchain:update\` (scripts/devchain-update.mjs). Do not edit by hand.\n\n${[...seen].sort().map((p) => `- ${p}`).join('\n')}\n`,
 );
 console.log(`${seen.size} packages → devchain/ (height ${height})`);

@@ -377,7 +377,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-05. À mettre à jour à chaque étape livrée.
+État au 2026-10-12. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -609,6 +609,15 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   édition quitte l'édition (avant : la réponse écrasait sa propre ligne). Les réponses long-poll de
   la production portent bien `pins`. Ses 13 mineurs reportés sont **réglés le 2026-10-05** (plan `docs/superpowers/plans/2026-10-05-p3-m2a-minors.md`, `12af22b`..`d0fd53e` puis le relevé ci-dessous) : un changement de gen oublie les lignes, réactions et votes de l'app et la marque « vu » porte sa gen ; seul l'arrière-plan arrête le chat, qui reprend à son curseur (le centre de notifications ne recharge plus) ; une erreur pour le champ, une pour la feuille ; ses réactions et votes gardés par serveur et par gen (comme `br.rx` du site, 400 lignes) et « qui a réagi » en appui long ; une édition inchangée n'envoie rien ; les lignes ne se redessinent plus à chaque poll ; Répondre/Éditer donnent le focus, « anon » proposé et la ligne retenue part une fois nommé ; libellé d'accessibilité « Chat, N unread » (celui du navigateur sinon) et menu d'une ligne en action d'accessibilité ; avatar envoyé en JPEG de 256 px (`expo-image-manipulator`, plus de `Response.blob()`) ; le faux serveur démarre chaque fois sur une nouvelle gen. 330 tests jest, `npm run e2e:chat` 19/19 ; vérifié sur le simulateur iOS et l'émulateur Android (clavier ancré). Revue finale (relecteur neuf) : un Important corrigé (`40a717c` : la ligne retenue partait dès le nom enregistré et croisait « Reserve this name » ; elle part désormais à la fermeture de la feuille), 5 mineurs reportés dans le ledger du plan (action « longpress » brute sous VoiceOver, libellé « reply, react, edit » trop large, erreur ancienne après une édition inchangée, nom `newest` masqué, entrées vides gardées). Ledger (non
   versionné) : `.superpowers/sdd/2026-10-05-p3-m2a-chat/progress.md`.
+
+- Renommage en **gno.world** (2026-10-12) : le site est devenu https://gno.world (même serveur que
+  bubblerumble.net, même build ; « Bubble Rumble » n'y apparaît plus). App « gno.world », slug
+  `gno-world`, schéma `gno.world://` (rappel `gno.world://session-callback`), bundle id / package
+  `world.gno.app` (nouvelle app : réglages, clé de session et nom réservé des installations existantes
+  ne suivent pas), serveur hors chaîne par défaut `https://gno.world`, liens de partage au format du
+  site `https://gno.world/#rumble/<pool>&ref=<adresse>` (sans `#rumble/`, gno.world cache les pools).
+  Inchangés : les chemins des realms (`…/bubblerumble`..`bubblerumble6`), les clés de stockage
+  (`br.*`), le dossier `~/bubblerumble`, les specs et plans datés.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 

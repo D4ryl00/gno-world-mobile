@@ -54,7 +54,7 @@ test('renewal links are a connect that carries old, signer and both signatures',
   const link = buildSessionLink({
     host: 'connect', pubkey: GPUB, old: 'gpub1old', allow: ['bank/send'],
     grant: { spendPerPeriod: 1, period: 0, expires: 60 }, chainid: 'dev', signer: 'g1me',
-    callback: 'bubblerumble://session-callback', state: 's', iat: 1,
+    callback: 'gno.world://session-callback', state: 's', iat: 1,
   });
   expect(link).toMatch(/^land\.gno\.gnokey:\/\/connect\?pubkey=gpub1/);
   expect(link).toContain('old=gpub1old');
@@ -65,13 +65,13 @@ test('renewal links are a connect that carries old, signer and both signatures',
 
 test('disconnect links name the key and the identity, nothing else', () => {
   expect(
-    buildSessionLink({ host: 'disconnect', pubkey: GPUB, chainid: 'dev', signer: 'g1me', callback: 'bubblerumble://session-callback', state: 's', iat: 1 }),
-  ).toBe(`land.gno.gnokey://disconnect?pubkey=${GPUB}&chainid=dev&signer=g1me&callback=bubblerumble%3A%2F%2Fsession-callback&state=s&iat=1`);
+    buildSessionLink({ host: 'disconnect', pubkey: GPUB, chainid: 'dev', signer: 'g1me', callback: 'gno.world://session-callback', state: 's', iat: 1 }),
+  ).toBe(`land.gno.gnokey://disconnect?pubkey=${GPUB}&chainid=dev&signer=g1me&callback=gno.world%3A%2F%2Fsession-callback&state=s&iat=1`);
 });
 
 test('parse a success reply; repeated allow kept; last occurrence wins', () => {
   const r = parseReplyURL(
-    'bubblerumble://session-callback?status=error&status=success&address=g1me&session=g1s&expires_at=1793433600' +
+    'gno.world://session-callback?status=error&status=success&address=g1me&session=g1s&expires_at=1793433600' +
       '&allow=vm%2Fexec%3Agno.land%2Fr%2Ffoo&allow=bank%2Fsend&spend=5000000ugnot&period=3600&chainid=dev&revoked=g1old&state=ab%2Bc%3D',
   );
   expect(r).toMatchObject({
@@ -81,27 +81,27 @@ test('parse a success reply; repeated allow kept; last occurrence wins', () => {
 });
 
 test('a reply grants the key only when its session is the key address', () => {
-  const ok = parseReplyURL('bubblerumble://session-callback?status=success&address=g1me&session=g1s&state=x')!;
+  const ok = parseReplyURL('gno.world://session-callback?status=success&address=g1me&session=g1s&state=x')!;
   expect(grantsKey(ok, 'g1s')).toBe(true);
   expect(grantsKey(ok, 'g1other')).toBe(false); // e.g. the wallet's own delegated key in an identity-only answer
-  expect(grantsKey(parseReplyURL('bubblerumble://session-callback?status=success&address=g1me&state=x')!, 'g1s')).toBe(false);
-  expect(grantsKey(parseReplyURL('bubblerumble://session-callback?status=error&session=g1s&state=x')!, 'g1s')).toBe(false);
+  expect(grantsKey(parseReplyURL('gno.world://session-callback?status=success&address=g1me&state=x')!, 'g1s')).toBe(false);
+  expect(grantsKey(parseReplyURL('gno.world://session-callback?status=error&session=g1s&state=x')!, 'g1s')).toBe(false);
 });
 
 test('fragment replies (https callbacks) parse too; junk is null', () => {
   expect(parseReplyURL('https://x.example/cb#status=cancelled&state=s')).toMatchObject({ status: 'cancelled', state: 's' });
   expect(parseReplyURL('https://x.example/cb?status=error&state=q#status=cancelled&state=s')).toMatchObject({ status: 'cancelled', state: 's' });
-  expect(parseReplyURL('bubblerumble://session-callback?status=maybe')).toBeNull();
+  expect(parseReplyURL('gno.world://session-callback?status=maybe')).toBeNull();
 });
 
 test('malformed escape sequences in callback URLs return null (attacker-controlled)', () => {
-  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%zz')).toBeNull();
-  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%ff')).toBeNull();
-  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=%')).toBeNull();
+  expect(parseReplyURL('gno.world://session-callback?status=success&state=%zz')).toBeNull();
+  expect(parseReplyURL('gno.world://session-callback?status=success&state=%ff')).toBeNull();
+  expect(parseReplyURL('gno.world://session-callback?status=success&state=%')).toBeNull();
 });
 
 test('a custom-scheme reply is read from the query, where the wallet writes it', () => {
-  expect(parseReplyURL('bubblerumble://session-callback?status=success&state=a#status=error&state=b')).toMatchObject({
+  expect(parseReplyURL('gno.world://session-callback?status=success&state=a#status=error&state=b')).toMatchObject({
     status: 'success', state: 'a',
   });
 });
@@ -126,7 +126,7 @@ test('something that is not a link is refused', () => {
 describe('buildSessionLink keeps to the protocol', () => {
   const ok = {
     host: 'connect' as const, pubkey: GPUB, allow: ['bank/send'], grant: { spendPerPeriod: 1, period: 3600, expires: 60 },
-    chainid: 'dev', callback: 'bubblerumble://session-callback', state: 's', iat: 1,
+    chainid: 'dev', callback: 'gno.world://session-callback', state: 's', iat: 1,
   };
   it('accepts a well-formed grant', () => expect(() => buildSessionLink(ok)).not.toThrow());
   it('refuses old equal to pubkey', () => expect(() => buildSessionLink({ ...ok, old: GPUB, signer: 'g1me' })).toThrow(/old/));
@@ -156,7 +156,7 @@ describe('buildSessionLink keeps to the protocol', () => {
 test('signatures are appended whole, sig then oldsig, base64url without padding', async () => {
   const link = buildSessionLink({
     host: 'connect', pubkey: GPUB, old: 'gpub1old', allow: ['bank/send'], grant: { spendPerPeriod: 1, period: 0, expires: 60 },
-    chainid: 'dev', signer: 'g1me', callback: 'bubblerumble://session-callback', state: 's', iat: 1,
+    chainid: 'dev', signer: 'g1me', callback: 'gno.world://session-callback', state: 's', iat: 1,
   });
   const a = new Uint8Array(64).map((_, i) => i * 4); // covers - and _ in base64url
   const b = new Uint8Array(64).fill(0xff);

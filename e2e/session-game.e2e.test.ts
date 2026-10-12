@@ -42,7 +42,7 @@ beforeAll(async () => {
 test('the session key signs a proof of possession', async () => {
   const key = await createSessionKey(api, secrets, hex, () => Date.now());
   await unlockKey(api, secrets, key);
-  const link = buildSessionLink({ host: 'connect', pubkey: key.pubkey, allow: SESSION_ALLOW_PATHS, grant, chainid: 'dev', callback: 'bubblerumble://session-callback', state: 's', iat: 1 });
+  const link = buildSessionLink({ host: 'connect', pubkey: key.pubkey, allow: SESSION_ALLOW_PATHS, grant, chainid: 'dev', callback: 'gno.world://session-callback', state: 's', iat: 1 });
   const signed = await signLink(link, async (d) => (await api.signBytes(decodeAddress(key.address), d)).signature);
   expect(canonicalPayload(signed)).toBe(canonicalPayload(link));
   expect(signed).toMatch(/&sig=[A-Za-z0-9_-]{86}$/); // 64 bytes

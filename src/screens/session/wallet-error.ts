@@ -13,7 +13,7 @@ export function walletErrorText(code: string, op: Pending['op'], chainId: string
     case 'network_declined':
       return {
         title,
-        message: `gnokey-mobile is on another network and did not switch. Bubble Rumble is on "${chainId}": switch gnokey-mobile to it — or this app in Settings — then try again.`,
+        message: `gnokey-mobile is on another network and did not switch. gno.world is on "${chainId}": switch gnokey-mobile to it — or this app in Settings — then try again.`,
       };
     case 'signer_unavailable':
       return { title, message: 'gnokey-mobile cannot sign for this account right now. Open gnokey-mobile, check the account, then try again.' };

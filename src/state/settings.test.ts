@@ -11,7 +11,7 @@ test('defaults', () => {
   const s = createSettingsStore(memory()).getState();
   expect(s.chainId).toBe('gnoland-1');
   expect(s.remote).toBe('https://rpc.gno.land:443');
-  expect(s.offchainUrl).toBe('https://bubblerumble.net');
+  expect(s.offchainUrl).toBe('https://gno.world');
   expect(DEFAULT_SETTINGS.ref).toBe('');
 });
 
@@ -19,7 +19,7 @@ test('validation', () => {
   expect(validateRemote('https://rpc.gno.land:443')).toBeNull();
   expect(validateRemote('http://127.0.0.1:26657')).toBeNull();
   expect(validateRemote('rpc.gno.land')).toMatch(/http/);
-  expect(validateOffchainUrl('https://bubblerumble.net')).toBeNull();
+  expect(validateOffchainUrl('https://gno.world')).toBeNull();
   expect(validateOffchainUrl('https://example.org/')).toBeNull();
   expect(validateOffchainUrl('ftp://x')).toMatch(/http/);
 });

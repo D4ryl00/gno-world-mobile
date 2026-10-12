@@ -1,4 +1,4 @@
-// A stand-in for bubblerumble.net's chat, written from the site's public JS (2026-10-05): the M2a endpoints and
+// A stand-in for gno.world's chat, written from the site's public JS (2026-10-05): the M2a endpoints and
 // their rules, in memory. For the e2e tests and the simulator; never a reference for the real server.
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';

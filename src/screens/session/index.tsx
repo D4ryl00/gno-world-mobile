@@ -172,7 +172,7 @@ export function SessionScreen() {
               </Text>
               {missingPaths(st, SESSION_ALLOW_PATHS).length > 0 ? (
                 <Text style={styles.warn}>
-                  {"This session does not cover all of Bubble Rumble's realms — some actions will be refused. Renew it to grant them."}
+                  {"This session does not cover all of gno.world's realms — some actions will be refused. Renew it to grant them."}
                 </Text>
               ) : null}
             </>
@@ -196,7 +196,7 @@ export function SessionScreen() {
           <Button
             kind="danger" title="Revoke"
             onPress={() =>
-              Alert.alert('Revoke this session?', 'Bubble Rumble will no longer play from this phone until you get a new session.', [
+              Alert.alert('Revoke this session?', 'gno.world will no longer play from this phone until you get a new session.', [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Revoke', style: 'destructive', onPress: () => void s.revoke() },
               ])
@@ -213,7 +213,7 @@ export function SessionScreen() {
     <Card>
       <Text style={styles.h}>Play from this phone</Text>
       <Text style={styles.muted}>
-        Bubble Rumble gets its own key, which your account authorises once, with a budget and an expiry. Boops are then
+        gno.world gets its own key, which your account authorises once, with a budget and an expiry. Boops are then
         signed here, without opening a wallet each time. Your account key never leaves your computer.
       </Text>
       <GrantForm submitLabel="Get a session from gnokey-mobile" onSubmit={(g) => void s.begin('create', g)} />

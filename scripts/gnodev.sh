@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A local chain to play on (Settings → Local gnodev): gnodev built from the gno revision gnonative pins (the
-# gno.land mainnet line, so the realms deployed there type-check), loading every Bubble Rumble realm — v1–v6,
+# gno.land mainnet line, so the realms deployed there type-check), loading every gno.world realm — v1–v6,
 # bubble, wbubble — and their dependencies from devchain/ (a copy of what gno.land runs; refresh it with
 # npm run devchain:update). Works offline once gnodev is built. RPC on 127.0.0.1:26657.
 # Extra arguments go to gnodev (e.g. -node-rpc-listener 127.0.0.1:46658).

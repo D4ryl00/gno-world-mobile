@@ -3,7 +3,7 @@ import { base64url } from '@/utils/base64url';
 import type { Grant } from './types';
 
 export const WALLET_SCHEME = 'land.gno.gnokey';
-export const CALLBACK_URL = 'bubblerumble://session-callback';
+export const CALLBACK_URL = 'gno.world://session-callback';
 /** `connect` with `pubkey` grants (with `old`, renews in one transaction); `disconnect` revokes. */
 export type SessionHost = 'connect' | 'disconnect';
 

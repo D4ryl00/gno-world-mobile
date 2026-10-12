@@ -1,7 +1,7 @@
-# Bubble Rumble mobile
+# gno.world mobile
 
-Play [Bubble Rumble](https://bubblerumble.net) on iOS and Android with a gno **session key**: your account
-authorises this app's own key once (budget per hour, expiry, Bubble Rumble realms only), then every boop is
+Play [gno.world](https://gno.world)'s bubbles on iOS and Android with a gno **session key**: your account
+authorises this app's own key once (budget per hour, expiry, gno.world realms only), then every boop is
 signed in the app. The authorisation goes through [gnokey-mobile](../gnokey-mobile) (a GnoConnect
 `connect` carrying the app's key, see `gnoconnect-session.md`) or, without it, a `gnokey` command run on
 your computer. Renewing is a new `connect` naming the current key in `old`; logging out is a `disconnect`.
@@ -9,7 +9,7 @@ your computer. Renewing is a new `connect` naming the current key in `old`; logg
 ## Requirements
 
 - Node 22+, Xcode, Android SDK + NDK, Go (for gnonative and the e2e suite)
-- `~/gnonative` on branch `feat/sign-bytes` ([gnolang/gnonative#233](https://github.com/gnolang/gnonative/pull/233): `SignBytes`, and gno on the mainnet line so transaction results carrying `bank.TransferEvent` decode), packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
+- `~/gnonative` on `main` (since [gnolang/gnonative#233](https://github.com/gnolang/gnonative/pull/233): `SignBytes`, and gno on the mainnet line so transaction results carrying `bank.TransferEvent` decode), packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
 - `~/gno` (gnodev and gnokey for the e2e suite)
 
 ## Run
@@ -20,7 +20,7 @@ npm install
 npx expo run:ios      # or: npx expo run:android
 ```
 
-Settings → network: gno.land mainnet (default) or a local gnodev; off-chain server: bubblerumble.net (default).
+Settings → network: gno.land mainnet (default) or a local gnodev; off-chain server: gno.world (default).
 
 ## Play against a local gnodev
 
@@ -29,7 +29,7 @@ npm run gnodev            # RPC on 127.0.0.1:26657; extra flags go to gnodev
 npm run devchain:update   # only when you want newer code from gno.land
 ```
 
-Then Settings → Local gnodev → Save. `devchain/` holds the code of every Bubble Rumble realm (v1–v5, `bubble`,
+Then Settings → Local gnodev → Save. `devchain/` holds the code of every gno.world realm (`bubblerumble` v1–v6, `bubble`,
 `wbubble`) and of each package they import, as deployed on gno.land (see `devchain/SOURCE.md` for the height).
 gnodev loads only that copy (`-extra-root devchain -no-examples`), so it runs offline. The script builds gnodev
 once (into `.e2e/bin/`) from the gno revision gnonative pins — the gno.land mainnet line, so that code

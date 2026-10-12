@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Bubble Rumble",
-    "slug": "bubblerumble",
+    "name": "gno.world",
+    "slug": "gno-world",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bubblerumble",
+    "scheme": "gno.world",
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "land.gno.bubblerumble",
+      "bundleIdentifier": "world.gno.app",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "land.gno.gnokey"
@@ -24,7 +24,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "land.gno.bubblerumble"
+      "package": "world.gno.app"
     },
     "web": {
       "output": "static",
@@ -44,7 +44,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Bubble Rumble uses a photo you pick as your chat picture."
+          "photosPermission": "gno.world uses a photo you pick as your chat picture."
         }
       ]
     ],

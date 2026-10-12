@@ -18,7 +18,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   chainId: 'gnoland-1',
   remote: 'https://rpc.gno.land:443',
-  offchainUrl: 'https://bubblerumble.net',
+  offchainUrl: 'https://gno.world',
   flag: '',
   ref: '',
 };
@@ -38,7 +38,7 @@ export const validateRemote = (url: string) =>
   HTTP_URL.test(url.trim()) ? null : 'must be an http:// or https:// URL, e.g. https://rpc.gno.land:443';
 
 export const validateOffchainUrl = (url: string) =>
-  HTTP_URL.test(url.trim()) ? null : 'must be an http:// or https:// URL, e.g. https://bubblerumble.net';
+  HTTP_URL.test(url.trim()) ? null : 'must be an http:// or https:// URL, e.g. https://gno.world';
 
 export interface SettingsState extends Settings {
   setNetwork(chainId: string, remote: string): void;
