@@ -132,8 +132,10 @@ inattendu.
   `data` ou qui échoue : `error&code=signer_unavailable`.
 - **Neutralité.** Tests et fixtures sans nom de dapp (`exampledapp://session-callback`,
   `https://example.com/cb`).
-- **Branches.** `feat/deeplink-tx` (PR #138), puis rebase de `feat/send-to-computer` dessus. Le cœur
-  suit la branche gno `feat/gnokey-pair` rebasée (§5).
+- **Branche.** `feat/send-to-computer`, la seule où vit « Send to my computer » (elle est rebasée sur
+  `feat/deeplink-tx`, PR #138). Le cœur suit la branche gno `feat/gnokey-pair` rebasée (§5) et
+  `feat/gnokey-sign-data`, par des `replace` vers le fork D4ryl00/gno : ces deux branches sont poussées
+  avant, sur accord de l'utilisateur.
 - **Tests** : cœur Go (lecture, refus, réponse, vérification de la preuve, échanges avec un relais de
   test comme `mobile/pair_test.go`), puis iOS et Android (lien, revue, réponse), et un aller-retour sur
   simulateur et émulateur avec un vrai gnokey-pair.
