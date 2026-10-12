@@ -3,6 +3,11 @@
 Date : 2026-10-12. Suite de P3-M2a (`2026-10-05-p3-m2a-chat-design.md`) : la réservation d'un nom
 sur gno.world, faite entièrement depuis le téléphone avec gnokey-mobile.
 
+**Statut (2026-10-13) :** étapes 1 à 5 livrées (plan `docs/superpowers/plans/2026-10-12-gnoconnect-challenge.md`) :
+standard #5970 `a5627a483`, #6016 `cb66934bc` ; gno `feat/gnokey-pair` `724f35fd9` ; gnokey-mobile
+`4633429..324a132` ; app `c9a7dcf..ab2efff`. Vérifié sur simulateur iOS et émulateur Android. Reste
+l'essai de l'utilisateur sur la production, et Adena (§8).
+
 ## 1. Intention
 
 **Objectif (dit par l'utilisateur).** Utiliser gno.world à 100 % sur mobile avec gnokey-mobile, sans

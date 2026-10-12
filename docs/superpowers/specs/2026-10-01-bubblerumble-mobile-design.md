@@ -618,6 +618,19 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   site `https://gno.world/#rumble/<pool>&ref=<adresse>` (sans `#rumble/`, gno.world cache les pools).
   Inchangés : les chemins des realms (`…/bubblerumble`..`bubblerumble6`), les clés de stockage
   (`br.*`), le dossier `~/bubblerumble`, les specs et plans datés.
+- Réservation du nom 100 % mobile (2026-10-12/13) : spec
+  `docs/superpowers/specs/2026-10-12-gnoconnect-challenge-design.md`, plan
+  `docs/superpowers/plans/2026-10-12-gnoconnect-challenge.md`, exécuté en ligne. gno.world exige
+  désormais une phrase signée (ou un boop de moins de 3 min), refuse une clé de session et ne
+  réémet jamais la clé d'un nom. Livré : `gnokey sign-data` et `std.SignDataPayload` /
+  `std.VerifySignData` (gno `feat/gnokey-sign-data`, `38723ce23`, poussé sur le fork) — il a
+  réservé `remi` sur la production ; le standard GnoConnect gagne `challenge` sur `connect` (#5970
+  `a5627a483`, #6016 rebasée + `cb66934bc`) ; gnokey-pair signe un texte (type `data`,
+  `724f35fd9`, poussé) ; gnokey-mobile le lit, le fait signer sur l'ordinateur et vérifie la
+  preuve (`feat/send-to-computer` `4633429..324a132`) ; l'app suit la séquence du site
+  (`c9a7dcf..ab2efff`). Vérifié de bout en bout le 2026-10-13 sur simulateur iOS et émulateur
+  Android (gnodev, faux serveur, relais local, gnokey-pair `-manual`), y compris le refus « this
+  wallet holds the name … already » après la signature.
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
@@ -712,3 +725,10 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    ouvert : un champ bas sur un petit écran reste sous le clavier pendant la saisie ; le
    `KeyboardAvoidingView` de RN 0.86 mesure son cadre par rapport à son parent (`onLayout`), il lui
    faudrait `keyboardVerticalOffset` = la position de l'écran dans la fenêtre (sous un en-tête de pile).
+6. **Réservation par le wallet (2026-10-13) :** à faire par l'utilisateur — réserver un nom libre
+   sur la production depuis l'app, avec une identité qui n'a pas encore de nom (`remi` a déjà
+   `remi`). Mineurs vus pendant l'essai : sur Android, au retour du wallet l'app revient sur le
+   Chat avec la feuille du nom fermée (le résultat se lit dans l'en-tête ; un refus seulement en la
+   rouvrant ; iOS la garde ouverte) ; la feuille « Prove your identity » du wallet montre l'état de
+   sa propre session, sans rapport avec une preuve. Le relais public de gnokey-pair répondait 500
+   le 2026-10-13.
