@@ -2411,3 +2411,63 @@ git commit -m "docs: §9 — the name is reserved from the phone, through connec
 ```
 
 - [ ] **Step 5: Publishing** — list for the user what is local and unpushed (standard #5970 and #6016 branches, gnokey-mobile `feat/send-to-computer`, gno branches if not pushed in Task 3) and push only what they approve.
+
+---
+
+## Corrections to make (final review, 2026-10-13)
+
+The whole-branch review found no Critical issue. The user asked to make the fixes later; each one gets
+a failing test first when it is made. Tasks 1–9 are done (ledger:
+`.superpowers/sdd/2026-10-12-gnoconnect-challenge/progress.md`).
+
+### Important
+
+- [ ] **I1 — The `signer` pin is not honored on a challenge `connect`** (spec §4 says `signer` resolves
+  "as elsewhere"; the plan's request line had it, the standard commit dropped it). Standard
+  (`~/gno-external-wallets`, request line ~478 and the Parameters table's `signer` row, "—" for an
+  identity `connect`): make `signer` optional on an identity `connect` and put it in the request line.
+  `core.ParseChallenge` (or a sibling) returns the pin. iOS and Android preselect or lock the pinned
+  account, and answer `signer_unavailable` when it is not held. Today the user can go through the
+  whole computer ceremony with the wrong account, and only then does the app say "choose that account".
+- [ ] **I2 — The standard's producer guidance leaves out the essential check** ("Proving the identity",
+  last paragraph): add that the producer verifies `signed` as a sign-data document
+  (`std.VerifySignData` or the same shape checks), with data equal to its own unused challenge and
+  signer equal to `address`. Without it, a producer could accept any public signature by that key
+  (a tx signature replayed from the chain).
+- [ ] **I3 — iOS: a cold launch can refuse every `connect` with `invalid_request`**, the plain sign-in
+  too (`ios/GnokeyMobile/Core/AppModel.swift` ~446–454). `parseChallenge` runs before the bridge is up;
+  a nil bridge gives `[internal]`, which `?? "invalid_request"` turns into a refusal. Fix: wait for the
+  bridge as Android does (park the URL like `parkedSessionURL`), or call `parseChallenge` only when
+  `parsed.challenge` is non-empty and treat a non-protocol error as "not ready". Add a cold-launch
+  round trip to the manual checks.
+- [ ] **I4 — Android: a refusal after the signature is not visible.** Back from the wallet, the app
+  lands on Chat with the name sheet closed, so "holds the name … already" or "taken" shows only when
+  the sheet is reopened (`src/app/session-callback.tsx` `router.replace('/chat')`, and the `sheet`
+  state in `src/screens/chat/index.tsx`). Fix: reopen the sheet after a proof reply (e.g.
+  `/chat?identity=1`), or show the error on the chat screen.
+
+### Minor
+
+- [ ] **M1** — The wallet never answers `signer_unavailable` (spec §6): after a failure on the computer
+  it shows the error and the user's Cancel gives the app a silent `cancelled`, so the app's
+  `walletRefusal('signer_unavailable')` never fires. Either align spec §6, or answer
+  `signer_unavailable` on Decline after such a failure.
+- [ ] **M2** — `approveConnect(proof:)` answers with `draft.masterAddress` rather than the identity the
+  proof was verified for, and `AccountMenu` stays usable while the computer signs (iOS
+  `AppModel.swift` ~690, Android `AppViewModel.kt` ~660). Carry the identity in `ConnectProofInfo`;
+  the `sessionKey == nil → no_signer` guard does not apply to the proof path.
+- [ ] **M3** — The challenge sheet still says "Identity to reveal" with a Session row and
+  `SessionSummary` ("Not on chain" seen in Task 9), though the reply carries no session: hide them
+  with a challenge.
+- [ ] **M4** — Android `BridgeClient.kt` ~350: the KDoc "The scope hints of an identity-only
+  `connect`…" sits above `parseChallenge`; move it back above `parseScopeHints`.
+- [ ] **M5** — The app does not compare the reply's `chainid` with the chain it asked for
+  (`name-proof.ts` / `store.ts` `onProofReply`); a local check gives a clear message.
+- [ ] **M6** — `proving` lives only in memory: if the OS evicts the app during the minutes at the
+  computer, the valid proof is ignored and the user lands on Session without a word. Persist
+  `{state, name, identity}` as the session store persists `pending`.
+
+### Recommendation (not a fix)
+
+- The wallet could warn when the challenge text names no part of the callback's host (a cheap
+  anti-relay hint); the standard could make it a SHOULD.
