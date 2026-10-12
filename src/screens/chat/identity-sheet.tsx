@@ -10,10 +10,13 @@ import { colors, radius, space } from '@/theme';
 
 import { avatarJpeg } from './avatar';
 
-export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve }: {
-  store: StoreApi<ChatState>; visible: boolean; onClose: () => void; offchainUrl: string; canReserve: boolean;
+/** `identity`: the session's master, which a reserved name belongs to; '' without a session. */
+export function IdentitySheet({ store, visible, onClose, offchainUrl, identity: wallet }: {
+  store: StoreApi<ChatState>; visible: boolean; onClose: () => void; offchainUrl: string; identity: string;
 }) {
+  const canReserve = !!wallet;
   const identity = useStore(store, (s) => s.identity);
+  const proving = useStore(store, (s) => s.proving);
   const error = useStore(store, (s) => s.identityError);
   const [name, setName] = useState(identity.name || 'anon'); // "anon" is proposed (M2a spec §5)
   const [busy, setBusy] = useState(false);
@@ -75,15 +78,22 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, canReserve
             ) : (
               <>
                 <Button title="Save name" disabled={busy || !name.trim()} onPress={() => void run(() => store.getState().setName(name))} />
-                <Button kind="secondary" title="Reserve this name" disabled={busy || !canReserve || !name.trim()}
-                  onPress={() => void run(async () => {
-                    await store.getState().setName(name);
-                    await store.getState().reserveName();
-                  })} />
+                {proving ? (
+                  <View style={styles.row}>
+                    <Button kind="secondary" title="Waiting for your wallet…" disabled onPress={() => undefined} />
+                    <Button kind="secondary" title="Cancel" onPress={() => store.getState().cancelProving()} />
+                  </View>
+                ) : (
+                  <Button kind="secondary" title="Reserve this name" disabled={busy || !canReserve || !name.trim()}
+                    onPress={() => void run(async () => {
+                      await store.getState().setName(name);
+                      await store.getState().reserveName(wallet);
+                    })} />
+                )}
                 <Text style={styles.muted}>
                   {canReserve
-                    ? 'A reserved name is yours alone and your lines carry a ✓. The server ties it to the account that booped from this app: boop once first.'
-                    : 'Reserving needs a session (Session tab) and one boop from this app.'}
+                    ? 'A reserved name is yours alone and your lines carry a ✓. Your wallet signs a phrase on your computer — or boop from this app, then reserve within 3 minutes.'
+                    : 'Reserving needs a session (Session tab).'}
                 </Text>
               </>
             )}

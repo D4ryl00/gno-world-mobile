@@ -61,6 +61,8 @@ export function AppServices({ children }: PropsWithChildren) {
     const chatClient = createChatClient(offchain, () => identity.load());
     const chat = createChatStore({
       client: chatClient, identity, kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl,
+      // a name the server wants proven: the wallet signs the phrase (GnoConnect connect + challenge)
+      wallet: { open: (url) => Linking.openURL(url).then(() => undefined), randomHex, network: () => net.current() },
     });
     const session = createSessionStore({
       api: () => api,

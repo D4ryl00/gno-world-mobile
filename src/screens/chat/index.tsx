@@ -14,7 +14,7 @@ export function ChatScreen() {
   return (
     <>
       <ChatPane store={chat} offchainUrl={offchainUrl} onOpenIdentity={() => setSheet(true)} identityOpen={sheet} />
-      <IdentitySheet store={chat} visible={sheet} onClose={() => setSheet(false)} offchainUrl={offchainUrl} canReserve={!!active} />
+      <IdentitySheet store={chat} visible={sheet} onClose={() => setSheet(false)} offchainUrl={offchainUrl} identity={active?.master ?? ''} />
     </>
   );
 }

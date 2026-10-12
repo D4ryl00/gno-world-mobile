@@ -1,6 +1,7 @@
 import { OffchainError, type Offchain } from '@/offchain/http';
 
 import type { ChatIdentity } from './identity';
+import type { NameProof } from './name-proof';
 import { parseLine, parseOlderReply, parsePoll, parsePollReply, parseRx } from './parse';
 import type { ChatLine, ChatOlderReply, ChatPoll, ChatPollReply } from './types';
 
@@ -19,7 +20,12 @@ export interface ChatClient {
   react(id: number, emoji: string, name: string): Promise<{ rx: Record<string, number>; mine: boolean }>;
   vote(id: number, opt: number): Promise<{ mine: number; poll: ChatPoll | undefined }>;
   typing(name: string, n: number): Promise<void>;
-  reserveName(name: string): Promise<{ name: string; key: string; addr: string }>;
+  /** POST /api/name for the wallet `addr`: a 409 asks for its proof (nameChallenge, then proveName) */
+  reserveName(name: string, addr: string): Promise<{ name: string; key: string; addr: string }>;
+  /** the phrase the wallet signs (GET /api/name/challenge) */
+  nameChallenge(): Promise<string>;
+  /** POST /api/name with the wallet's proof */
+  proveName(name: string, proof: NameProof): Promise<{ name: string; key: string; addr: string }>;
   releaseName(): Promise<void>;
   uploadAvatar(body: Blob | Uint8Array, contentType: string): Promise<{ id: string; key: string }>;
   /** the site's report after a boop (POST /api/bubble/boop) */
@@ -35,6 +41,10 @@ export function createChatClient(oc: Offchain, identity: () => Promise<ChatIdent
   const keyed = async () => {
     const id = await identity();
     return { id, headers: id.nameKey ? { 'X-Name-Key': id.nameKey } : ({} as Record<string, string>) };
+  };
+  const reserved = (r: Obj, name: string) => {
+    if (!str(r?.key)) throw new OffchainError(0, 'the server answered without the name key');
+    return { name: str(r.name) || name, key: str(r.key), addr: str(r.addr) };
   };
   const lineOf = (r: Obj): ChatLine => {
     const l = parseLine(r?.msg);
@@ -75,11 +85,18 @@ export function createChatClient(oc: Offchain, identity: () => Promise<ChatIdent
     typing: async (name, n) => {
       await oc.post('/api/chat/typing', { name, n });
     },
-    reserveName: async (name) => {
+    reserveName: async (name, addr) => {
       const { headers } = await keyed();
-      const r = await oc.post<Obj>('/api/name', { name }, { headers });
-      if (!str(r?.key)) throw new OffchainError(0, 'the server answered without the name key');
-      return { name: str(r.name) || name, key: str(r.key), addr: str(r.addr) };
+      return reserved(await oc.post<Obj>('/api/name', { name, addr }, { headers }), name);
+    },
+    nameChallenge: async () => {
+      const words = str((await oc.get<Obj>('/api/name/challenge'))?.words);
+      if (!words) throw new OffchainError(0, 'the server answered without a phrase');
+      return words;
+    },
+    proveName: async (name, proof) => {
+      const { headers } = await keyed();
+      return reserved(await oc.post<Obj>('/api/name', { name, ...proof }, { headers }), name);
     },
     releaseName: async () => {
       const { headers } = await keyed();

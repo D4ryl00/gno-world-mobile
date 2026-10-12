@@ -2,9 +2,10 @@ import type { ChatClient, PollQuery } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
 import { unreadCount } from '@/offchain/chat/merge';
 import { createChatStore, MARKS_KEY, SEEN_KEY } from '@/offchain/chat/store';
-import { line, reply } from '@/offchain/chat/testing';
+import { line, PROOF, proofReply, reply } from '@/offchain/chat/testing';
 import type { ChatPollReply } from '@/offchain/chat/types';
 import { OffchainError } from '@/offchain/http';
+import type { WalletReply } from '@/session/gnoconnect';
 
 // real timers: lets the loop's awaits (identity, kv, poll) settle; the stubbed sleep never waits
 const flush = async () => {
@@ -36,9 +37,17 @@ function harness(
     vote: jest.fn(),
     typing: jest.fn(async () => undefined),
     reserveName: jest.fn(),
+    nameChallenge: jest.fn(),
+    proveName: jest.fn(),
     releaseName: jest.fn(),
     uploadAvatar: jest.fn(),
     reportBoop: jest.fn(),
+  };
+  const opened: string[] = [];
+  const wallet = {
+    open: async (url: string) => void opened.push(url),
+    randomHex: () => 'feedfacefeedface',
+    network: () => ({ chainId: 'gnoland-1', remote: 'https://rpc.gno.land:443' }),
   };
   const store = createChatStore({
     client: client as unknown as ChatClient,
@@ -48,8 +57,9 @@ function harness(
     random: () => 0.5,
     now: () => clock,
     scope: opts.scope === undefined ? undefined : () => opts.scope!,
+    wallet,
   });
-  return { store, client, queries, sleeps, kv, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
+  return { store, client, queries, sleeps, kv, opened, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
 }
 
 test('the first poll takes the recent lines, the next ones wait on the cursor', async () => {
@@ -259,8 +269,8 @@ test('reserving saves the key; releasing clears it', async () => {
   const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
   await h.store.ready;
   h.client.reserveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: 'g1x' });
-  expect(await h.store.getState().reserveName()).toBe(true);
-  expect(h.client.reserveName).toHaveBeenCalledWith('ann');
+  expect(await h.store.getState().reserveName('g1x')).toBe(true);
+  expect(h.client.reserveName).toHaveBeenCalledWith('ann', 'g1x');
   expect(h.store.getState().identity).toMatchObject({ name: 'Ann', reservedName: 'Ann', nameKey: 'k' });
   h.client.releaseName.mockResolvedValueOnce(undefined);
   expect(await h.store.getState().releaseName()).toBe(true);
@@ -471,14 +481,14 @@ test('a resume that meets a new gen reloads and forgets', async () => {
 test('a refused reservation is the sheet\'s error, a refused post the composer\'s', async () => {
   const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
   await h.store.ready;
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(403, 'boop once from this app first'));
-  await h.store.getState().reserveName();
-  expect(h.store.getState().identityError).toBe('boop once from this app first');
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(400, 'a name of 1 to 32 characters'));
+  await h.store.getState().reserveName('g1x');
+  expect(h.store.getState().identityError).toBe('a name of 1 to 32 characters');
   expect(h.store.getState().error).toBe('');
   h.client.post.mockRejectedValueOnce(new OffchainError(403, '"ann" is reserved — pick another name'));
   await h.store.getState().send('hi');
   expect(h.store.getState().error).toBe('"ann" is reserved — pick another name');
-  expect(h.store.getState().identityError).toBe('boop once from this app first');
+  expect(h.store.getState().identityError).toBe('a name of 1 to 32 characters');
   h.store.getState().clearIdentityError();
   expect(h.store.getState().identityError).toBe('');
 });
@@ -533,4 +543,102 @@ test('an edit that changes nothing sends nothing', async () => {
   expect(await h.store.getState().edit(5, '  same ')).toBe(true);
   expect(h.client.edit).not.toHaveBeenCalled();
   h.store.getState().stop();
+});
+
+const ADDR = PROOF.addr;
+const okReply = (o: Partial<WalletReply> = {}) => proofReply({ state: 'feedfacefeedface', ...o });
+
+/** A store whose reservation is waiting for the wallet. */
+async function provingHarness() {
+  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
+  await h.store.ready;
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'Connect your wallet and let it sign the phrase'));
+  h.client.nameChallenge.mockResolvedValueOnce('gno.world: prove this wallet is yours · tok');
+  await h.store.getState().reserveName(ADDR);
+  return h;
+}
+
+test('a 409 has the wallet sign the phrase, then the proof reserves the name', async () => {
+  const h = await provingHarness();
+  expect(h.store.getState().proving).toEqual({ state: 'feedfacefeedface', name: 'ann', identity: ADDR });
+  expect(h.store.getState().identityError).toBe('');
+  expect(h.opened).toHaveLength(1);
+  const q = new URL(h.opened[0].replace('land.gno.gnokey://', 'https://x/')).searchParams;
+  expect([q.get('challenge'), q.get('signer'), q.get('chainid'), q.get('state')])
+    .toEqual(['gno.world: prove this wallet is yours · tok', ADDR, 'gnoland-1', 'feedfacefeedface']);
+
+  h.client.proveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
+  expect(await h.store.getState().onProofReply(okReply())).toBe(true);
+  expect(h.client.proveName).toHaveBeenCalledWith('ann', { doc: PROOF.doc, sig: PROOF.sig, pub: PROOF.pub, addr: ADDR });
+  expect(h.store.getState().identity).toMatchObject({ reservedName: 'Ann', nameKey: 'k' });
+  expect(h.store.getState().proving).toBeNull();
+});
+
+test('a reservation that needs no proof does not open the wallet', async () => {
+  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
+  await h.store.ready;
+  h.client.reserveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
+  expect(await h.store.getState().reserveName(ADDR)).toBe(true);
+  expect(h.opened).toHaveLength(0);
+});
+
+test('a reply with another state is not the chat\'s', async () => {
+  const h = await provingHarness();
+  expect(await h.store.getState().onProofReply(okReply({ state: 'other' }))).toBe(false);
+  expect(h.client.proveName).not.toHaveBeenCalled();
+  expect(h.store.getState().proving).not.toBeNull();
+  const idle = harness([]);
+  expect(await idle.store.getState().onProofReply(okReply())).toBe(false);
+});
+
+test('a wallet that cannot prove says how to boop instead', async () => {
+  const h = await provingHarness();
+  expect(await h.store.getState().onProofReply(okReply({ signed: '', signature: '' }))).toBe(true);
+  expect(h.store.getState().identityError).toMatch(/Boop from this app, then reserve within 3 minutes/);
+  expect(h.client.proveName).not.toHaveBeenCalled();
+  expect(h.store.getState().proving).toBeNull();
+});
+
+test('a proof for another account is not sent', async () => {
+  const h = await provingHarness();
+  expect(await h.store.getState().onProofReply(okReply({ address: 'g1other' }))).toBe(true);
+  expect(h.store.getState().identityError).toMatch(/g1other/);
+  expect(h.client.proveName).not.toHaveBeenCalled();
+});
+
+test('a refusal after the signature is the sheet\'s error', async () => {
+  const h = await provingHarness();
+  h.client.proveName.mockRejectedValueOnce(new OffchainError(409, 'this wallet holds the name remi already'));
+  expect(await h.store.getState().onProofReply(okReply())).toBe(true);
+  expect(h.store.getState().identityError).toBe('this wallet holds the name remi already');
+  expect(h.store.getState().identity.nameKey).toBe('');
+  expect(h.store.getState().proving).toBeNull();
+});
+
+test('a cancelled or refused wallet answer ends the wait', async () => {
+  const h = await provingHarness();
+  expect(await h.store.getState().onProofReply(okReply({ status: 'cancelled' }))).toBe(true);
+  expect(h.store.getState().proving).toBeNull();
+  expect(h.store.getState().identityError).toBe('');
+  const g = await provingHarness();
+  expect(await g.store.getState().onProofReply(okReply({ status: 'error', code: 'signer_unavailable' }))).toBe(true);
+  expect(g.store.getState().identityError).toMatch(/computer/);
+});
+
+test('a challenge the server will not give leaves nothing waiting', async () => {
+  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
+  await h.store.ready;
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'sign the phrase'));
+  h.client.nameChallenge.mockRejectedValueOnce(new OffchainError(503, 'busy'));
+  expect(await h.store.getState().reserveName(ADDR)).toBe(false);
+  expect(h.store.getState().proving).toBeNull();
+  expect(h.store.getState().identityError).toBe('busy');
+  expect(h.opened).toHaveLength(0);
+});
+
+test('cancelling stops waiting for the wallet', async () => {
+  const h = await provingHarness();
+  h.store.getState().cancelProving();
+  expect(h.store.getState().proving).toBeNull();
+  expect(await h.store.getState().onProofReply(okReply())).toBe(false);
 });

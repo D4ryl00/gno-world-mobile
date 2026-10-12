@@ -80,22 +80,38 @@ test('edit, withdraw, react, vote, typing', async () => {
 test('name, avatar and boop report', async () => {
   const { oc, calls } = fakeOffchain({ name: 'Ann', key: 'k64', addr: 'g1x', id: 'av1' });
   const c = createChatClient(oc, async () => reserved);
-  expect(await c.reserveName('ann')).toEqual({ name: 'Ann', key: 'k64', addr: 'g1x' });
+  expect(await c.reserveName('ann', 'g1x')).toEqual({ name: 'Ann', key: 'k64', addr: 'g1x' });
   await c.releaseName();
   const bytes = new Uint8Array([1]);
   await c.uploadAvatar(bytes, 'image/jpeg');
   await c.reportBoop('g1x', 12, 3, 6);
   expect(calls.map((x) => `${x.verb} ${x.path}`)).toEqual(['POST /api/name', 'DELETE /api/name', 'POST /api/avatar', 'POST /api/bubble/boop']);
-  expect(calls[0].body).toEqual({ name: 'ann' });
+  expect(calls[0].body).toEqual({ name: 'ann', addr: 'g1x' });
   expect(calls[2].o).toMatchObject({ raw: { body: bytes, contentType: 'image/jpeg' }, headers: { 'X-Name-Key': 'nk' } });
   expect(calls[3].body).toEqual({ addr: 'g1x', pool: 12, n: 3, v: 6 });
 });
 
 test('a reservation answer without a key is an error', async () => {
   const { oc } = fakeOffchain({ name: 'ann' });
-  await expect(createChatClient(oc, async () => NO_IDENTITY).reserveName('ann')).rejects.toBeTruthy();
+  await expect(createChatClient(oc, async () => NO_IDENTITY).reserveName('ann', 'g1x')).rejects.toBeTruthy();
 });
 
 test('avatar URLs follow the server', () => {
   expect(avatarUrl('https://gno.world/', 'hx4b')).toBe('https://gno.world/api/avatar/hx4b.jpg');
+});
+
+test('the challenge, then the proof', async () => {
+  const { oc, calls } = fakeOffchain({ words: 'w', name: 'Ann', key: 'k64', addr: 'g1x' });
+  const c = createChatClient(oc, async () => reserved);
+  expect(await c.nameChallenge()).toBe('w');
+  const p = { doc: '{}', sig: 's', pub: 'p', addr: 'g1x' };
+  expect(await c.proveName('Ann', p)).toEqual({ name: 'Ann', key: 'k64', addr: 'g1x' });
+  expect(calls.map((x) => `${x.verb} ${x.path}`)).toEqual(['GET /api/name/challenge', 'POST /api/name']);
+  expect(calls[1].body).toEqual({ name: 'Ann', ...p });
+  expect(calls[1].o).toMatchObject({ headers: { 'X-Name-Key': 'nk' } });
+});
+
+test('a challenge answer without the phrase is an error', async () => {
+  const { oc } = fakeOffchain({});
+  await expect(createChatClient(oc, async () => NO_IDENTITY).nameChallenge()).rejects.toBeTruthy();
 });
