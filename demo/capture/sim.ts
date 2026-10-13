@@ -1,0 +1,168 @@
+import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import type { Match } from '../lib/types.ts';
+import { centre, find, parseDescribeAll, type AxElement } from './ax.ts';
+
+const run = promisify(execFile);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const KEY_GAP = 300; // ms between key events (memory: faster makes iOS SIGQUIT the app)
+const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5';
+const DEVICE_TYPE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro';
+
+export class StepFailed extends Error {
+  readonly dump: string;
+  constructor(message: string, dump: string) {
+    super(message);
+    this.dump = dump;
+  }
+}
+
+export class Sim {
+  private companion: ChildProcess | null = null;
+  private recorder: ChildProcess | null = null;
+  private port = 10882;
+  readonly udid: string;
+  private failDir: string;
+  constructor(udid: string, failDir = 'out/capture/fail') {
+    this.udid = udid;
+    this.failDir = failDir;
+  }
+
+  /** The udid of the device `name`, created on the iPhone 17 Pro / iOS 26.5 runtime when absent. */
+  static async ensureDevice(name: string): Promise<string> {
+    const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', '-j']);
+    const devices = JSON.parse(stdout).devices as Record<string, { name: string; udid: string }[]>;
+    const have = devices[RUNTIME]?.find((d) => d.name === name);
+    if (have) return have.udid;
+    const made = await run('xcrun', ['simctl', 'create', name, DEVICE_TYPE, RUNTIME]);
+    return made.stdout.trim();
+  }
+
+  private simctl = (...args: string[]) => run('xcrun', ['simctl', ...args]);
+  private idb = (...args: string[]) => run('idb', [...args, '--udid', this.udid]);
+
+  /** Erases the device, boots it, freezes the status bar at 9:41 and installs `apps`. */
+  async prepare(apps: string[]) {
+    await this.simctl('shutdown', this.udid).catch(() => undefined);
+    await this.simctl('erase', this.udid);
+    await this.simctl('boot', this.udid);
+    await this.simctl('bootstatus', this.udid, '-b');
+    await this.simctl('status_bar', this.udid, 'override', '--time', '9:41', '--dataNetwork', 'wifi', '--wifiMode', 'active',
+      '--wifiBars', '3', '--cellularMode', 'active', '--cellularBars', '4', '--batteryState', 'charged', '--batteryLevel', '100');
+    for (const app of apps) await this.simctl('install', this.udid, app);
+  }
+
+  async connect() {
+    this.companion = spawn('idb_companion', ['--udid', this.udid, '--grpc-port', String(this.port)], { stdio: 'ignore' });
+    // the companion takes 3 to 6 s to listen
+    for (let i = 0; ; i++) {
+      await sleep(1000);
+      try {
+        await run('idb', ['connect', 'localhost', String(this.port)]);
+        return;
+      } catch (e) {
+        if (i >= 15) throw new Error(`idb_companion did not answer on port ${this.port}: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  async disconnect() {
+    await run('idb', ['disconnect', 'localhost', String(this.port)]).catch(() => undefined);
+    this.companion?.kill();
+    this.companion = null;
+  }
+
+  async describe(): Promise<AxElement[]> {
+    const { stdout } = await this.idb('ui', 'describe-all');
+    return parseDescribeAll(stdout);
+  }
+
+  async waitFor(m: Match, o: { timeout?: number; enabled?: boolean } = {}): Promise<AxElement> {
+    const until = Date.now() + (o.timeout ?? 20_000);
+    let last: AxElement[] = [];
+    while (Date.now() < until) {
+      last = await this.describe().catch(() => last);
+      const e = find(last, m, { enabled: o.enabled });
+      if (e) return e;
+      await sleep(400);
+    }
+    throw new StepFailed(`no element matching ${String(m)} within ${o.timeout ?? 20_000} ms`, await this.dump(String(m), last));
+  }
+
+  async tap(m: Match, o: { timeout?: number; enabled?: boolean } = {}): Promise<AxElement> {
+    const e = await this.waitFor(m, { enabled: true, ...o });
+    const [x, y] = centre(e.box);
+    await this.idb('ui', 'tap', String(Math.round(x)), String(Math.round(y)));
+    await sleep(KEY_GAP);
+    return e;
+  }
+
+  async type(text: string) {
+    await this.idb('ui', 'text', text);
+    await sleep(KEY_GAP);
+  }
+
+  async backspace(n: number) {
+    for (let i = 0; i < n; i++) {
+      await this.idb('ui', 'key', '42');
+      await sleep(KEY_GAP);
+    }
+  }
+
+  async swipe(x1: number, y1: number, x2: number, y2: number) {
+    await this.idb('ui', 'swipe', String(x1), String(y1), String(x2), String(y2), '--duration', '0.4');
+    await sleep(KEY_GAP);
+  }
+
+  async launch(bundle: string) {
+    await this.simctl('launch', this.udid, bundle);
+    await sleep(1500);
+  }
+
+  async screenshot(file: string) {
+    await this.idb('screenshot', file);
+  }
+
+  async screenSize() {
+    const els = await this.describe();
+    const app = els.find((e) => e.type === 'Application') ?? els[0];
+    return { width: app.box.w, height: app.box.h };
+  }
+
+  /** Starts recording; resolves with Date.now() at the first frame ("Recording started" on stderr). */
+  startRecording(file: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const p = spawn('xcrun', ['simctl', 'io', this.udid, 'recordVideo', '--codec=h264', '--force', file]);
+      this.recorder = p;
+      let said = '';
+      p.stderr.on('data', (d: Buffer) => {
+        said += d.toString();
+        if (said.includes('Recording started')) resolve(Date.now());
+      });
+      p.on('exit', (code) => reject(new Error(`recordVideo stopped (${code}): ${said.trim()}`)));
+    });
+  }
+
+  async stopRecording() {
+    const p = this.recorder;
+    if (!p) return;
+    this.recorder = null;
+    await new Promise<void>((resolve) => {
+      p.removeAllListeners('exit');
+      p.on('exit', () => resolve());
+      p.kill('SIGINT'); // recordVideo finishes the file on SIGINT
+    });
+  }
+
+  private async dump(what: string, els: AxElement[]): Promise<string> {
+    mkdirSync(this.failDir, { recursive: true });
+    const base = join(this.failDir, `${Date.now()}`);
+    writeFileSync(`${base}.json`, JSON.stringify({ waitingFor: what, elements: els }, null, 2));
+    await this.screenshot(`${base}.png`).catch(() => undefined);
+    return base;
+  }
+}
