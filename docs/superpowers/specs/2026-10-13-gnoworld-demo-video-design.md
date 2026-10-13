@@ -78,12 +78,17 @@ avec l'utilisateur et par Claude avant le rendu final.
 |---|---|---|---|---|
 | 0 | 6 s | Carte titre : logo gno.world, puis « + gnokey-mobile » | « A gno dapp and a mobile wallet, talking over GnoConnect. » | — |
 | 1 | 12 s | Chat : Bob « new pool's up — 50 GNOT pot, you in? » ; Alice « on my way » | « gno.world is a game on gno.land, with its own chat. » | Off-chain chat, on-chain game |
-| 2 | 25 s | Connect → gnokey-mobile, demande de session (realm, plafond, durée) → Approve → retour, session active | « The app opens the wallet with a plain launch link. The wallet grants a session key: one realm, a spending cap, an expiry. » | `connect` — a link, no SDK / A session key: scoped, capped, expiring |
+| 2 | 25 s | Session → gnokey-mobile, demande de session (realm, plafond, durée) → « Authorize on Computer » → terminal (gnokey-pair montre la revue, la clé maître signe) → retour, « Session active » | « The app opens the wallet with a plain launch link. The wallet asks the computer, where the master key lives, to grant a session key: one realm, a spending cap, an expiry. » | `connect` — a link, no SDK / A session key: scoped, capped, expiring |
 | 3 | 22 s | Boops dans un pool, sans passer par le wallet ; puis l'état du realm (gnoweb, cadre de navigateur) | « Every move is a real transaction, signed by the session key. No popup, no wallet hop. » | Signed by the session key / Real txs on a local gno chain |
 | 4 | 8 s | Chat : Bob « nice! who are you? anyone can be 'anon' » | — | — |
 | 5 | 25 s | Réserver le nom → le wallet montre le challenge → « Sign on my computer » → terminal (gnokey-pair reçoit, `gnokey sign-data` signe) → nom ✓ dans le chat | « To prove who she is, the app sends a challenge. The master key signs it on her computer — it never touches the phone. » | `connect` + `challenge` / The master key stays on the computer |
-| 6 | 14 s | gnokey-mobile → Sessions → Revoke ; dans l'app, le boop suivant redemande une connexion | « Sessions belong to the wallet. Revoke one, and the dapp asks again. » | Revoke any time |
+| 6 | 14 s | Session → Revoke → gnokey-mobile « Revoke on Computer » → terminal → retour ; le boop suivant redemande une session | « Revoking is the account's call: the computer signs it, and the dapp has to ask again. » | Revoke any time |
 | 7 | 8 s | Carte de fin : GnoConnect — draft standard · gnokey-mobile · gnokey sign-data ; #5970, #6016, #6322 ; « Filmed on a local test chain » | « GnoConnect: one standard, any wallet. » | — |
+
+**Ordinateur :** dans gnokey-mobile, créer ou révoquer une session et signer un challenge passent par gnokey-pair sur
+l'ordinateur (« Send to my computer » : code tapé dans le wallet, revue et mot de passe dans le terminal). Le terminal
+apparaît donc dans les scènes 2, 5 et 6 (relevé dans le code de gnokey-mobile et de gnokey-pair le 2026-10-13, en
+écrivant le plan).
 
 **Style :** proche de Bolo, aux couleurs de gno.world (fond `#06090e`, vert `#3ddc84`, symbole de `assets/brand/`) ;
 plans de l'app dans un cadre d'iPhone, zoomés sur l'élément touché ; pastilles de sous-titres en bas ; le terminal en
