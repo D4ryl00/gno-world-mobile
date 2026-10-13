@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["Pbkdf2Module"]
+  },
+  "android": {
+    "modules": ["expo.modules.pbkdf2.Pbkdf2Module"]
+  }
+}
