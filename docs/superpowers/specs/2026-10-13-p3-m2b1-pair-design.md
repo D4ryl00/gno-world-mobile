@@ -93,9 +93,10 @@ modules/pbkdf2/                 module Expo local (npx create-expo-module --loca
                                   iterations, length) → Uint8Array, asynchrone ; iOS CCKeyDerivationPBKDF
                                   (CommonCrypto), Android SecretKeyFactory("PBKDF2WithHmacSHA256")
 src/offchain/sync/
-  crypto.ts       SyncCrypto (random, sha256, pbkdf2, aesSeal, aesOpen) ; l'implémentation de l'app (expo-crypto +
-                  modules/pbkdf2) ; codeKey, syncId, newCode, normalizeCode, seal/open en base64
-  node-crypto.ts  la même interface sur node:crypto, pour jest et l'e2e
+  crypto.ts       CryptoBackend (random, sha256, pbkdf2, seal, open) ; codeKey, syncId, newCode, normalizeCode,
+                  scellés en base64
+  expo-crypto.ts  le backend de l'app (expo-crypto + modules/pbkdf2) ; jamais chargé par jest
+  node-crypto.ts  le même sur node:crypto, pour jest et l'e2e
   rooms.ts        RoomEntry, Book {rooms, left} ; mergeBook() (copie de syncMerge), capBook() ; BookStore : le carnet
                   par serveur, scellé dans AsyncStorage par une clé locale gardée dans SecureStore
   name.ts         nameIn() (copie de syncNameIn, vérification injectée) → issue ; pairWords(issue, …) ; nameOut()
@@ -228,7 +229,7 @@ Route de pile `/pair` (« Pair with a browser »), ouverte par un bouton « pair
 - `PUT /api/sync/<id>` : 412 si `If-Match` ≠ version courante (0 quand rien) ; sinon garde, version + 1, `ETag` ;
   corps de 64 Ko au plus ;
 - `GET /api/name` : `mine: <X-Name-Key = clé du nom>` quand le nom est réservé (et `addr` si `mine`) ;
-- `/presence` : `g` accepté (compté une fois par groupe) ;
+- `/presence` : `g` accepté et noté (lu par `GET /__test/presence`) ; le compte reste 3 ;
 - route de test `POST /__test/name` : réserver un nom pour une clé donnée (le « navigateur » de l'e2e a un nom sans
   passer par un boop).
 
