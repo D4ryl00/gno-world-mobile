@@ -13,6 +13,10 @@ import { createIdentityStore } from '@/offchain/chat/identity';
 import { createChatStore, type ChatState } from '@/offchain/chat/store';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
 import { presenceStore, sendPresence } from '@/offchain/presence';
+import { createSyncClient } from '@/offchain/sync/client';
+import { expoCrypto } from '@/offchain/sync/expo-crypto';
+import { createBookStore } from '@/offchain/sync/rooms';
+import { createSyncStore, type SyncState } from '@/offchain/sync/store';
 import { createSessionStore, type SessionState } from '@/session/store';
 import { createNetworkSync } from '@/state/network-sync';
 import { settingsStore, watchHydration } from '@/state/settings';
@@ -29,6 +33,7 @@ interface Services {
   net: ReturnType<typeof createNetworkSync>;
   chat: StoreApi<ChatState> & { ready: Promise<void> };
   chatClient: ChatClient;
+  sync: StoreApi<SyncState>;
 }
 
 const Ctx = createContext<Services | null>(null);
@@ -64,6 +69,13 @@ export function AppServices({ children }: PropsWithChildren) {
       // a name the server wants proven: the wallet signs the phrase (GnoConnect connect + challenge)
       wallet: { open: (url) => Linking.openURL(url).then(() => undefined), randomHex, network: () => net.current() },
     });
+    const scope = () => settingsStore.getState().offchainUrl;
+    // /pair: the rooms book and the reserved name shared with gno.world in a browser
+    const sync = createSyncStore({
+      client: createSyncClient(offchain), crypto: expoCrypto, secrets: secureStore, identity, scope,
+      book: createBookStore({ kv: AsyncStorage, secrets: secureStore, crypto: expoCrypto, scope }),
+      identityChanged: () => void chat.getState().reloadIdentity(),
+    });
     const session = createSessionStore({
       api: () => api,
       secrets: secureStore,
@@ -73,7 +85,7 @@ export function AppServices({ children }: PropsWithChildren) {
       now: Date.now,
       network: () => net.current(),
     });
-    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, chatClient };
+    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, chatClient, sync };
   }, [api]);
 
   // follow network switches from Settings: gnonative first, then the session store
@@ -103,7 +115,7 @@ export function AppServices({ children }: PropsWithChildren) {
     let timer: ReturnType<typeof setInterval> | undefined;
     const beat = async () => {
       try {
-        const r = await sendPresence(services.offchain, pid);
+        const r = await sendPresence(services.offchain, pid, services.sync.getState().group);
         presenceStore.getState().update({ country: r.you, count: r.count, reachable: true });
       } catch {
         presenceStore.getState().update({ reachable: false }); // play stays open
@@ -141,6 +153,27 @@ export function AppServices({ children }: PropsWithChildren) {
     };
   }, [services]);
 
+  // /pair sync: in the foreground ("inactive" keeps it, as the chat), from scratch when the server changes; a name
+  // reserved, proven or released here goes out to the paired devices
+  useEffect(() => {
+    const sync = services.sync.getState;
+    const lifecycle = { start: () => sync().resume(), stop: () => sync().pause() };
+    if (AppState.currentState === 'active') sync().resume();
+    const sub = AppState.addEventListener('change', (st) => followAppState(st, lifecycle));
+    const unsubUrl = settingsStore.subscribe((now, before) => {
+      if (now.offchainUrl !== before.offchainUrl) sync().restart();
+    });
+    const unsubName = services.chat.subscribe((now, before) => {
+      if (now.identity.reservedName !== before.identity.reservedName || now.identity.nameKey !== before.identity.nameKey) sync().changed();
+    });
+    return () => {
+      sub.remove();
+      unsubUrl();
+      unsubName();
+      sync().pause();
+    };
+  }, [services]);
+
   return <Ctx.Provider value={services}>{children}</Ctx.Provider>;
 }
 
@@ -156,4 +189,8 @@ export function useSession<T>(sel: (s: SessionState) => T): T {
 
 export function useChat<T>(sel: (s: ChatState) => T): T {
   return useStore(useServices().chat, sel);
+}
+
+export function useSync<T>(sel: (s: SyncState) => T): T {
+  return useStore(useServices().sync, sel);
 }

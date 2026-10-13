@@ -666,3 +666,16 @@ test('a proof given up on is forgotten across launches', async () => {
   await relaunched.store.ready;
   expect(relaunched.store.getState().proving).toBeNull();
 });
+
+test('reloadIdentity shows what the identity store holds now (a name that came by /pair)', async () => {
+  let held = { ...NO_IDENTITY };
+  const store = createChatStore({
+    client: {} as ChatClient,
+    identity: { load: async () => held, save: async (p) => (held = { ...held, ...p }) },
+    kv: { getItem: async () => null, setItem: async () => undefined },
+  });
+  await store.ready;
+  held = { ...held, name: 'remi', reservedName: 'remi', nameKey: 'a'.repeat(32) };
+  await store.getState().reloadIdentity();
+  expect(store.getState().identity).toMatchObject({ reservedName: 'remi', nameKey: 'a'.repeat(32) });
+});

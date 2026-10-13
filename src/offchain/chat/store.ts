@@ -52,6 +52,8 @@ export interface ChatState extends ChatView {
   setAvatar(body: Blob | Uint8Array, contentType: string): Promise<boolean>;
   clearError(): void;
   clearIdentityError(): void;
+  /** reads the identity store again: a name that came in by /pair */
+  reloadIdentity(): Promise<void>;
 }
 
 export interface ChatDeps {
@@ -411,6 +413,15 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         }, 'identityError'),
       clearError: () => set({ error: '' }),
       clearIdentityError: () => set({ identityError: '' }),
+      reloadIdentity: async () => {
+        const e = epoch;
+        try {
+          const identity = await d.identity.load();
+          if (e === epoch) set({ identity });
+        } catch {
+          // an unreadable store keeps what the chat shows
+        }
+      },
     };
   });
 

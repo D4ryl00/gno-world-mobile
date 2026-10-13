@@ -33,3 +33,12 @@ test('a reply with no you field or you: null never gates', async () => {
   const oc2 = { get: jest.fn(), post: post2 } as unknown as Offchain;
   expect(await sendPresence(oc2, 'p')).toEqual({ you: '', count: 10 });
 });
+
+test('a paired app sends its group, so paired devices count once', async () => {
+  const post = jest.fn(async () => ({ you: 'FR', count: 2 })) as unknown as Offchain['post'];
+  const oc = { get: jest.fn(), post } as unknown as Offchain;
+  await sendPresence(oc, 'p1', '0123456789abcdef');
+  expect(oc.post).toHaveBeenCalledWith('/presence?id=p1&g=0123456789abcdef');
+  await sendPresence(oc, 'p1', '');
+  expect(oc.post).toHaveBeenLastCalledWith('/presence?id=p1');
+});

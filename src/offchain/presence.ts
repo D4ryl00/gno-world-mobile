@@ -8,8 +8,9 @@ export const isPlayBlocked = (country: string) => country === 'US';
 
 export interface PresenceReply { you: string; count: number }
 
-export async function sendPresence(oc: Offchain, pid: string): Promise<PresenceReply> {
-  const r = await oc.post<unknown>(`/presence?id=${encodeURIComponent(pid)}`);
+/** group: the first 16 hex of the /pair sync id, so the server counts paired devices once ('' when not paired). */
+export async function sendPresence(oc: Offchain, pid: string, group = ''): Promise<PresenceReply> {
+  const r = await oc.post<unknown>(`/presence?id=${encodeURIComponent(pid)}${group ? `&g=${group}` : ''}`);
   const o = (r && typeof r === 'object' ? r : {}) as { you?: unknown; count?: unknown };
   return {
     you: typeof o.you === 'string' ? o.you : '',
