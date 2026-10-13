@@ -24,6 +24,14 @@ What it does:
 - closes the review window as soon as its transaction leaves (5b, 5c): the page
   must still get the grant or the revocation, read from the chain by Adena.
 
+Challenge scenarios (8–11, spec `docs/superpowers/specs/2026-10-13-adena-connect-challenge-design.md`):
+the bench starts the app's fake gno.world server (`scripts/fake-offchain/server.ts`) and serves it under
+`/api/` beside the page, which does what gno.world's page would do: a phrase from the server, signed
+through `connect({challenge})`, the proof converted (`signBytesOf(proof.signed)`, the signature, the
+compressed key from the gpub) and sent back to reserve a name.
+
+Onboarding turns on Adena's Testnet Mode before choosing Local: upstream lists Local there only.
+
 Variables: `ADENA_DIST` (another build), `HEADED=1` (watch it), `ONLY_KEY=ed25519`
 or `secp256k1`, `DEBUG=1` (page console, window list, the extension's own logs and
 its stored approvals after each action).

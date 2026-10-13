@@ -110,6 +110,42 @@ function bech32Encode(hrp, bytes) {
   return hrp + '1' + [...data, ...checksum].map((d) => CHARSET[d]).join('');
 }
 
+function bech32Decode(s) {
+  const lower = s.toLowerCase();
+  const pos = lower.lastIndexOf('1');
+  if (pos < 1 || pos + 7 > lower.length) throw new Error(`not bech32: ${s}`);
+  const hrp = lower.slice(0, pos);
+  const data = [...lower.slice(pos + 1)].map((c) => {
+    const v = CHARSET.indexOf(c);
+    if (v < 0) throw new Error(`not bech32: ${s}`);
+    return v;
+  });
+  const expanded = [...[...hrp].map((c) => c.charCodeAt(0) >> 5), 0, ...[...hrp].map((c) => c.charCodeAt(0) & 31)];
+  if (polymod([...expanded, ...data]) !== 1) throw new Error(`bad checksum: ${s}`);
+  const bytes = [];
+  let acc = 0, bits = 0;
+  for (const v of data.slice(0, -6)) {
+    acc = (acc << 5) | v;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((acc >> bits) & 0xff);
+    }
+  }
+  return { hrp, bytes };
+}
+
+/** The 33-byte key inside a secp256k1 `gpub1…` (the reverse of gpubFromKey). */
+export function pubFromGpub(gpub) {
+  const { hrp, bytes } = bech32Decode(gpub);
+  const url = new TextEncoder().encode('/tm.PubKeySecp256k1');
+  const prefix = [0x0a, url.length, ...url, 0x12, 35, 0x0a, 33];
+  if (hrp !== 'gpub' || bytes.length !== prefix.length + 33 || prefix.some((b, i) => bytes[i] !== b)) {
+    throw new Error(`not a secp256k1 gpub: ${gpub}`);
+  }
+  return Uint8Array.from(bytes.slice(prefix.length));
+}
+
 // --- sha256 (FIPS 180-4) and ripemd160, synchronous: WebCrypto has no ripemd160 and its digest is async.
 
 const K256 = new Uint32Array([

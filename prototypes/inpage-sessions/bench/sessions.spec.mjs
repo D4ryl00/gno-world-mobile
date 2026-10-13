@@ -12,6 +12,8 @@ import { after, before, describe, test } from 'node:test';
 
 import { chromium } from 'playwright';
 
+import { startFakeServer } from '../../../scripts/fake-offchain/server.ts';
+
 const EXT = process.env.ADENA_DIST || '/Users/remi/adena-wallet/packages/adena-extension/dist';
 const RPC = 'http://127.0.0.1:26657';
 const TEST1 = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
@@ -29,10 +31,21 @@ let extId;
 let server;
 let base;
 let profile;
+let fake;
 
 function serve() {
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript' };
   server = createServer(async (req, res) => {
+    if (req.url.startsWith('/api/')) {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const upstream = await fetch(`${fake.url}${req.url}`, {
+        method: req.method,
+        headers: { 'Content-Type': req.headers['content-type'] ?? 'application/json', 'X-Bid': 'bench0000000000a' },
+        body: chunks.length ? Buffer.concat(chunks) : undefined,
+      });
+      return res.writeHead(upstream.status, { 'Content-Type': 'application/json' }).end(await upstream.text());
+    }
     const path = join(PAGE_DIR, decodeURIComponent(new URL(req.url, 'http://x').pathname));
     if (!path.startsWith(PAGE_DIR)) return res.writeHead(403).end();
     try {
@@ -173,6 +186,7 @@ async function abci(path) {
 
 before(async () => {
   assert.ok((await fetch(`${RPC}/status`)).ok, 'gnodev is not running on 26657 (npm run gnodev)');
+  fake = await startFakeServer(0, { host: '127.0.0.1' });
   base = await serve();
   profile = await mkdtemp(join(tmpdir(), 'adena-bench-'));
   ctx = await chromium.launchPersistentContext(profile, {
@@ -211,6 +225,7 @@ before(async () => {
 after(async () => {
   await ctx?.close();
   server?.close();
+  await fake?.close();
   if (profile) await rm(profile, { recursive: true, force: true });
 });
 
@@ -321,4 +336,37 @@ test('7. degradation: a wallet that ignores pubkey grants nothing, and the page 
   assert.equal(line.granted, false);
   assert.equal(line.session, undefined);
   await page.close();
+});
+
+describe('challenge: connect({challenge}) proves the identity', () => {
+  let page;
+  before(async () => {
+    page = await openPage('key=secp256k1');
+  });
+
+  test('8. first visit: the site, then the signature; the proof reserves a name', async () => {
+    await run(page, 'disconnect', []); // this origin starts unapproved
+    const line = await run(page, 'reserveByProof', ['Connect', 'Sign']);
+    assert.equal(line.status, 'Approved');
+    assert.equal(line.chainid, 'dev');
+    assert.ok(line.features.includes('challenge'));
+    assert.equal(line.session, undefined);
+    assert.equal(line.reserved, true, JSON.stringify(line));
+  });
+
+  test('9. an approved origin is still asked; a refusal is Rejected', async () => {
+    const line = await run(page, 'proveAgain', ['Cancel']);
+    assert.equal(line.status, 'Rejected');
+    assert.equal(line.code, undefined);
+  });
+
+  test('10. a pin the wallet does not hold: signer_unavailable, no window', async () => {
+    assert.equal((await run(page, 'provePinOther', [])).code, 'signer_unavailable');
+  });
+
+  test('11. a challenge with a control character: invalid_request, no window', async () => {
+    assert.equal((await run(page, 'proveBadText', [])).code, 'invalid_request');
+  });
+
+  after(() => page?.close());
 });

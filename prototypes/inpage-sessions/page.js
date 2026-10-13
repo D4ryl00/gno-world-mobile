@@ -2,13 +2,14 @@
 // wallet grant, renew and revoke it. Each answer is printed as one JSON line in
 // #out and pushed to window.results, which the Playwright bench reads.
 import { secp256k1 } from './vendor/noble-secp256k1.js';
-import { addressFromKey, gpubFromKey, sha256, signRequest } from './session-request.js';
+import { addressFromKey, gpubFromKey, pubFromGpub, sha256, signRequest } from './session-request.js';
 
 const params = new URLSearchParams(location.search);
 const KEY_TYPE = params.get('key') === 'secp256k1' ? 'secp256k1' : 'ed25519';
 const CHAIN_ID = params.get('chainid') || 'dev';
 const RPC = params.get('rpc') || 'http://127.0.0.1:26657';
 const GRANT = { allow: ['vm/exec:gno.land/r/demo/inpage'], spend: '5000000ugnot', period: 3600, expires: 86400 };
+const TEST1 = 'g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5';
 
 window.results = [];
 const out = document.getElementById('out');
@@ -171,7 +172,50 @@ async function reportDisconnect(action, key, answer) {
   return record(action, { status: answer.status, code: answer.code, revoked, key: key ? address(key) : undefined, onChain: chain });
 }
 
+// gno.world's signBytesOf (app-panels.js): sorted JSON, <>& escaped, as std.SignDataPayload writes it.
+const sortedObject = (t) =>
+  typeof t !== 'object' || t === null
+    ? t
+    : Array.isArray(t)
+      ? t.map(sortedObject)
+      : Object.keys(t).sort().reduce((o, k) => ((o[k] = sortedObject(t[k])), o), {});
+const signBytesOf = (t) =>
+  JSON.stringify(sortedObject(t)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+const base64 = (bytes) => btoa(String.fromCharCode(...bytes));
+
 const actions = {
+  /** What gno.world's page would do: a phrase from the server, signed through connect, sent back. */
+  async reserveByProof() {
+    const { words } = await (await fetch('/api/name/challenge', { cache: 'no-store' })).json();
+    const answer = await wallet.provider.connect({ challenge: words, signer: TEST1, chainid: CHAIN_ID });
+    if (answer.status !== 'Approved') return record('reserveByProof', { status: answer.status, code: answer.code });
+    const { address, chainid, features, proof, pubkey, session } = answer.args;
+    const res = await fetch('/api/name', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Bench',
+        doc: signBytesOf(proof.signed),
+        sig: proof.signature,
+        pub: base64(pubFromGpub(pubkey)),
+        addr: address,
+      }),
+    });
+    const body = await res.json();
+    return record('reserveByProof', { status: answer.status, chainid, features, session, reserved: res.ok, error: body.error });
+  },
+  async proveAgain() {
+    const answer = await wallet.provider.connect({ challenge: 'example.com: again', chainid: CHAIN_ID });
+    return record('proveAgain', { status: answer.status, code: answer.code });
+  },
+  async provePinOther() {
+    const answer = await wallet.provider.connect({ challenge: 'example.com: pin', signer: 'g1qynsu9dwj9lq0m5fkje7jh6qy3md80ztqnshhm', chainid: CHAIN_ID });
+    return record('provePinOther', { status: answer.status, code: answer.code });
+  },
+  async proveBadText() {
+    const answer = await wallet.provider.connect({ challenge: 'example.com:\u0085bad', chainid: CHAIN_ID });
+    return record('proveBadText', { status: answer.status, code: answer.code });
+  },
   async grant() {
     const key = await currentKey();
     return reportConnect('grant', key, await wallet.provider.connect(await grantRequest(key)));

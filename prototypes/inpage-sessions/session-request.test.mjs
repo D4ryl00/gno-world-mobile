@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Buffer } from 'node:buffer';
 import { webcrypto } from 'node:crypto';
 
-import { addressFromKey, base64url, canonicalPayload, gpubFromKey, signRequest } from './session-request.js';
+import { addressFromKey, base64url, canonicalPayload, gpubFromKey, pubFromGpub, signRequest } from './session-request.js';
 
 const hex = (s) => Uint8Array.from(s.match(/../g), (b) => parseInt(b, 16));
 const text = (b) => new TextDecoder().decode(b);
@@ -118,4 +118,10 @@ test('the inline hashes agree with Node across block boundaries', async () => {
 test('a field the standard does not define yet is signed too, as on links', () => {
   const p = canonicalPayload('disconnect', { pubkey: 'k', chainid: 'dev', signer: 'g1me', state: 's', iat: 1, zzz: 'later', sig: 'AA' });
   assert.ok(p.endsWith('\nzzz=later'));
+});
+
+test('pubFromGpub reads back the key gpubFromKey wrapped', () => {
+  const raw = Uint8Array.from(Buffer.from('A+FhNtsXHjLfSJk1lB8FbiL4mGPjc50Kt81J7EKDnJ2y', 'base64'));
+  assert.deepEqual(pubFromGpub(gpubFromKey('secp256k1', raw)), raw);
+  assert.throws(() => pubFromGpub('gpub1qqqqqq'));
 });
