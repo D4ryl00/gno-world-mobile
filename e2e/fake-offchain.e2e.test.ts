@@ -201,3 +201,48 @@ test('a restarted fake server is a new log (another gen)', async () => {
   expect(await genOf(b.url)).not.toBe(first);
   await b.close();
 });
+
+describe('/pair', () => {
+  const ID = 'e'.repeat(64);
+  const raw = (path: string, init: RequestInit = {}) => fetch(fake.url + path, init);
+
+  test('a code is posted once, read once; a second post of the same code is 409; a bad code is 400', async () => {
+    expect((await call('/api/sync/pair', { method: 'POST', body: { code: 'K7XQ2M', blob: 'b64' } })).status).toBe(200);
+    expect((await call('/api/sync/pair', { method: 'POST', body: { code: 'K7XQ2M', blob: 'b64' } })).status).toBe(409);
+    expect(await call('/api/sync/pair/K7XQ2M')).toEqual({ status: 200, json: { blob: 'b64' } });
+    expect(await call('/api/sync/pair/K7XQ2M')).toEqual({
+      status: 404, json: { error: 'no such code — it may have been used, or it is older than ten minutes' },
+    });
+    expect(await call('/api/sync/pair/abc')).toEqual({ status: 400, json: { error: 'a code is six letters and digits' } });
+  });
+
+  test('a code is good for ten minutes', async () => {
+    await call('/api/sync/pair', { method: 'POST', body: { code: 'K7XQ2M', blob: 'b64' } });
+    clock += 601;
+    expect((await call('/api/sync/pair/K7XQ2M')).status).toBe(404);
+  });
+
+  test('the record: 404 first, then versions by ETag; a stale If-Match is 412', async () => {
+    expect(await call(`/api/sync/${ID}`)).toEqual({ status: 404, json: { error: 'nothing here yet' } });
+    const put = (v: string, body: string) => raw(`/api/sync/${ID}`, { method: 'PUT', headers: { 'If-Match': v, 'Content-Type': 'text/plain' }, body });
+    const first = await put('0', 'c2VhbGVk');
+    expect([first.status, first.headers.get('etag')]).toEqual([200, '1']);
+    expect((await put('0', 'other')).status).toBe(412);
+    expect((await put('1', 'c2VhbGVkMg==')).headers.get('etag')).toBe('2');
+    const got = await raw(`/api/sync/${ID}`);
+    expect([got.status, got.headers.get('etag'), await got.text()]).toEqual([200, '2', 'c2VhbGVkMg==']);
+    expect((await raw('/api/sync/nothex')).status).toBe(404);
+  });
+
+  test('mine: the right key holds the name, another does not', async () => {
+    await call('/__test/name', { method: 'POST', body: { name: 'remi', key: 'a'.repeat(32), addr: 'g1' + 'q'.repeat(38) } });
+    expect((await call('/api/name?name=remi', { key: 'a'.repeat(32) })).json).toMatchObject({ name: 'remi', reserved: true, mine: true, addr: 'g1' + 'q'.repeat(38) });
+    expect((await call('/api/name?name=remi', { key: 'b'.repeat(32) })).json).toMatchObject({ reserved: true, mine: false });
+    expect((await call('/api/name?name=remi')).json).toMatchObject({ reserved: true, mine: false });
+  });
+
+  test('presence notes the group', async () => {
+    await call('/presence?id=p1&g=0123456789abcdef', { method: 'POST' });
+    expect((await call('/__test/presence')).json).toEqual({ groups: ['0123456789abcdef'] });
+  });
+});

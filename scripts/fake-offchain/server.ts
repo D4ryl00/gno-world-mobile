@@ -1,5 +1,5 @@
 // A stand-in for gno.world's chat, written from the site's public JS (2026-10-05): the M2a endpoints and
-// their rules, in memory. The name rules were read again on 2026-10-12 (a wallet proof or a boop from the last 3
+// their rules, and /pair's sync routes (read 2026-10-13), in memory. The name rules were read again on 2026-10-12 (a wallet proof or a boop from the last 3
 // minutes; one name a wallet). For the e2e tests and the simulator; never a reference for the real server.
 import { createHash, createPublicKey, ECDH, randomBytes, verify } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -27,6 +27,9 @@ export interface FakeServer { url: string; close(): Promise<void> }
 
 const tagOf = (bid: string) => createHash('sha256').update(bid).digest('hex').slice(0, 4);
 const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+const CODE_LIFE = 600; // seconds
+const BAD_CODE = 'a code is six letters and digits';
 const BOOP_PROVES = 180; // seconds a boop proves the wallet, as the site says
 
 const addressOf = (pub: Buffer) =>
@@ -86,6 +89,9 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   const boops = new Map<string, { addr: string; at: number }>();
   const challenges = new Set<string>();
   const avatars = new Map<string, { key: string; bytes: Buffer; type: string }>();
+  const pairs = new Map<string, { blob: string; until: number }>();
+  const records = new Map<string, { v: number; text: string }>();
+  const groups: string[] = [];
   const waiters = new Set<() => void>();
   let failNext: { status: number; retryAfter: number } | null = null;
 
@@ -116,6 +122,10 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   const send = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
     res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
     res.end(JSON.stringify(body));
+  };
+  const sendText = (res: ServerResponse, status: number, text: string, headers: Record<string, string> = {}) => {
+    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', ...headers });
+    res.end(text);
   };
   const readBody = (req: IncomingMessage) =>
     new Promise<Buffer>((resolve, reject) => {
@@ -303,7 +313,8 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
       if (route === 'GET /api/name') {
         if (q.has('addr')) return send(res, 200, { name: [...names.values()].find((e) => e.addr === q.get('addr'))?.name ?? '' });
         const e = names.get(fold(q.get('name') ?? ''));
-        return send(res, 200, e ? { name: e.name, reserved: true, by: e.addr } : { name: q.get('name') ?? '' });
+        const mine = !!e && !!key && key === e.key;
+        return send(res, 200, e ? { name: e.name, reserved: true, by: e.addr, mine, ...(mine ? { addr: e.addr } : {}) } : { name: q.get('name') ?? '' });
       }
       if (route === 'DELETE /api/name') {
         const e = [...names.entries()].find(([, v]) => key && v.key === key);
@@ -329,13 +340,55 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
         return res.end(a.bytes);
       }
 
-      if (route === 'POST /presence') return send(res, 200, { you: 'FR', count: 3 });
+      if (route === 'POST /api/sync/pair') {
+        const code = String(body.code ?? '');
+        const blob = String(body.blob ?? '');
+        if (!CODE_RE.test(code)) return send(res, 400, { error: BAD_CODE });
+        if (!blob || blob.length > 4096) return send(res, 400, { error: 'no key to hand over' });
+        const had = pairs.get(code);
+        if (had && had.until > now()) return send(res, 409, { error: 'that code is in use' });
+        pairs.set(code, { blob, until: now() + CODE_LIFE });
+        return send(res, 200, { ok: true });
+      }
+      const pairCode = /^\/api\/sync\/pair\/([^/]*)$/.exec(url.pathname);
+      if (req.method === 'GET' && pairCode) {
+        const code = decodeURIComponent(pairCode[1]);
+        if (!CODE_RE.test(code)) return send(res, 400, { error: BAD_CODE });
+        const p = pairs.get(code);
+        pairs.delete(code); // a code works once
+        if (!p || p.until <= now()) return send(res, 404, { error: 'no such code — it may have been used, or it is older than ten minutes' });
+        return send(res, 200, { blob: p.blob });
+      }
+      const sync = /^\/api\/sync\/([0-9a-f]{64})$/.exec(url.pathname);
+      if (sync && req.method === 'GET') {
+        const r = records.get(sync[1]);
+        return r ? sendText(res, 200, r.text, { ETag: String(r.v) }) : send(res, 404, { error: 'nothing here yet' });
+      }
+      if (sync && req.method === 'PUT') {
+        const v = records.get(sync[1])?.v ?? 0;
+        if (String(req.headers['if-match'] ?? '') !== String(v)) return send(res, 412, { error: 'changed meanwhile — read it again' });
+        if (raw.length === 0 || raw.length > 65536) return send(res, 400, { error: 'a sealed record of 64 KB at most' });
+        records.set(sync[1], { v: v + 1, text: raw.toString('utf8') });
+        return send(res, 200, { ok: true }, { ETag: String(v + 1) });
+      }
+      if (url.pathname.startsWith('/api/sync/')) return sendText(res, 404, '404 page not found');
+      if (route === 'POST /presence') {
+        const g = q.get('g');
+        if (g && !groups.includes(g)) groups.push(g);
+        return send(res, 200, { you: 'FR', count: 3 });
+      }
 
       // test-only routes
       if (route === 'POST /__test/say') {
         const l = add({ name: String(body.name ?? 'zed'), body: String(body.body ?? 'hi'), author: OTHER, pinned: !!body.pinned, bot: !!body.bot });
         return send(res, 200, { msg: wire(l) });
       }
+      if (route === 'POST /__test/name') {
+        const name = String(body.name ?? '');
+        names.set(fold(name), { name, key: String(body.key ?? ''), addr: String(body.addr ?? '') });
+        return send(res, 200, { ok: true });
+      }
+      if (route === 'GET /__test/presence') return send(res, 200, { groups });
       if (route === 'POST /__test/gen') {
         gen++;
         wake();
