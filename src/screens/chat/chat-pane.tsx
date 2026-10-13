@@ -18,8 +18,8 @@ import { Pins } from './pins';
 
 const NO_REACTIONS: string[] = [];
 
-export function ChatPane({ store, offchainUrl, onOpenIdentity, identityOpen }: {
-  store: StoreApi<ChatState>; offchainUrl: string; onOpenIdentity?: () => void;
+export function ChatPane({ store, offchainUrl, onOpenIdentity, onOpenPair, identityOpen }: {
+  store: StoreApi<ChatState>; offchainUrl: string; onOpenIdentity?: () => void; onOpenPair?: () => void;
   /** the name sheet is showing */
   identityOpen?: boolean;
 }) {
@@ -76,9 +76,14 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity, identityOpen }: {
     <KeyboardAvoidingView style={styles.root} behavior="padding">
       <View style={[styles.header, { paddingTop: insets.top + space.s }]}>
         <Text style={styles.title}>Chat · {s.here} here</Text>
-        <Pressable accessibilityRole="button" onPress={onOpenIdentity} style={styles.you}>
-          <Text style={styles.youText}>{myName || 'you'}{s.identity.reservedName ? ' ✓' : ''}</Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Pair with another device" onPress={onOpenPair} style={styles.you}>
+            <Text style={styles.youText}>pair</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={onOpenIdentity} style={styles.you}>
+            <Text style={styles.youText}>{myName || 'you'}{s.identity.reservedName ? ' ✓' : ''}</Text>
+          </Pressable>
+        </View>
       </View>
       {s.phase === 'unreachable' ? <Text style={styles.down}>server unreachable — retrying</Text> : null}
       <Pins pins={s.pins} onJump={jumpTo} />
@@ -143,6 +148,7 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity, identityOpen }: {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  headerRight: { flexDirection: 'row', gap: space.s },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, paddingBottom: space.s },
   title: { color: colors.fg, fontSize: 17, fontWeight: '700' },
   you: { borderColor: colors.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: space.m, paddingVertical: space.xs },

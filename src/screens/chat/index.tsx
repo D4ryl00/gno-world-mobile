@@ -26,7 +26,7 @@ export function ChatScreen() {
   }, [askIdentity]);
   return (
     <>
-      <ChatPane store={chat} offchainUrl={offchainUrl} onOpenIdentity={() => setSheet(true)} identityOpen={sheet} />
+      <ChatPane store={chat} offchainUrl={offchainUrl} onOpenIdentity={() => setSheet(true)} onOpenPair={() => router.push('/pair')} identityOpen={sheet} />
       <IdentitySheet store={chat} visible={sheet} onClose={() => setSheet(false)} offchainUrl={offchainUrl} identity={active?.master ?? ''} />
     </>
   );

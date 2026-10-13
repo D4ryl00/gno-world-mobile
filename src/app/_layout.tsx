@@ -23,6 +23,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="pool/[key]" options={{ title: 'Bubble', headerBackTitle: 'Pools' }} />
           <Stack.Screen name="create" options={{ title: 'New pool', presentation: 'modal' }} />
+          <Stack.Screen name="pair" options={{ title: 'Pair with a browser', headerBackTitle: 'Chat' }} />
           <Stack.Screen name="session-callback" options={{ headerShown: false }} />
         </Stack>
       </AppServices>

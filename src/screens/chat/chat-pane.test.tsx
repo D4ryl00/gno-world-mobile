@@ -177,3 +177,14 @@ test('Send without a name, then Reserve: the line waits for the reservation, and
   expect(post).toHaveBeenCalledWith('ann', 'hi', undefined);
   act(() => store.getState().stop());
 });
+
+test('the header opens the pairing screen', () => {
+  const store = createChatStore({
+    client: {} as ChatClient, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
+    kv: { getItem: async () => null, setItem: async () => undefined },
+  });
+  const onOpenPair = jest.fn();
+  render(<ChatPane store={store} offchainUrl="http://fake" onOpenPair={onOpenPair} />);
+  fireEvent.press(screen.getByLabelText('Pair with another device'));
+  expect(onOpenPair).toHaveBeenCalled();
+});
