@@ -623,7 +623,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   `docs/superpowers/plans/2026-10-12-gnoconnect-challenge.md`, exécuté en ligne. gno.world exige
   désormais une phrase signée (ou un boop de moins de 3 min), refuse une clé de session et ne
   réémet jamais la clé d'un nom. Livré : `gnokey sign-data` et `std.SignDataPayload` /
-  `std.VerifySignData` (gno `feat/gnokey-sign-data`, `38723ce23`, poussé sur le fork) — il a
+  `std.VerifySignData` (gno `feat/gnokey-sign-data`, `38723ce23`, PR gnolang/gno#6322 ouverte le 2026-10-13) — il a
   réservé `remi` sur la production ; le standard GnoConnect gagne `challenge` sur `connect` (#5970
   `a5627a483`, #6016 rebasée + `cb66934bc`) ; gnokey-pair signe un texte (type `data`,
   `724f35fd9`, poussé) ; gnokey-mobile le lit, le fait signer sur l'ordinateur et vérifie la
