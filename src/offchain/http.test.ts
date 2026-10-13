@@ -184,3 +184,45 @@ test('a typeless Blob is sent typed: React Native takes the Blob\'s type over th
   expect(sent.type).toBe('image/jpeg');
   expect(sent.size).toBe(2);
 });
+
+describe('exchange', () => {
+  const textRes = (status: number, text: string, etag?: string) => ({
+    ok: status >= 200 && status < 300, status,
+    headers: { get: (h: string) => (h.toLowerCase() === 'etag' ? etag ?? null : null) },
+    text: async () => text, json: async () => JSON.parse(text),
+  });
+
+  test('a text body goes as text/plain with the given headers; status, text and ETag come back', async () => {
+    const f = jest.fn(async () => textRes(200, '', '8'));
+    const oc = createOffchain({ baseUrl: () => 'http://s/', bid: async () => '0123456789abcdef', fetch: f as unknown as typeof fetch });
+    const r = await oc.exchange('PUT', '/api/sync/aa', { text: 'c2VhbGVk', headers: { 'If-Match': '7' } });
+    expect(r).toEqual({ status: 200, text: '', etag: '8' });
+    expect(f).toHaveBeenCalledWith('http://s/api/sync/aa', expect.objectContaining({
+      method: 'PUT', body: 'c2VhbGVk',
+      headers: { 'X-Bid': '0123456789abcdef', 'If-Match': '7', 'Content-Type': 'text/plain' },
+    }));
+  });
+
+  test('a JSON body goes as application/json', async () => {
+    const f = jest.fn(async () => textRes(200, '{}'));
+    const oc = createOffchain({ baseUrl: () => 'http://s', bid: async () => '0123456789abcdef', fetch: f as unknown as typeof fetch });
+    await oc.exchange('POST', '/api/sync/pair', { json: { code: 'K7XQ2M', blob: 'b' } });
+    expect(f).toHaveBeenCalledWith('http://s/api/sync/pair', expect.objectContaining({
+      body: '{"code":"K7XQ2M","blob":"b"}', headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+    }));
+  });
+
+  test('404, 409 and 412 are answers, not errors', async () => {
+    for (const status of [404, 409, 412]) {
+      const f = jest.fn(async () => textRes(status, '{"error":"no"}'));
+      const oc = createOffchain({ baseUrl: () => 'http://s', bid: async () => '0123456789abcdef', fetch: f as unknown as typeof fetch });
+      expect(await oc.exchange('GET', '/x')).toEqual({ status, text: '{"error":"no"}', etag: '' });
+    }
+  });
+
+  test('a server that does not answer is unreachable', async () => {
+    const f = jest.fn(async () => { throw new TypeError('Network request failed'); });
+    const oc = createOffchain({ baseUrl: () => 'http://s', bid: async () => '0123456789abcdef', fetch: f as unknown as typeof fetch });
+    await expect(oc.exchange('GET', '/x')).rejects.toMatchObject({ status: 0, message: expect.stringMatching(/^server unreachable/) });
+  });
+});

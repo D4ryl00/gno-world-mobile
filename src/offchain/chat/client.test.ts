@@ -9,6 +9,9 @@ function fakeOffchain(answer: unknown = {}) {
     post: async (path, body, o) => (calls.push({ verb: 'POST', path, body, o }), answer as never),
     patch: async (path, body, o) => (calls.push({ verb: 'PATCH', path, body, o }), answer as never),
     del: async (path, o) => (calls.push({ verb: 'DELETE', path, o }), answer as never),
+    exchange: async () => {
+      throw new Error('the chat client does not exchange');
+    },
   };
   return { oc, calls };
 }

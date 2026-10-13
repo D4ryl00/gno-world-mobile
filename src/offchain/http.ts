@@ -16,11 +16,24 @@ export interface RequestOptions {
   raw?: { body: Blob | Uint8Array; contentType: string };
 }
 
+/** A reply read as text, whatever its status: the sync routes answer 404, 409 and 412 as part of their protocol. */
+export interface TextReply {
+  status: number;
+  text: string;
+  etag: string;
+}
+
 export interface Offchain {
   get<T>(path: string, o?: RequestOptions): Promise<T>;
   post<T>(path: string, body?: unknown, o?: RequestOptions): Promise<T>;
   patch<T>(path: string, body: unknown, o?: RequestOptions): Promise<T>;
   del<T>(path: string, o?: RequestOptions): Promise<T>;
+  exchange(method: 'GET' | 'POST' | 'PUT', path: string, o?: RequestOptions & { text?: string; json?: unknown }): Promise<TextReply>;
+}
+
+interface Body {
+  payload?: BodyInit;
+  type?: string;
 }
 
 export function createOffchain(d: {
@@ -30,7 +43,7 @@ export function createOffchain(d: {
   timeoutMs?: number;
 }): Offchain {
   const f = d.fetch ?? fetch;
-  async function request<T>(method: string, path: string, body?: unknown, o: RequestOptions = {}): Promise<T> {
+  async function call<T>(method: string, path: string, body: Body, o: RequestOptions, read: (res: Response) => Promise<T>): Promise<T> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? d.timeoutMs ?? 10000);
     const outside = () => ctrl.abort();
@@ -43,25 +56,9 @@ export function createOffchain(d: {
         d.bid().then(resolve, reject);
       });
       const headers: Record<string, string> = { 'X-Bid': bid, ...o.headers };
-      let payload: BodyInit | undefined;
-      if (o.raw) {
-        headers['Content-Type'] = o.raw.contentType;
-        const b = o.raw.body;
-        // React Native sends a Blob with its own type, whatever the header says: give it the right one
-        payload = (typeof Blob !== 'undefined' && b instanceof Blob && b.type !== o.raw.contentType
-          ? new Blob([b], { type: o.raw.contentType })
-          : b) as BodyInit;
-      } else if (body !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        payload = JSON.stringify(body);
-      }
-      const res = await f(d.baseUrl().replace(/\/+$/, '') + path, { method, headers, body: payload, signal: ctrl.signal });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const retry = Number(res.headers?.get?.('Retry-After')) || undefined;
-        throw new OffchainError(res.status, (data as { error?: string })?.error || `HTTP ${res.status}`, retry);
-      }
-      return data as T;
+      if (body.type) headers['Content-Type'] = body.type;
+      const res = await f(d.baseUrl().replace(/\/+$/, '') + path, { method, headers, body: body.payload, signal: ctrl.signal });
+      return await read(res);
     } catch (e) {
       if (e instanceof OffchainError) throw e;
       throw new OffchainError(0, `server unreachable (${(e as Error)?.message ?? e})`);
@@ -70,11 +67,38 @@ export function createOffchain(d: {
       o.signal?.removeEventListener('abort', outside);
     }
   }
+  function jsonBody(body: unknown, o: RequestOptions): Body {
+    if (o.raw) {
+      const b = o.raw.body;
+      // React Native sends a Blob with its own type, whatever the header says: give it the right one
+      const payload = (typeof Blob !== 'undefined' && b instanceof Blob && b.type !== o.raw.contentType
+        ? new Blob([b], { type: o.raw.contentType })
+        : b) as BodyInit;
+      return { payload, type: o.raw.contentType };
+    }
+    return body !== undefined ? { payload: JSON.stringify(body), type: 'application/json' } : {};
+  }
+  const request = <T>(method: string, path: string, body?: unknown, o: RequestOptions = {}): Promise<T> =>
+    call(method, path, jsonBody(body, o), o, async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const retry = Number(res.headers?.get?.('Retry-After')) || undefined;
+        throw new OffchainError(res.status, (data as { error?: string })?.error || `HTTP ${res.status}`, retry);
+      }
+      return data as T;
+    });
   return {
     get: (path, o) => request('GET', path, undefined, o),
     post: (path, body, o) => request('POST', path, body, o),
     patch: (path, body, o) => request('PATCH', path, body, o),
     del: (path, o) => request('DELETE', path, undefined, o),
+    exchange: (method, path, o = {}) =>
+      call(
+        method, path,
+        o.text !== undefined ? { payload: o.text, type: 'text/plain' } : o.json !== undefined ? { payload: JSON.stringify(o.json), type: 'application/json' } : {},
+        o,
+        async (res) => ({ status: res.status, text: await res.text().catch(() => ''), etag: res.headers?.get?.('ETag') ?? '' }),
+      ),
   };
 }
 
