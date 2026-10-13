@@ -32,3 +32,8 @@ test('shows the last 22 lines', () => {
   assert.equal(shown.length, 22);
   assert.equal(shown[0], 'line 8');
 });
+
+test("names files, not this machine's paths", () => {
+  const raw = 'Signing with /Users/remi/bubblerumble/demo/.state/bin/gnokey (gnokey develop)\nProof generated and successfully saved to /var/folders/wr/T/gnokey-pair-1/proof.json\n';
+  assert.equal(terminalText(raw), 'Signing with gnokey (gnokey develop)\nProof generated and successfully saved to proof.json\n');
+});

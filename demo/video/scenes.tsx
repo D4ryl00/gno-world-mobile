@@ -1,6 +1,7 @@
 import { AbsoluteFill, Freeze, Img, OffthreadVideo, Sequence, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 
 import type { Edl, EdlScene } from '../lib/types.ts';
+import { originFor } from '../lib/zoom.ts';
 import { C, Captions, Logo, PhoneFrame, Terminal, zoomAt } from './parts.tsx';
 
 const Screen = ({ scene, edl }: { scene: EdlScene; edl: Edl }) => {
@@ -13,7 +14,7 @@ const Screen = ({ scene, edl }: { scene: EdlScene; edl: Edl }) => {
       style={{ width: '100%', height: '100%' }} />
   );
   return (
-    <div style={{ width: '100%', height: '100%', transform: `scale(${z.scale})`, transformOrigin: `${z.cx * 100}% ${z.cy * 100}%` }}>
+    <div style={{ width: '100%', height: '100%', transform: `scale(${z.scale})`, transformOrigin: `${originFor(z.cx, z.scale) * 100}% ${originFor(z.cy, z.scale) * 100}%` }}>
       <Sequence durationInFrames={played}>{video}</Sequence>
       {c.holdFrames > 0 ? (
         <Sequence from={played}>

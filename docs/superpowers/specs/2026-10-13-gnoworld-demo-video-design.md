@@ -1,5 +1,7 @@
 # Vidéo de démo gno.world + gnokey-mobile — design
 
+**Statut :** livré le 2026-10-13 (`00fed23`..HEAD de ce jour, plan `docs/superpowers/plans/2026-10-13-gnoworld-demo-video.md`) : `npm run demo` rend 93,2 s vérifiées par `demo:check` et relues (script, design, rendu). Écarts : ~1 min 33 au lieu de ~1 min 45 (la narration suit ce qui est filmé) ; la scène du nom s'arrête sur le nom prouvé, car après la preuve le chat de l'app ne prend plus de saisie (bug de l'app, signalé).
+
 Une vidéo d'environ 1 min 45, en anglais, pour les devs gno, qui montre gno.world et gnokey-mobile parler GnoConnect :
 connexion et session, jeu sans popup, nom prouvé par un challenge, et le chat. Elle est **produite
 par commande** (`npm run demo`), pour être refaite quand l'app change.
