@@ -1,0 +1,28 @@
+{
+  "code": "K7XQ2M",
+  "syncKey": "01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3da",
+  "codeKey": "b66f3ee57747f4264120c627e74c296f683da50e20aef0aa1bdd232340e0476a",
+  "codeIv": "a0a1a2a3a4a5a6a7a8a9aaab",
+  "pairBlob": "oKGio6SlpqeoqaqrvtrvnYh7MNqKwNtyYSKga8uQnVH3W7oWGksct21f4DUJ2XNV7ykgwEn2gccGTMKj",
+  "syncId": "8c731c199b130cb096cae9129de0680c61e60606ed5c3ba72ebac58ad6af6df3",
+  "payloadIv": "101112131415161718191a1b",
+  "payload": {
+    "rooms": [
+      {
+        "id": "AbCdEfGhIjKlMnOpQrSt",
+        "name": "tea ☕",
+        "key": "kkkkkkkkkkkkkkkkkkkkkkkk",
+        "at": 1791000000000
+      }
+    ],
+    "left": {
+      "zzzzzzzzzzzzzzzzzzz1": 1791000000001
+    },
+    "name": {
+      "name": "remi",
+      "key": "0123456789abcdef0123456789abcdef"
+    },
+    "at": 1791000000002
+  },
+  "payloadBlob": "EBESExQVFhcYGRobmrHhIe+O1L5GZiL/tqor0BgRLJOeRrloIYeDjHbQ2cqUqWFhJZXTrtT/M04QXsLTej1d+6L5neMsE6zZBC+AwLHxiYndkBUW6XMc+OPgXm7xkd0ameu2yKWlSrmx57dr1F/q2RSDvhoSLegDTdiyBVPcZCCYvWBK/5pa2QdlPgZkmzZqioKBdq0oQix5QqwqLoeQgRN19aTHEA7PcFP8l4LWny4jPR0Nwza71uK/s42va16acALlPF2bMW2dQdBp2AWqsIwaxwt1OauJbIfreeVR4GS5lxHZ78+93MghX5GUbvlZQSqUaCkmno8dKrNrsVJA0Bo4AqHCshmdMPzF"
+}
