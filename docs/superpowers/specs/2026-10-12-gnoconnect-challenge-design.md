@@ -196,8 +196,10 @@ Les étapes 1 à 5 suffisent à l'essai de bout en bout sur le téléphone.
 - Preuve par clé de session vérifiée sur la chaîne : écartée (pas transparente pour les dapps ; et une
   session confiée à une dapp suffirait à prouver l'identité).
 - `verify-data` dans gnokey, signature de déclarations arbitraires : non.
-- `/pair` (rooms et nom entre l'app et le site) : avec M2b. La clé de `remi` fait 32 caractères
-  hexadécimaux alors que la synchro du site n'accepte que 64 (`syncNameOut`, `syncNameIn`) : à
-  vérifier à ce moment-là.
+- `/pair` (rooms et nom entre l'app et le site) : avec M2b. Relu sur le site le 2026-10-13 : la
+  synchro accepte maintenant une clé de nom de 32 à 64 caractères hexadécimaux (`syncNameOut`,
+  `syncNameIn`), donc la clé de `remi` (32) passe ; le côté qui reçoit vérifie la clé par
+  `GET /api/name?name=<nom>` avec `X-Name-Key` (réponse `mine: true`, vérifié pour `remi`) avant de
+  prendre le nom, sinon « refused ».
 - Publication des branches (gno, gnokey-mobile, standard) : sur accord de l'utilisateur, comme
   toujours.
