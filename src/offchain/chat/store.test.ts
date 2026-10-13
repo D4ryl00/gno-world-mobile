@@ -622,7 +622,9 @@ test('a cancelled or refused wallet answer ends the wait', async () => {
   expect(h.store.getState().identityError).toBe('');
   const g = await provingHarness();
   expect(await g.store.getState().onProofReply(okReply({ status: 'error', code: 'signer_unavailable' }))).toBe(true);
-  expect(g.store.getState().identityError).toMatch(/computer/);
+  expect(g.store.getState().identityError).toBe(
+    'The wallet could not sign as this identity: its computer could not sign (run gnokey-pair with a gnokey that has sign-data), or the wallet does not hold this identity.',
+  );
 });
 
 test('a challenge the server will not give leaves nothing waiting', async () => {

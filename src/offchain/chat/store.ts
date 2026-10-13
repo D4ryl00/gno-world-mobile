@@ -101,7 +101,8 @@ const say = (e: unknown) =>
 /** The wallet's refusal of a challenge, in words for the sheet. */
 const walletRefusal = (code: string) =>
   code === 'signer_unavailable'
-    ? 'Your computer could not sign: run gnokey-pair with a gnokey that has sign-data, then try again.'
+    // the wallet answers it when its computer failed and when it does not hold the pinned identity
+    ? 'The wallet could not sign as this identity: its computer could not sign (run gnokey-pair with a gnokey that has sign-data), or the wallet does not hold this identity.'
     : code === 'network_declined'
       ? 'The wallet is on another network than the app.'
       : `The wallet refused (${code || 'no reason given'}).`;

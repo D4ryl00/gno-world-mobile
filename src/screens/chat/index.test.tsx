@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 
 import { NO_IDENTITY } from '@/offchain/chat/identity';
 import { createChatStore } from '@/offchain/chat/store';
@@ -39,4 +40,17 @@ test('the chat opens without the name sheet otherwise', () => {
   delete mockParams.identity;
   render(<ChatScreen />);
   expect(screen.queryByLabelText('name')).toBeNull();
+});
+
+test('the param is spent once read: closed, the sheet stays closed; a second proof opens it again', () => {
+  mockParams.identity = '1';
+  const view = render(<ChatScreen />);
+  expect(router.setParams).toHaveBeenCalledWith({ identity: undefined });
+  fireEvent.press(screen.getByText('Done'));
+  delete mockParams.identity; // what setParams did
+  view.rerender(<ChatScreen />);
+  expect(screen.queryByLabelText('name')).toBeNull();
+  mockParams.identity = '1'; // the next proof comes back
+  view.rerender(<ChatScreen />);
+  expect(screen.getByLabelText('name')).toBeTruthy();
 });
