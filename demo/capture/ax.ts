@@ -25,3 +25,14 @@ export function find(els: AxElement[], m: Match, o: { enabled?: boolean } = {}):
 }
 
 export const centre = (b: Box): [number, number] => [b.x + b.w / 2, b.y + b.h / 2];
+
+export const SCREEN_H = 874; // iPhone 17 Pro, points
+const KEYS = new Set(['shift', 'delete', 'return', 'space', 'numbers', 'Emoji', 'Dictate']);
+/** A key of the software keyboard (its letters are one-character buttons). */
+export const isKey = (e: AxElement) => e.type === 'Button' && (KEYS.has(e.label) || /^.$/u.test(e.label)) && e.box.y > SCREEN_H / 2;
+
+/** The lowest point a tap can reach: the screen's bottom, or the top of the keyboard and its suggestion bar. */
+export function visibleBottom(els: AxElement[]): number {
+  const keys = els.filter(isKey);
+  return keys.length ? Math.min(...keys.map((k) => k.box.y)) - 60 : SCREEN_H - 60;
+}

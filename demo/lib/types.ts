@@ -23,8 +23,13 @@ export type Match = string | RegExp;
 
 export type Action =
   | { tap: Match; enabled?: boolean; timeout?: number }
-  | { type: string; into: Match }
-  | { clear: Match; count: number }
+  /** a text field, tapped at its right end so the cursor lands after its text */
+  | { tapEnd: Match }
+  /** a control with no accessibility label, in points */
+  | { at: [number, number] }
+  /** typed into `into` (tapped first), or into the field that has the focus */
+  | { type: string; into?: Match }
+  | { backspace: number }
   | { waitFor: Match; timeout?: number; enabled?: boolean }
   | { swipe: [number, number, number, number] }
   | { launch: 'app' | 'wallet' }
@@ -33,8 +38,9 @@ export type Action =
   | { pause: number }
   | { gnoweb: string };
 
-/** A step; `mark: true` records it in the timeline as `<scene>.<id>`. */
-export interface Step { id: string; do: Action; mark?: boolean }
+/** A step; `mark: true` records it in the timeline as `<scene>.<id>`; `optional: true` lets the capture go on when its
+ * element never shows (a sheet that closed by itself). */
+export interface Step { id: string; do: Action; mark?: boolean; optional?: boolean }
 
 export type Show = 'card' | 'phone' | 'phone+terminal' | 'browser';
 

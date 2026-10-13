@@ -41,3 +41,17 @@ test('the real Settings app tree parses', () => {
   assert.ok(els.length > 0);
   assert.ok(els.every((e) => Number.isFinite(e.box.w)));
 });
+
+test('the keyboard bounds what a tap can reach; without it, the screen does', async () => {
+  const { isKey, visibleBottom } = await import('./ax.ts');
+  const els = parseDescribeAll(JSON.stringify([
+    { AXLabel: 'Done', type: 'Button', enabled: true, frame: { x: 318, y: 82, width: 64, height: 36 } },
+    { AXLabel: 'q', type: 'Button', enabled: true, frame: { x: 6, y: 590, width: 30, height: 42 } },
+    { AXLabel: 'return', type: 'Button', enabled: true, frame: { x: 300, y: 752, width: 90, height: 42 } },
+  ]));
+  assert.equal(isKey(els[1]), true);
+  assert.equal(isKey(els[2]), true);
+  assert.equal(isKey(els[0]), false);
+  assert.equal(visibleBottom(els), 530);
+  assert.equal(visibleBottom(els.slice(0, 1)), 874 - 60);
+});

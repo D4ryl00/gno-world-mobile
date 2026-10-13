@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import type { Match } from '../lib/types.ts';
-import { centre, find, parseDescribeAll, type AxElement } from './ax.ts';
+import { centre, find, isKey, parseDescribeAll, SCREEN_H, visibleBottom, type AxElement } from './ax.ts';
 
 const run = promisify(execFile);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -25,6 +25,7 @@ export class Sim {
   private companion: ChildProcess | null = null;
   private recorder: ChildProcess | null = null;
   private port = 10882;
+  private last: AxElement[] = [];
   readonly udid: string;
   private failDir: string;
   constructor(udid: string, failDir = 'out/capture/fail') {
@@ -51,6 +52,9 @@ export class Sim {
     await this.simctl('erase', this.udid);
     await this.simctl('boot', this.udid);
     await this.simctl('bootstatus', this.udid, '-b');
+    // a fresh device shows first-boot banners ("Ready for Apple Intelligence") over the top of the screen for a while:
+    // a tap up there would open them
+    await sleep(25_000);
     await this.simctl('status_bar', this.udid, 'override', '--time', '9:41', '--dataNetwork', 'wifi', '--wifiMode', 'active',
       '--wifiBars', '3', '--cellularMode', 'active', '--cellularBars', '4', '--batteryState', 'charged', '--batteryLevel', '100');
     for (const app of apps) await this.simctl('install', this.udid, app);
@@ -87,23 +91,48 @@ export class Sim {
     while (Date.now() < until) {
       last = await this.describe().catch(() => last);
       const e = find(last, m, { enabled: o.enabled });
-      if (e) return e;
+      if (e) {
+        this.last = last;
+        return e;
+      }
       await sleep(400);
     }
     throw new StepFailed(`no element matching ${String(m)} within ${o.timeout ?? 20_000} ms`, await this.dump(String(m), last));
   }
 
   async tap(m: Match, o: { timeout?: number; enabled?: boolean } = {}): Promise<AxElement> {
-    const e = await this.waitFor(m, { enabled: true, ...o });
-    const [x, y] = centre(e.box);
+    return this.tapWhere(m, o, centre);
+  }
+
+  /** Taps a text field near its right end: the cursor lands after the text, not in the middle of it. */
+  async tapEnd(m: Match): Promise<AxElement> {
+    return this.tapWhere(m, {}, (b) => [b.x + b.w - 6, b.y + b.h / 2]);
+  }
+
+  async tapAt(x: number, y: number) {
     await this.idb('ui', 'tap', String(Math.round(x)), String(Math.round(y)));
     await sleep(KEY_GAP);
+  }
+
+  private async tapWhere(m: Match, o: { timeout?: number; enabled?: boolean }, where: (b: AxElement['box']) => [number, number]): Promise<AxElement> {
+    let e = await this.waitFor(m, { enabled: true, ...o });
+    // below the fold, or under the keyboard: scroll it up, swiping in the upper half so the keyboard never takes the
+    // swipe (a key of the keyboard itself is tapped where it is)
+    for (let i = 0; i < 8 && !isKey(e) && e.box.y + e.box.h / 2 > visibleBottom(this.last); i++) {
+      await this.swipe(200, 400, 200, 140);
+      e = await this.waitFor(m, { enabled: true, ...o });
+    }
+    const [x, y] = where(e.box);
+    await this.tapAt(x, y);
     return e;
   }
 
+  /** One character at a time: the app's fields drop characters typed in one go. */
   async type(text: string) {
-    await this.idb('ui', 'text', text);
-    await sleep(KEY_GAP);
+    for (const c of text) {
+      await this.idb('ui', 'text', c);
+      await sleep(KEY_GAP);
+    }
   }
 
   async backspace(n: number) {
