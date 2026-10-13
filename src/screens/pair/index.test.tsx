@@ -110,3 +110,13 @@ test('no reserved name: the other device brings its own', () => {
   render(<PairScreen store={make()} identity={NO_IDENTITY} />);
   expect(screen.getByText("no reserved name — the other device's comes along when you pair")).toBeTruthy();
 });
+
+test('typing a new code clears the last outcome', async () => {
+  jest.spyOn(Alert, 'alert').mockImplementation(press('Cancel'));
+  render(<PairScreen store={make()} identity={NO_IDENTITY} />);
+  fireEvent.changeText(screen.getByLabelText('pairing code'), 'K7XQ2M');
+  fireEvent.press(screen.getByText('Pair'));
+  await waitFor(() => expect(screen.getByText(SPENT)).toBeTruthy());
+  fireEvent.changeText(screen.getByLabelText('pairing code'), 'Q');
+  expect(screen.queryByText(SPENT)).toBeNull();
+});

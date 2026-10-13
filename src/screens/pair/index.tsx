@@ -87,6 +87,7 @@ export function PairScreen({ store, identity }: { store: StoreApi<SyncState>; id
           value={typed}
           onChangeText={(t) => {
             setTyped(t);
+            setOutcome('');
             if (store.getState().acceptError) store.getState().clearError();
           }}
           placeholder="a code from the other device"

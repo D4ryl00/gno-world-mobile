@@ -75,13 +75,13 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity, onOpenPair, ident
     // padding on Android too: with edge-to-edge (android/gradle.properties) the window keeps its size under the keyboard
     <KeyboardAvoidingView style={styles.root} behavior="padding">
       <View style={[styles.header, { paddingTop: insets.top + space.s }]}>
-        <Text style={styles.title}>Chat · {s.here} here</Text>
+        <Text style={styles.title} numberOfLines={1}>Chat · {s.here} here</Text>
         <View style={styles.headerRight}>
           <Pressable accessibilityRole="button" accessibilityLabel="Pair with another device" onPress={onOpenPair} style={styles.you}>
             <Text style={styles.youText}>pair</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={onOpenIdentity} style={styles.you}>
-            <Text style={styles.youText}>{myName || 'you'}{s.identity.reservedName ? ' ✓' : ''}</Text>
+            <Text style={styles.youText} numberOfLines={1}>{myName || 'you'}{s.identity.reservedName ? ' ✓' : ''}</Text>
           </Pressable>
         </View>
       </View>
@@ -148,10 +148,11 @@ export function ChatPane({ store, offchainUrl, onOpenIdentity, onOpenPair, ident
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  headerRight: { flexDirection: 'row', gap: space.s },
+  // a reserved name of up to 40 characters: the title gives way, the name pill ends with an ellipsis
+  headerRight: { flexDirection: 'row', gap: space.s, flexShrink: 1, marginLeft: space.s },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.l, paddingBottom: space.s },
-  title: { color: colors.fg, fontSize: 17, fontWeight: '700' },
-  you: { borderColor: colors.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: space.m, paddingVertical: space.xs },
+  title: { color: colors.fg, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  you: { borderColor: colors.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: space.m, paddingVertical: space.xs, flexShrink: 1 },
   youText: { color: colors.fg },
   down: { color: colors.bad, textAlign: 'center', paddingBottom: space.xs },
 });

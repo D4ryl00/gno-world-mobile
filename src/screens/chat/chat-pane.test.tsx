@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, TextInput } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
@@ -187,4 +187,18 @@ test('the header opens the pairing screen', () => {
   render(<ChatPane store={store} offchainUrl="http://fake" onOpenPair={onOpenPair} />);
   fireEvent.press(screen.getByLabelText('Pair with another device'));
   expect(onOpenPair).toHaveBeenCalled();
+});
+
+test('a long reserved name stays on one line and the title gives way', () => {
+  const long = 'n'.repeat(40);
+  const store = createChatStore({
+    client: {} as ChatClient, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
+    kv: { getItem: async () => null, setItem: async () => undefined },
+  });
+  store.setState({ identity: { ...NO_IDENTITY, name: long, reservedName: long, nameKey: 'a'.repeat(32) } });
+  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  expect(screen.getByText(`${long} ✓`).props.numberOfLines).toBe(1);
+  const title = screen.getByText(/^Chat · /);
+  expect(title.props.numberOfLines).toBe(1);
+  expect(StyleSheet.flatten(title.props.style)).toMatchObject({ flexShrink: 1 });
 });

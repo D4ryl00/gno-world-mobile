@@ -228,3 +228,51 @@ test('a build that cannot derive keys says so before touching anything', async (
   expect(a.store.getState()).toMatchObject({ paired: false, offerError: NO, acceptError: NO });
   expect(server.calls).toEqual([]);
 });
+
+test('the first read failed: the words say so instead of claiming the other device holds no name', async () => {
+  const server = memorySync();
+  const a = syncApp(server);
+  const b = syncApp(server);
+  server.names.set('remi', KEY);
+  await a.identity.save({ name: 'remi', reservedName: 'remi', nameKey: KEY });
+  const code = (await a.store.getState().offer())!;
+  const key = (await b.store.getState().open(code))!;
+  jest.spyOn(server.client, 'pull').mockRejectedValueOnce(new Error('down'));
+  expect(await b.store.getState().use(key)).toBe(
+    "paired — but the other device's rooms and name could not be read just now; they are read again within two minutes",
+  );
+});
+
+test('a 412 while adopting does not turn "yours here too" into "already had"', async () => {
+  const server = memorySync();
+  const a = syncApp(server);
+  const b = syncApp(server);
+  server.names.set('remi', KEY);
+  await a.identity.save({ name: 'remi', reservedName: 'remi', nameKey: KEY });
+  const code = (await a.store.getState().offer())!;
+  const key = (await b.store.getState().open(code))!;
+  jest.spyOn(server.client, 'push').mockResolvedValueOnce({ ok: false });
+  expect(await b.store.getState().use(key)).toBe('paired — your chat rooms are the same on both devices, and the name remi is yours here too ✓');
+});
+
+test('a pull that changes nothing does not write the book again', async () => {
+  jest.useFakeTimers();
+  const { server, a } = await paired();
+  const save = jest.spyOn(a.book, 'save');
+  server.calls.length = 0;
+  await jest.advanceTimersByTimeAsync(FAST_EVERY * 3);
+  expect(server.calls.filter((c) => c === 'pull')).toHaveLength(3);
+  expect(save).not.toHaveBeenCalled();
+});
+
+test('use() twice at once adopts once', async () => {
+  const server = memorySync();
+  const a = syncApp(server);
+  const b = syncApp(server);
+  const code = (await a.store.getState().offer())!;
+  const key = (await b.store.getState().open(code))!;
+  server.calls.length = 0;
+  const [one, two] = await Promise.all([b.store.getState().use(key), b.store.getState().use(key)]);
+  expect([one, two].filter(Boolean)).toHaveLength(1);
+  expect(server.calls.filter((c) => c === 'push')).toHaveLength(1);
+});

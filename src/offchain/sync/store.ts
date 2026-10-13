@@ -16,6 +16,8 @@ export const FAST_EVERY = 5_000;
 export const FAST_FOR = 360_000;
 export const SLOW_EVERY = 120_000;
 export const PUSH_AFTER = 1_500;
+/** the words when adopting worked but the first read did not (the site would claim the other device has no name) */
+export const UNREAD = "paired — but the other device's rooms and name could not be read just now; they are read again within two minutes";
 
 export interface SyncState {
   paired: boolean;
@@ -122,8 +124,10 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
           const local = await d.book.load();
           if (e !== epoch) return false;
           const book = mergeBook(local, rec);
-          await d.book.save(book);
-          if (e !== epoch) return false;
+          if (JSON.stringify(book) !== JSON.stringify(local)) {
+            await d.book.save(book);
+            if (e !== epoch) return false;
+          }
           const id0 = await d.identity.load();
           if (e !== epoch) return false;
           const n = await nameIn(rec.name, id0, (name, key) => (e === epoch ? d.client.checkName(name, key) : Promise.resolve(null)));
@@ -132,7 +136,7 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
             await d.identity.save({ name: n.take.name, reservedName: n.take.name, nameKey: n.take.key });
             d.identityChanged();
           }
-          lastName = n;
+          lastName ??= n; // use() says what its first pull found, not what a retry after a 412 sees
           set({
             rooms: book.rooms,
             ...(n.issue !== 'none' && n.issue !== 'same' ? { said: { issue: n.issue, words: pairWords(n.issue, n.name, n.had) } } : {}),
@@ -205,9 +209,10 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
       id = kid;
       version = 0;
       set({ paired: true, group: kid.slice(0, 16) });
-      await pull(e);
+      const read = await pull(e);
       await push(e);
       startSlow();
+      return read;
     };
 
     return {
@@ -314,14 +319,21 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
       },
 
       use: async (k) => {
+        if (get().busy) return null;
         const e = epoch;
         set({ busy: 'accept', acceptError: '' });
         return serial(async () => {
           try {
             if (!loaded) await load(e);
             lastName = null;
-            await adopt(k, e);
+            const read = await adopt(k, e);
             if (e !== epoch) return null;
+            if (!read) {
+              // a failed read is not "the other device holds no name": say it, the next pull settles it
+              const words = UNREAD;
+              set({ said: { issue: 'unknown', words }, code: null });
+              return words;
+            }
             const n = lastName ?? { issue: 'none' as const, name: '', had: '' };
             const words = pairWords(n.issue, n.name, n.had);
             set({ said: { issue: n.issue, words }, code: null });
