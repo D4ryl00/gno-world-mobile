@@ -640,7 +640,15 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   preuve d'une autre chaîne et garde la preuve attendue si l'OS tue l'app. Revérifié sur simulateur
   iOS (lancements à froid) et émulateur Android. Adena prouve aussi l'identité in-page (spec
   `2026-10-13-adena-connect-challenge-design.md`, 2026-10-13) : fork `feat/gnoconnect-in-page` rebasée sur l'amont `a4bba353` (sauvegarde `backup/gnoconnect-in-page-before-sign-arbitrary`), `connect({challenge})` par `SignArbitrary` (`4d80adea`, `c652fca1`, `07e44416`, revue finale `19ba6e43`), banc 23/23 avec une réservation par preuve contre le faux serveur ; #6016 `93521c302`, `b6725f1d3`. **Reste : l'essai de
-  l'utilisateur sur la production** (un nom libre, un wallet sans nom).
+  l'utilisateur sur la production** (un nom libre, un wallet sans nom). Les 16 mineurs reportés par les deux revues
+  finales (challenge et Adena) sont réglés le 2026-10-13 (plan `docs/superpowers/plans/2026-10-13-challenge-minors.md`) :
+  gnokey-mobile `bd24184` (seul un ordinateur atteint qui ne signe pas donne `signer_unavailable`, un code mal tapé ou
+  un relais injoignable donnent `cancelled`, comme le dit le §6 ; sur iOS le glissé de la feuille répond comme
+  Cancel, tous les liens arrivés avant le pont sont gardés et répondus si le démarrage échoue ; sur Android seule la
+  session du compte choisi s'affiche ; iOS 61/61), Adena `185aadee` (surrogate isolé et `signer` non textuel refusés,
+  `no_signer` rejette la promesse, épinglage comparé comme une adresse partout, commentaires neutres ; 304 tests),
+  l'app `1bac9cf` (le texte `signer_unavailable` nomme les deux causes), le banc `6ee4b86` (test 9 vérifie la fenêtre
+  ouverte ; 23/23) ; le point de la doc in-page était déjà réglé par `93521c302`.
 
 - P3-M2b-1 (`/pair`, appairage avec gno.world dans un navigateur) : spec
   `docs/superpowers/specs/2026-10-13-p3-m2b1-pair-design.md`, plan
