@@ -25,7 +25,7 @@ export interface IdentityStore {
 const PER_SERVER: readonly (keyof ChatIdentity)[] = ['nameKey', 'reservedName', 'av', 'avkey'];
 
 /** A server URL as a SecureStore key part: only letters, digits, "." and "-" pass; any other character is "_" + hex. */
-const keyPart = (scope: string) => scope.replace(/[^A-Za-z0-9.-]/g, (c) => `_${c.charCodeAt(0).toString(16)}`);
+export const keyPart = (scope: string) => scope.replace(/[^A-Za-z0-9.-]/g, (c) => `_${c.charCodeAt(0).toString(16)}`);
 
 /**
  * With a scope (the off-chain server's URL) the reserved name, its key and the avatar are stored per server, so a
