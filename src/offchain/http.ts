@@ -44,6 +44,8 @@ export function createOffchain(d: {
 }): Offchain {
   const f = d.fetch ?? fetch;
   async function call<T>(method: string, path: string, body: Body, o: RequestOptions, read: (res: Response) => Promise<T>): Promise<T> {
+    // read now, not after the awaits below: a Settings change meanwhile must not send this request elsewhere
+    const url = d.baseUrl().replace(/\/+$/, '') + path;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), o.timeoutMs ?? d.timeoutMs ?? 10000);
     const outside = () => ctrl.abort();
@@ -57,7 +59,7 @@ export function createOffchain(d: {
       });
       const headers: Record<string, string> = { 'X-Bid': bid, ...o.headers };
       if (body.type) headers['Content-Type'] = body.type;
-      const res = await f(d.baseUrl().replace(/\/+$/, '') + path, { method, headers, body: body.payload, signal: ctrl.signal });
+      const res = await f(url, { method, headers, body: body.payload, signal: ctrl.signal });
       return await read(res);
     } catch (e) {
       if (e instanceof OffchainError) throw e;

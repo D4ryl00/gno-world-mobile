@@ -9,6 +9,8 @@ export interface CryptoBackend {
   seal(key: Uint8Array, plain: Uint8Array, iv: Uint8Array): Promise<Uint8Array>;
   /** the reverse of seal; throws when the key does not open it */
   open(key: Uint8Array, sealed: Uint8Array): Promise<Uint8Array>;
+  /** why this build cannot derive a code's key ('' or absent when it can) */
+  unavailable?(): string;
 }
 
 // gno.world's /pair (app-rooms.js, read 2026-10-13)

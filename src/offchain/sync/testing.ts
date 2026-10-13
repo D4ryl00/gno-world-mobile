@@ -46,7 +46,7 @@ export function memorySync() {
   return { client, codes, records, names, calls };
 }
 
-export function syncApp(server: ReturnType<typeof memorySync>, scope = 'http://fake') {
+export function syncApp(server: ReturnType<typeof memorySync>, scope = 'http://fake', crypto: CryptoBackend = fastCrypto) {
   const secrets = new Map<string, string>();
   const kv = new Map<string, string>();
   const sec = { get: async (k: string) => secrets.get(k) ?? null, set: async (k: string, v: string) => void secrets.set(k, v) };
@@ -54,11 +54,11 @@ export function syncApp(server: ReturnType<typeof memorySync>, scope = 'http://f
   const identity = createIdentityStore(sec, () => where);
   const book = createBookStore({
     kv: { getItem: async (k) => kv.get(k) ?? null, setItem: async (k, v) => void kv.set(k, v) },
-    secrets: sec, crypto: fastCrypto, scope: () => where,
+    secrets: sec, crypto, scope: () => where,
   });
   let reloads = 0;
   const store = createSyncStore({
-    client: server.client, crypto: fastCrypto, secrets: sec, book, identity, identityChanged: () => void reloads++, scope: () => where,
+    client: server.client, crypto, secrets: sec, book, identity, identityChanged: () => void reloads++, scope: () => where,
   });
   live.push(store);
   return { store, identity, book, secrets, reloads: () => reloads, setScope: (s: string) => (where = s) };

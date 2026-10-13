@@ -114,11 +114,19 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
         const r = await d.client.pull(id);
         if (e !== epoch) return false;
         if (r.blob) {
+          // an epoch check after every await: the book, the identity and the server follow Settings, and a switch
+          // meanwhile must not mix this record into another server's book or send its name key there
           const v = await openJson(d.crypto, k, r.blob);
+          if (e !== epoch) return false;
           const rec = (v && typeof v === 'object' ? v : {}) as { rooms?: unknown; left?: unknown; name?: unknown };
-          const book = mergeBook(await d.book.load(), rec);
+          const local = await d.book.load();
+          if (e !== epoch) return false;
+          const book = mergeBook(local, rec);
           await d.book.save(book);
-          const n = await nameIn(rec.name, await d.identity.load(), d.client.checkName);
+          if (e !== epoch) return false;
+          const id0 = await d.identity.load();
+          if (e !== epoch) return false;
+          const n = await nameIn(rec.name, id0, (name, key) => (e === epoch ? d.client.checkName(name, key) : Promise.resolve(null)));
           if (e !== epoch) return false;
           if (n.take) {
             await d.identity.save({ name: n.take.name, reservedName: n.take.name, nameKey: n.take.key });
@@ -148,6 +156,7 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
         for (let i = 0; i < 3; i++) {
           const book = await d.book.load();
           const blob = await sealJson(d.crypto, k, { rooms: book.rooms, left: book.left, name: nameOut(await d.identity.load()), at: Date.now() });
+          if (e !== epoch) return; // what was read belongs to this pairing's server: never send it to the next one
           const r = await d.client.push(id, version, blob);
           if (e !== epoch) return;
           if (r.ok) {
@@ -240,6 +249,11 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
 
       offer: async () => {
         if (get().busy) return null;
+        const cannot = d.crypto.unavailable?.();
+        if (cannot) {
+          set({ offerError: cannot }); // before anything: no key made, nothing paired
+          return null;
+        }
         const e = epoch;
         set({ busy: 'offer', offerError: '' });
         return serial(async () => {
@@ -252,7 +266,9 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
             if (e !== epoch || !k) return null;
             for (let i = 0; i < 3; i++) {
               const code = newCode(d.crypto);
-              const r = await d.client.pairPost(code, await sealSyncKey(d.crypto, code, k));
+              const blob = await sealSyncKey(d.crypto, code, k);
+              if (e !== epoch) return null;
+              const r = await d.client.pairPost(code, blob);
               if (e !== epoch) return null;
               if (r === 'ok') {
                 fastUntil = Date.now() + FAST_FOR;
@@ -274,6 +290,11 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
 
       open: async (typed) => {
         if (get().busy) return null;
+        const cannot = d.crypto.unavailable?.();
+        if (cannot) {
+          set({ acceptError: cannot }); // before the code is fetched: a code works once
+          return null;
+        }
         const code = normalizeCode(typed);
         if (!code) {
           set({ acceptError: BAD_CODE });

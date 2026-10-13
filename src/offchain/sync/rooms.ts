@@ -103,8 +103,9 @@ export function createBookStore(d: { kv: KV; secrets: SecretStore; crypto: Crypt
       }
     },
     save: async (b) => {
+      const where = at(); // the server it was made for, whatever Settings say by the time it is sealed
       const lock = await lockForSave();
-      await d.kv.setItem(at(), await sealJson(d.crypto, lock, { rooms: capRooms(b.rooms), left: b.left }));
+      await d.kv.setItem(where, await sealJson(d.crypto, lock, { rooms: capRooms(b.rooms), left: b.left }));
     },
   };
 }

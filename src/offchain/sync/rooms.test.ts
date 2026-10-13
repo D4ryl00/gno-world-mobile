@@ -85,3 +85,14 @@ test('two first saves at once make one lock key', async () => {
   await Promise.all([b.save(book([room(1)])), b.save(book([room(2)]))]);
   expect((await b.load()).rooms).toHaveLength(1); // the last save, readable with the one key
 });
+
+test('a save lands in the book of the server it was made for', async () => {
+  const s = stores();
+  const b = s.make();
+  const saving = b.save(book([room(1)]));
+  s.setScope('http://other');
+  await saving;
+  expect(await b.load()).toEqual(EMPTY_BOOK);
+  s.setScope('https://gno.world');
+  expect((await b.load()).rooms).toHaveLength(1);
+});

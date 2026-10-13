@@ -37,3 +37,13 @@ test('with a scope, the reserved name, its key and the avatar belong to one serv
   // SecureStore takes only letters, digits, ".", "-" and "_" in a key
   for (const k of s.m.keys()) expect(k).toMatch(/^[A-Za-z0-9._-]+$/);
 });
+
+test('a save lands under the server it was made for, even if the server changes during the writes', async () => {
+  const m = new Map<string, string>();
+  let scope = 'http://a';
+  const ids = createIdentityStore({ get: async (k) => m.get(k) ?? null, set: async (k, v) => void (await Promise.resolve(), m.set(k, v)) }, () => scope);
+  const saving = ids.save({ reservedName: 'remi', nameKey: 'k' });
+  scope = 'http://b';
+  await saving;
+  expect([...m.keys()].every((k) => k.endsWith('.http_3a_2f_2fa'))).toBe(true);
+});

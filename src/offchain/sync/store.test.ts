@@ -191,3 +191,40 @@ test('without the native module, the code cannot be made and the error says so',
   expect(await a.store.getState().offer()).toBeNull();
   expect(a.store.getState().offerError).toBe('this build cannot pair — update the app');
 });
+
+test('the server changed while a pull read the book: its rooms stay out of the new book, its name key never goes there', async () => {
+  const server = memorySync();
+  const a = syncApp(server);
+  const b = syncApp(server);
+  server.names.set('remi', KEY);
+  await a.identity.save({ name: 'remi', reservedName: 'remi', nameKey: KEY });
+  await a.book.save({ rooms: [ROOM(1, 'maker')], left: {} });
+  a.store.getState().resume();
+  const code = (await a.store.getState().offer())!;
+  const key = (await b.store.getState().open(code))!;
+  const check = jest.spyOn(server.client, 'checkName');
+  const realLoad = b.book.load.bind(b.book);
+  let n = 0;
+  // the first read is use()'s own load; the second is the pull's, mid-merge: Settings switch the server there
+  jest.spyOn(b.book, 'load').mockImplementation(async () => {
+    if (++n === 2) {
+      b.setScope('http://other');
+      b.store.getState().restart();
+    }
+    return realLoad();
+  });
+  await b.store.getState().use(key);
+  expect(check).not.toHaveBeenCalled();
+  expect((await realLoad()).rooms).toEqual([]);
+  expect(await b.identity.load()).toMatchObject({ reservedName: '', nameKey: '' });
+});
+
+test('a build that cannot derive keys says so before touching anything', async () => {
+  const NO = 'this build cannot pair — update the app';
+  const server = memorySync();
+  const a = syncApp(server, 'http://fake', { ...fastCrypto, unavailable: () => NO });
+  expect(await a.store.getState().offer()).toBeNull();
+  expect(await a.store.getState().open('K7XQ2M')).toBeNull();
+  expect(a.store.getState()).toMatchObject({ paired: false, offerError: NO, acceptError: NO });
+  expect(server.calls).toEqual([]);
+});

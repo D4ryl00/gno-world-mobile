@@ -226,3 +226,15 @@ describe('exchange', () => {
     await expect(oc.exchange('GET', '/x')).rejects.toMatchObject({ status: 0, message: expect.stringMatching(/^server unreachable/) });
   });
 });
+
+test('a request goes to the server set when it starts, even if Settings change while the browser id is read', async () => {
+  let base = 'http://a';
+  let release!: (v: string) => void;
+  const f = jest.fn(async () => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}), text: async () => '' }));
+  const oc = createOffchain({ baseUrl: () => base, bid: () => new Promise<string>((r) => (release = r)), fetch: f as unknown as typeof fetch });
+  const p = oc.exchange('GET', '/x');
+  base = 'http://b';
+  release('0123456789abcdef');
+  await p;
+  expect(f).toHaveBeenCalledWith('http://a/x', expect.anything());
+});

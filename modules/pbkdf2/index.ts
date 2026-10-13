@@ -9,6 +9,9 @@ const native = requireOptionalNativeModule<Pbkdf2Native>('Pbkdf2');
 
 export const NO_MODULE = 'this build cannot pair — update the app';
 
+/** false in a build without the native half: pairing must say so before it touches anything */
+export const pbkdf2Available = () => native !== null;
+
 /** PBKDF2-HMAC-SHA256 of UTF-8 strings, native and off the JS thread: 200 000 rounds take many seconds in Hermes. */
 export async function pbkdf2Sha256(password: string, salt: string, iterations: number, length: number): Promise<Uint8Array> {
   if (!native) throw new Error(NO_MODULE);

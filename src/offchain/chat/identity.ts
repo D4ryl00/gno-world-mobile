@@ -41,7 +41,9 @@ export function createIdentityStore(s: SecretStore, scope?: () => string): Ident
   return {
     load,
     save: async (p) => {
-      for (const f of fields) if (p[f] !== undefined) await s.set(keyOf(f), p[f]!);
+      // the keys of the server the save was made for: the scope may change between two writes
+      const writes = fields.filter((f) => p[f] !== undefined).map((f) => [keyOf(f), p[f]!] as const);
+      for (const [k, v] of writes) await s.set(k, v);
       return load();
     },
   };

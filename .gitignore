@@ -42,3 +42,6 @@ yarn-error.*
 /android
 .e2e/
 *.tgz
+
+# a local Expo module's Gradle output
+modules/*/android/build/
