@@ -29,8 +29,10 @@ let gnoweb: string | undefined;
 async function computerSigns() {
   const c = new Computer({
     bin: join(stage.bin, 'gnokey-pair'),
-    args: ['-remote', `http://127.0.0.1:${PORTS.rpc}`, '-relay', `ws://127.0.0.1:${PORTS.relay}/v1`, '-gnokey', join(stage.bin, 'gnokey'),
+    // gnokey by name, found first on PATH: the terminal on screen shows "gnokey", not a path on this machine
+    args: ['-remote', `http://127.0.0.1:${PORTS.rpc}`, '-relay', `ws://127.0.0.1:${PORTS.relay}/v1`, '-gnokey', 'gnokey',
       '-home', stage.home, '-timeout', '3m', '-linger', '20s'],
+    env: { PATH: `${stage.bin}:${process.env.PATH}` },
     // before recording (setup) the output is kept apart: its times are not the video's
     clock, log: join(OUT, t0 ? 'terminal.jsonl' : 'setup-terminal.jsonl'),
   });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildEdl, FPS, MAX_RATE, zoomFor } from './fit.ts';
+import { buildEdl, FPS, MAX_RATE, ZOOM_HOLD, zoomFor } from './fit.ts';
 import type { Script, Timeline } from './types.ts';
 
 const screen = { width: 402, height: 874 };
@@ -101,4 +101,19 @@ test('terminal output inside the clip is mapped to scene frames', () => {
   const e = buildEdl(s, timeline([{ id: 'connect.a', t: 10 }, { id: 'connect.b', t: 14 }]), { connect: { file: 'v.wav', seconds: 10 } },
     [{ t: 5, text: 'before' }, { t: 11, text: 'Sign? [y/N] ' }, { t: 40, text: 'after' }]);
   assert.deepEqual(e.scenes[0].terminal, [{ f: Math.round(1.3 * FPS), text: 'Sign? [y/N] ' }]);
+});
+
+test('a zoom lets go after its hold, unless the next one comes first', () => {
+  const s = script([phone('connect', ['a', 'b', 'c'], { zoomOn: ['a', 'c'] })]);
+  const box = { x: 100, y: 700, w: 200, h: 50 };
+  const e = buildEdl(s, timeline([{ id: 'connect.a', t: 10, box }, { id: 'connect.b', t: 11 }, { id: 'connect.c', t: 20, box }]),
+    { connect: { file: 'v.wav', seconds: 20 } }, []);
+  const keys = e.scenes[0].zoom;
+  // frame 0, a, a's release, c, c's release
+  assert.deepEqual(keys.map((k) => k.scale > 1), [false, true, false, true, false]);
+  assert.equal(keys[2].f - keys[1].f, ZOOM_HOLD);
+  const close = buildEdl(s, timeline([{ id: 'connect.a', t: 10, box }, { id: 'connect.b', t: 11 }, { id: 'connect.c', t: 11.5, box }]),
+    { connect: { file: 'v.wav', seconds: 20 } }, []);
+  // c comes before a's release: no release in between
+  assert.deepEqual(close.scenes[0].zoom.map((k) => k.scale > 1), [false, true, true, false]);
 });

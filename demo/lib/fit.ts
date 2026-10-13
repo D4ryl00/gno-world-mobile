@@ -7,6 +7,8 @@ export const MAX_RATE = 4;
 const PRE = 0.3;
 const POST = 0.8;
 const VOICE_DELAY = 6; // frames
+/** frames a zoom holds before the camera pulls back out */
+export const ZOOM_HOLD = 75;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -61,6 +63,15 @@ export function buildEdl(script: Script, timeline: Timeline, durations: Duration
         if (m?.box) zoom.push({ f: toFrame(m.t), ...zoomFor(m.box, timeline.screen) });
       }
       zoom = zoom.sort((a, b) => a.f - b.f);
+      // each zoom lets go after ZOOM_HOLD frames, unless the next zoom comes first: the camera never stays on a
+      // detail that has moved on
+      const out: ZoomKey[] = [];
+      zoom.forEach((k, i) => {
+        out.push(k);
+        const next = zoom[i + 1];
+        if (k.scale > 1 && (!next || next.f > k.f + ZOOM_HOLD)) out.push({ f: k.f + ZOOM_HOLD, scale: 1, cx: 0.5, cy: 0.5 });
+      });
+      zoom = out;
       if (s.show === 'phone+terminal') {
         term = terminal.filter((c) => c.t >= start && c.t <= end).map((c) => ({ f: toFrame(c.t), text: c.text }));
       }
