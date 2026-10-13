@@ -9,8 +9,7 @@ standard #5970 `a5627a483`, #6016 `cb66934bc` ; gno `feat/gnokey-pair` `724f35fd
 Corrections de la revue finale faites le 2026-10-13 (plan, « Corrections to make ») : standard #5970
 `a548c81b7` (`signer` sur un `connect` d'identité, vérification du document par le producteur),
 #6016 rebasée `fea266219` ; gnokey-mobile `caaa012..d29b60e` ; app `004b956..8f78391` ; revérifié
-sur simulateur iOS (lancements à froid) et émulateur Android. Reste l'essai de l'utilisateur sur la
-production, et Adena (§8).
+sur simulateur iOS (lancements à froid) et émulateur Android. Adena (§8) livré le 2026-10-13 : fork `feat/gnoconnect-in-page` rebasée sur l'amont `a4bba353` (sauvegarde `backup/gnoconnect-in-page-before-sign-arbitrary`), `connect({challenge})` par `SignArbitrary` (`4d80adea`, `c652fca1`, `07e44416`), banc 23/23 avec une réservation par preuve contre le faux serveur ; #6016 `93521c302`. Reste l'essai de l'utilisateur sur la production.
 
 ## 1. Intention
 
@@ -175,7 +174,7 @@ inattendu.
   clé compressée, forme du `POST`), e2e contre le faux serveur avec une preuve signée par une clé de
   test, et un essai réel de l'utilisateur sur la production (un nom libre, un wallet sans nom).
 
-## 8. Le fork Adena (en dernier, spec et plan à part)
+## 8. Le fork Adena — fait, voir `2026-10-13-adena-connect-challenge-design.md`
 
 Rebase de `feat/gnoconnect-in-page` (fork D4ryl00) sur upstream `main`, qui apporte `SignArbitrary`
 (#931) ; `connect({challenge})` dans le provider GnoConnect, qui réutilise `signArbitraryMessage`, avec

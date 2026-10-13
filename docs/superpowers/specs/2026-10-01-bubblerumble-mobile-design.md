@@ -638,8 +638,9 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   si l'utilisateur renonce après un échec de l'ordinateur, et la feuille du challenge ne montre plus
   la session ; l'app (`004b956..8f78391`) rouvre la feuille du nom au retour du wallet, refuse une
   preuve d'une autre chaîne et garde la preuve attendue si l'OS tue l'app. Revérifié sur simulateur
-  iOS (lancements à froid) et émulateur Android. **Reste : l'essai de l'utilisateur sur la
-  production** (un nom libre, un wallet sans nom), puis Adena (§8 de la spec challenge).
+  iOS (lancements à froid) et émulateur Android. Adena prouve aussi l'identité in-page (spec
+  `2026-10-13-adena-connect-challenge-design.md`, 2026-10-13) : fork `feat/gnoconnect-in-page` rebasée sur l'amont `a4bba353` (sauvegarde `backup/gnoconnect-in-page-before-sign-arbitrary`), `connect({challenge})` par `SignArbitrary` (`4d80adea`, `c652fca1`, `07e44416`), banc 23/23 avec une réservation par preuve contre le faux serveur ; #6016 `93521c302`. **Reste : l'essai de
+  l'utilisateur sur la production** (un nom libre, un wallet sans nom).
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 

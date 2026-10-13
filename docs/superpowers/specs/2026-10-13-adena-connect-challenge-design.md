@@ -1,5 +1,7 @@
 # Adena — `connect({challenge})` dans le provider GnoConnect — design
 
+**Statut :** livré le 2026-10-13 (plan `docs/superpowers/plans/2026-10-13-adena-connect-challenge.md`) : fork `feat/gnoconnect-in-page` rebasée sur l'amont `a4bba353` (sauvegarde `backup/gnoconnect-in-page-before-sign-arbitrary`), `connect({challenge})` par `SignArbitrary` (`4d80adea`, `c652fca1`, `07e44416`), banc 23/23 avec une réservation par preuve contre le faux serveur ; #6016 `93521c302`.
+
 Date : 2026-10-13. Suite de `2026-10-12-gnoconnect-challenge-design.md` (§8 : « Le fork Adena, en
 dernier, spec et plan à part »). Le transport in-page rejoint les liens de lancement, déjà livrés et
 vérifiés (gnokey-mobile, iOS et Android).
