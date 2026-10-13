@@ -666,10 +666,11 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   serveur pendant une relecture pouvait verser les rooms du premier serveur dans le carnet du second et envoyer sa clé
   de nom au second (URL, clés du carnet et de l'identité désormais prises au départ de la requête ou de
   l'enregistrement, époque vérifiée après chaque attente) ; sans le module natif, « Get a code » appairait avant
-  d'échouer et « Pair » dépensait le code de l'autre appareil (refus d'emblée). 432 tests jest. 6 mineurs reportés
-  dans le ledger : phrase « aucun nom » après une première relecture échouée (comme le site), phrase « same » après un
-  412 pendant l'adoption, carnet réenregistré à chaque relecture, message du code dépensé gardé pendant la saisie,
-  en-tête du Chat sans `flexShrink` (nom long), `use()` sans garde `busy`. **Reste :
+  d'échouer et « Pair » dépensait le code de l'autre appareil (refus d'emblée). Ses 6 mineurs réglés le jour même
+  (`28485a6`, 438 tests jest) : une première relecture échouée le dit au lieu d'annoncer « aucun nom », un 412 pendant
+  l'adoption ne change plus la phrase, plus d'écriture du carnet quand rien ne change, le message du code dépensé
+  s'efface à la saisie, l'en-tête du Chat cède la place à un nom long (points de suspension), `use()` gardé contre un
+  double appel ; la sortie de build Android du module est ignorée. **Reste :
   l'essai de l'utilisateur sur la production** — appairer l'app avec son Chrome sur gno.world (Chrome tenant `remi`),
   dans les deux sens, `remi` ✓ dans l'app. Ledger (non versionné) : `.superpowers/sdd/2026-10-13-p3-m2b1-pair/progress.md`.
 
