@@ -80,6 +80,9 @@ async function onboard() {
   log('wallet imported');
 
   await page.goto(`chrome-extension://${extId}/popup.html#/settings/change-network`);
+  // Since upstream's network modes, Local is listed in testnet mode only.
+  await page.getByText('Testnet Mode', { exact: true }).waitFor({ timeout: 15000 });
+  await page.locator('label.switch').click();
   await page.getByText('Local', { exact: true }).click();
   await pause(2000);
   log('network Local selected');
