@@ -15,7 +15,7 @@ export default function SessionCallback() {
     void (async () => {
       // the chat's challenge comes back here too: its state says whose it is
       if (reply && (await chat.getState().onProofReply(reply).catch(() => false))) {
-        router.replace('/chat');
+        router.replace({ pathname: '/chat', params: { identity: '1' } });
         return;
       }
       if (reply) await session.getState().onReply(reply).catch(() => undefined);
