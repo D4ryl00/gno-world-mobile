@@ -377,7 +377,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 ## 9. Suivi : ce qui reste à faire
 
-État au 2026-10-12. À mettre à jour à chaque étape livrée.
+État au 2026-10-13. À mettre à jour à chaque étape livrée.
 
 **Livré :**
 
@@ -642,6 +642,29 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   `2026-10-13-adena-connect-challenge-design.md`, 2026-10-13) : fork `feat/gnoconnect-in-page` rebasée sur l'amont `a4bba353` (sauvegarde `backup/gnoconnect-in-page-before-sign-arbitrary`), `connect({challenge})` par `SignArbitrary` (`4d80adea`, `c652fca1`, `07e44416`, revue finale `19ba6e43`), banc 23/23 avec une réservation par preuve contre le faux serveur ; #6016 `93521c302`, `b6725f1d3`. **Reste : l'essai de
   l'utilisateur sur la production** (un nom libre, un wallet sans nom).
 
+- P3-M2b-1 (`/pair`, appairage avec gno.world dans un navigateur) : spec
+  `docs/superpowers/specs/2026-10-13-p3-m2b1-pair-design.md`, plan
+  `docs/superpowers/plans/2026-10-13-p3-m2b1-pair.md`, 12 tâches inline sur `main` (`aaae33e`..`d962a93`,
+  2026-10-13). Le `/pair` du site recopié : code de 6 caractères (usage unique, relu sur la production), clé AES-GCM
+  tirée du code par PBKDF2-SHA256 200 000 tours — module Expo local `modules/pbkdf2` (CommonCrypto, javax.crypto ;
+  en JS sous Hermes, 18,6 s sans JIT) —, AES-GCM et SHA-256 d'expo-crypto, enregistrement partagé
+  `{rooms, left, name, at}` sous `sha256(clé)` avec `ETag` / `If-Match` (412 → relire, fusionner, réessayer, 3 fois),
+  fusion `syncMerge` et nom `syncNameIn` à l'identique (vérification `mine` avant de prendre un nom), présence groupée
+  (`&g=`). Carnet de rooms par serveur, scellé dans AsyncStorage par une clé locale de SecureStore, listé en lecture
+  seule (M2b-2 l'ouvrira). Écran « Pair with a browser » depuis l'en-tête du Chat. Écarts voulus : l'app écrit aussi
+  quand son nom change, la confirmation dit qu'un appairage existant est remplacé, un enregistrement illisible n'est
+  jamais écrasé. 427 tests jest (vecteurs produits par le code WebCrypto du site), `npm run e2e:pair` 7/7 (le store
+  de l'app face au code de synchro du site rejoué dans Node, `scripts/fake-offchain/site-sync.ts`), `npm run e2e:chat`
+  29/29 ; faux serveur : `/api/sync/*`, `mine`, `g`. Vérifié à la main sur simulateur iOS 26.5 et émulateur Android
+  contre le faux serveur avec `npm run fake-browser` (le code du site) : code du navigateur pris par l'app (nom ✓,
+  remplaçant un nom dont la clé n'était plus reconnue, rooms avec leur clé de créateur, ligne postée sous le nom),
+  code de l'app pris par le navigateur (« kept »), Stop, code inconnu — preuve que le PBKDF2 natif donne les octets du
+  site dans les deux sens. Trouvé en route : les pods iOS n'incluent un module local qu'après `pod install` ;
+  `npm test` ramassait un test de l'arbre gno copié sous `.e2e/` (ignoré désormais). Clavier Android : vérifié avec
+  le clavier flottant de l'AVD (`hw.keyboard=yes`) ; le champ et « Pair » sont à mi-hauteur de l'écran. **Reste :
+  l'essai de l'utilisateur sur la production** — appairer l'app avec son Chrome sur gno.world (Chrome tenant `remi`),
+  dans les deux sens, `remi` ✓ dans l'app. Ledger (non versionné) : `.superpowers/sdd/2026-10-13-p3-m2b1-pair/progress.md`.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -709,7 +732,10 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    - P3-M2 : social, off-chain (§5.4), découpé le 2026-10-05 en quatre jalons, chacun avec sa spec
      et son plan : M2a chat principal (avec nom réservé, profil, avatar), M2b rooms, DM et amis,
      M2c pièces jointes et vocaux, M2d appairage avec le navigateur et présence « people here ».
-     **M2a livré le 2026-10-05** (voir Livré) ; suivant : M2b.
+     **M2a livré le 2026-10-05** (voir Livré). M2b redécoupé le 2026-10-13 en M2b-1 `/pair` (**livré**, voir
+     Livré ; l'appairage quitte M2d, qui garde la présence « people here »), M2b-2 rooms, M2b-3 DM et amis (lignes
+     scellées `🔒 e2e/1` du site comprises) ; suivant : l'essai de `/pair` sur la production par l'utilisateur, puis
+     M2b-2.
      Vérification sur un faux serveur local écrit d'après le JS du site (pas de serveur de test
      public) ; la production n'est lue qu'en lecture seule, plus un passage manuel court dans une
      room privée ;
