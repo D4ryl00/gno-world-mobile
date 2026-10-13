@@ -122,6 +122,8 @@ async function openPage(query) {
  * that exactly that many windows opened.
  */
 const CLOSE_ON_SEND = 'Approve, then close once sent';
+/** The routes of the windows the last run() opened, in order (the part after `#`, without its query). */
+let lastWindows = [];
 
 async function run(page, action, answers = []) {
   const opened = [];
@@ -168,6 +170,7 @@ async function run(page, action, answers = []) {
       log(`${action}: sites`, sites);
     }
     assert.equal(opened.length, answers.length, `${action}: ${opened.length} windows for ${answers.length} answers (${JSON.stringify(line)})`);
+    lastWindows = opened.map((u) => u.split('#')[1]?.split('?')[0] ?? '');
     return line;
   } finally {
     if (watch) clearInterval(watch);
@@ -358,6 +361,8 @@ describe('challenge: connect({challenge}) proves the identity', () => {
     const line = await run(page, 'proveAgain', ['Cancel']);
     assert.equal(line.status, 'Rejected');
     assert.equal(line.code, undefined);
+    // the window asked for the signature, not for the site again
+    assert.deepEqual(lastWindows, ['/approve/wallet/sign-arbitrary']);
   });
 
   test('10. a pin the wallet does not hold: signer_unavailable, no window', async () => {
