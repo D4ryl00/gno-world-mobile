@@ -785,3 +785,8 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
    rouvrant ; iOS la garde ouverte) ; la feuille « Prove your identity » du wallet montre l'état de
    sa propre session, sans rapport avec une preuve. Le relais public de gnokey-pair répondait 500
    le 2026-10-13.
+7. **Chat figé après la preuve du nom (iOS, vu le 2026-10-13 en tournant la vidéo de démo) :** au retour du wallet
+   après une preuve réussie (« ✓ yours »), le Chat ne prend plus de saisie — le champ ne prend pas le focus, ce qui est
+   tapé se perd, la pastille du nom n'ouvre plus la feuille ; les onglets répondent. Vu 3 fois sur le simulateur iOS
+   26.5 (parcours à la main et deux captures). Piste non vérifiée : `ChatScreen` passe `sheet` à vrai sur
+   `identity=1` sans que la `Modal` soit présentée. Non corrigé ; la vidéo s'arrête sur le nom prouvé.
