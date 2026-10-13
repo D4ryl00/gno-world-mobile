@@ -644,7 +644,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
 
 - P3-M2b-1 (`/pair`, appairage avec gno.world dans un navigateur) : spec
   `docs/superpowers/specs/2026-10-13-p3-m2b1-pair-design.md`, plan
-  `docs/superpowers/plans/2026-10-13-p3-m2b1-pair.md`, 12 tâches inline sur `main` (`aaae33e`..`d962a93`,
+  `docs/superpowers/plans/2026-10-13-p3-m2b1-pair.md`, 12 tâches inline sur `main` (`aaae33e`..`d962a93`, correctifs de revue `14271b3`,
   2026-10-13). Le `/pair` du site recopié : code de 6 caractères (usage unique, relu sur la production), clé AES-GCM
   tirée du code par PBKDF2-SHA256 200 000 tours — module Expo local `modules/pbkdf2` (CommonCrypto, javax.crypto ;
   en JS sous Hermes, 18,6 s sans JIT) —, AES-GCM et SHA-256 d'expo-crypto, enregistrement partagé
@@ -661,7 +661,15 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   code de l'app pris par le navigateur (« kept »), Stop, code inconnu — preuve que le PBKDF2 natif donne les octets du
   site dans les deux sens. Trouvé en route : les pods iOS n'incluent un module local qu'après `pod install` ;
   `npm test` ramassait un test de l'arbre gno copié sous `.e2e/` (ignoré désormais). Clavier Android : vérifié avec
-  le clavier flottant de l'AVD (`hw.keyboard=yes`) ; le champ et « Pair » sont à mi-hauteur de l'écran. **Reste :
+  le clavier flottant de l'AVD (`hw.keyboard=yes`) ; le champ et « Pair » sont à mi-hauteur de l'écran. Revue finale
+  (relecteur neuf, Opus) : 0 Critical, 2 Important corrigés avec un test d'abord rouge (`14271b3`) — un changement de
+  serveur pendant une relecture pouvait verser les rooms du premier serveur dans le carnet du second et envoyer sa clé
+  de nom au second (URL, clés du carnet et de l'identité désormais prises au départ de la requête ou de
+  l'enregistrement, époque vérifiée après chaque attente) ; sans le module natif, « Get a code » appairait avant
+  d'échouer et « Pair » dépensait le code de l'autre appareil (refus d'emblée). 432 tests jest. 6 mineurs reportés
+  dans le ledger : phrase « aucun nom » après une première relecture échouée (comme le site), phrase « same » après un
+  412 pendant l'adoption, carnet réenregistré à chaque relecture, message du code dépensé gardé pendant la saisie,
+  en-tête du Chat sans `flexShrink` (nom long), `use()` sans garde `busy`. **Reste :
   l'essai de l'utilisateur sur la production** — appairer l'app avec son Chrome sur gno.world (Chrome tenant `remi`),
   dans les deux sens, `remi` ✓ dans l'app. Ledger (non versionné) : `.superpowers/sdd/2026-10-13-p3-m2b1-pair/progress.md`.
 
