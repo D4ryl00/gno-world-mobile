@@ -67,7 +67,13 @@
     "fake-offchain": "node --experimental-strip-types --no-warnings scripts/fake-offchain/main.mjs",
     "e2e:chat": "jest -c jest.e2e.config.js --runInBand e2e/fake-offchain e2e/chat",
     "e2e:pair": "jest -c jest.e2e.config.js --runInBand e2e/pair",
-    "fake-browser": "node --experimental-strip-types --no-warnings scripts/fake-offchain/browser.mjs"
+    "fake-browser": "node --experimental-strip-types --no-warnings scripts/fake-offchain/browser.mjs",
+    "demo": "npm --prefix demo run all",
+    "demo:build": "bash demo/tools/build.sh",
+    "demo:capture": "npm --prefix demo run capture --",
+    "demo:voice": "npm --prefix demo run voice",
+    "demo:render": "npm --prefix demo run render",
+    "demo:check": "npm --prefix demo run check"
   },
   "private": true,
   "license": "Apache-2.0",
@@ -79,7 +85,8 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/e2e/",
-      "/\\.e2e/"
+      "/\\.e2e/",
+      "/demo/"
     ]
   }
 }

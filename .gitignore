@@ -45,3 +45,8 @@ yarn-error.*
 
 # a local Expo module's Gradle output
 modules/*/android/build/
+
+# demo video tool
+demo/node_modules/
+demo/out/
+demo/.state/

@@ -1,0 +1,30 @@
+{
+  "name": "gnoworld-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test 'lib/*.test.ts' 'capture/*.test.ts' 'voice/*.test.ts' 'check/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "capture": "node --experimental-strip-types --no-warnings capture/run.ts",
+    "voice": "node --experimental-strip-types --no-warnings voice/voice.ts",
+    "plan": "node --experimental-strip-types --no-warnings video/plan.ts",
+    "render": "npm run plan && remotion render video/index.ts Demo out/gnoworld-demo.mp4 --props=out/edl.json",
+    "studio": "npm run plan && remotion studio video/index.ts --props=out/edl.json",
+    "check": "node --experimental-strip-types --no-warnings check/check.ts",
+    "all": "npm run capture && npm run voice && npm run render && npm run check"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.535",
+    "@remotion/google-fonts": "4.0.535",
+    "kokoro-js": "1.2.1",
+    "playwright": "1.56.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.535"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "19.2.2",
+    "typescript": "~6.0.3"
+  }
+}
