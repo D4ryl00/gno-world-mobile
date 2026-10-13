@@ -5,8 +5,12 @@ sur gno.world, faite entièrement depuis le téléphone avec gnokey-mobile.
 
 **Statut (2026-10-13) :** étapes 1 à 5 livrées (plan `docs/superpowers/plans/2026-10-12-gnoconnect-challenge.md`) :
 standard #5970 `a5627a483`, #6016 `cb66934bc` ; gno `feat/gnokey-pair` `724f35fd9` ; gnokey-mobile
-`4633429..324a132` ; app `c9a7dcf..ab2efff`. Vérifié sur simulateur iOS et émulateur Android. Reste
-l'essai de l'utilisateur sur la production, et Adena (§8).
+`4633429..324a132` ; app `c9a7dcf..ab2efff`. Vérifié sur simulateur iOS et émulateur Android.
+Corrections de la revue finale faites le 2026-10-13 (plan, « Corrections to make ») : standard #5970
+`a548c81b7` (`signer` sur un `connect` d'identité, vérification du document par le producteur),
+#6016 rebasée `fea266219` ; gnokey-mobile `caaa012..c119736` ; app `004b956..8f78391` ; revérifié
+sur simulateur iOS (lancements à froid) et émulateur Android. Reste l'essai de l'utilisateur sur la
+production, et Adena (§8).
 
 ## 1. Intention
 

@@ -630,7 +630,16 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   preuve (`feat/send-to-computer` `4633429..324a132`) ; l'app suit la séquence du site
   (`c9a7dcf..ab2efff`). Vérifié de bout en bout le 2026-10-13 sur simulateur iOS et émulateur
   Android (gnodev, faux serveur, relais local, gnokey-pair `-manual`), y compris le refus « this
-  wallet holds the name … already » après la signature.
+  wallet holds the name … already » après la signature. Corrections de la revue finale
+  (2026-10-13, I1–I4, M1–M6) : `connect` épingle `signer` aussi sans clé (standard #5970
+  `a548c81b7`, #6016 rebasée), et le producteur vérifie `signed` comme un document sign-data ;
+  gnokey-mobile (`caaa012..c119736`) refuse à l'arrivée une identité épinglée qu'il ne détient pas
+  (`signer_unavailable`), attend le pont au lancement à froid sur iOS, répond `signer_unavailable`
+  si l'utilisateur renonce après un échec de l'ordinateur, et la feuille du challenge ne montre plus
+  la session ; l'app (`004b956..8f78391`) rouvre la feuille du nom au retour du wallet, refuse une
+  preuve d'une autre chaîne et garde la preuve attendue si l'OS tue l'app. Revérifié sur simulateur
+  iOS (lancements à froid) et émulateur Android. **Reste : l'essai de l'utilisateur sur la
+  production** (un nom libre, un wallet sans nom), puis Adena (§8 de la spec challenge).
 
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
