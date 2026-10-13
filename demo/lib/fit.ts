@@ -48,8 +48,10 @@ export function buildEdl(script: Script, timeline: Timeline, durations: Duration
         return m;
       });
       if (!own.length) throw new Error(`scene ${s.id}: a phone scene needs at least one marked step`);
-      const start = Math.max(0, Math.round((own[0].t - PRE) * 1000) / 1000);
+      // recordVideo writes no frame while the screen stands still: marks may fall after the last frame, which then
+      // stands for everything after it
       const end = Math.min(timeline.video.duration, Math.round((own[own.length - 1].t + POST) * 1000) / 1000);
+      const start = Math.min(end, Math.max(0, Math.round((own[0].t - PRE) * 1000) / 1000));
       const raw = end - start;
       const target = Math.max(voiceS + 0.6, 3);
       const rate = raw > target ? Math.min(raw / target, MAX_RATE) : 1;
@@ -59,8 +61,10 @@ export function buildEdl(script: Script, timeline: Timeline, durations: Duration
       clip = { start, end, rate, holdFrames: Math.max(0, duration - Math.round(played * FPS)) };
       const toFrame = (t: number) => Math.round(((t - start) / rate) * FPS);
       for (const z of s.zoomOn ?? []) {
+        if (!(s.steps ?? []).some((st) => st.id === z && st.mark)) throw new Error(`scene ${s.id}: zoomOn ${z} is not a marked step`);
         const m = marks.get(`${s.id}.${z}`);
-        if (m?.box) zoom.push({ f: toFrame(m.t), ...zoomFor(m.box, timeline.screen) });
+        // a step after the clip's end still gets its zoom, held for the end of the scene
+        if (m?.box) zoom.push({ f: Math.min(toFrame(m.t), Math.max(0, duration - ZOOM_HOLD)), ...zoomFor(m.box, timeline.screen) });
       }
       zoom = zoom.sort((a, b) => a.f - b.f);
       // each zoom lets go after ZOOM_HOLD frames, unless the next zoom comes first: the camera never stays on a
@@ -69,7 +73,7 @@ export function buildEdl(script: Script, timeline: Timeline, durations: Duration
       zoom.forEach((k, i) => {
         out.push(k);
         const next = zoom[i + 1];
-        if (k.scale > 1 && (!next || next.f > k.f + ZOOM_HOLD)) out.push({ f: k.f + ZOOM_HOLD, scale: 1, cx: 0.5, cy: 0.5 });
+        if (k.scale > 1 && (!next || next.f > k.f + ZOOM_HOLD) && k.f + ZOOM_HOLD < duration) out.push({ f: k.f + ZOOM_HOLD, scale: 1, cx: 0.5, cy: 0.5 });
       });
       zoom = out;
       if (s.show === 'phone+terminal') {

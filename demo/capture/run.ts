@@ -7,12 +7,15 @@ import { parseArgs, promisify } from 'node:util';
 import script from '../script.ts';
 import type { Mark, Step, Timeline } from '../lib/types.ts';
 import { Sim, StepFailed } from './sim.ts';
-import { PORTS, Stage, STATE } from './stage.ts';
+import { promote } from './promote.ts';
+import { GNOROOT, PORTS, RELAY_BIN, Stage, STATE } from './stage.ts';
 import { Computer } from './terminal.ts';
 import { gnowebShot } from './web.ts';
 
 const run = promisify(execFile);
-const OUT = join(import.meta.dirname, '..', 'out', 'capture');
+const FINAL = join(import.meta.dirname, '..', 'out', 'capture');
+// written here, and moved to out/capture/ only once complete: a failed run keeps the last good capture
+const OUT = `${FINAL}.new`;
 const APP = { bundle: 'world.gno.app', path: join(STATE, 'build/Build/Products/Release-iphonesimulator/gnoworld.app') };
 const WALLET = { bundle: 'land.gno.gnokey', path: join(homedir(), 'gnokey-mobile/ios/build/DerivedData/Build/Products/Debug-iphonesimulator/GnokeyMobile.app') };
 
@@ -58,7 +61,7 @@ async function computerSigns() {
 async function preflight() {
   const missing: string[] = [];
   for (const [what, path] of [['the app build', APP.path], ['the gnokey-mobile build', WALLET.path],
-    ['gnokey', join(stage.bin, 'gnokey')], ['gnokey-pair', join(stage.bin, 'gnokey-pair')]] as const) {
+    ['gnokey', join(stage.bin, 'gnokey')], ['gnokey-pair', join(stage.bin, 'gnokey-pair')], ['the relay', RELAY_BIN]] as const) {
     if (!existsSync(path)) missing.push(`${what} (${path}) — run npm run demo:build`);
   }
   for (const tool of ['idb', 'idb_companion', 'ffmpeg', 'ffprobe', 'python3']) {
@@ -69,12 +72,15 @@ async function preflight() {
   if (v && (Number(v[1]) < 1 || (Number(v[1]) === 1 && (Number(v[2]) < 6 || (Number(v[2]) === 6 && Number(v[3]) < 4))))) {
     missing.push(`idb-companion ${v[0]} is too old: 1.6.4 or later (USER=remi brew upgrade idb-companion)`);
   }
+  if (!existsSync(GNOROOT)) missing.push(`gnodev's GNOROOT (${GNOROOT}) — run npm run e2e once, it builds it`);
   if (missing.length) throw new Error(`cannot capture yet:\n- ${missing.join('\n- ')}`);
 }
 
 async function play(scope: string, step: Step) {
   try {
     await act(scope, step);
+    const died = t0 ? sim.recorderDied() : null;
+    if (died) throw new Error(`the recording stopped on its own — ${died}`);
   } catch (e) {
     if (step.optional && e instanceof StepFailed) return;
     if (e instanceof StepFailed) throw new StepFailed(`${scope}.${step.id}: ${e.message}`, e.dump);
@@ -100,6 +106,22 @@ async function act(scope: string, step: Step) {
   if (step.mark) marks.push({ id: `${scope}.${step.id}`, t: clock(), ...(box ? { box } : {}) });
 }
 
+// Ctrl-C, or a kill: the servers run in their own process groups and would outlive us
+let stopping = false;
+const cleanup = async () => {
+  await sim.stopRecording().catch(() => undefined);
+  await sim.disconnect().catch(() => undefined);
+  await stage.down();
+};
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(sig, () => {
+    if (stopping) return;
+    stopping = true;
+    console.error(`\n${sig}: stopping the recording and the servers…`);
+    void cleanup().then(() => process.exit(130));
+  });
+}
+
 try {
   await preflight();
   rmSync(OUT, { recursive: true, force: true });
@@ -123,12 +145,11 @@ try {
     screen: await sim.screenSize(), marks, ...(gnoweb ? { gnoweb } : {}),
   };
   writeFileSync(join(OUT, 'timeline.json'), JSON.stringify(timeline, null, 2));
+  promote(OUT, FINAL);
   console.log(`capture done: ${marks.length} marks, ${timeline.video.duration.toFixed(1)} s — demo/out/capture/`);
 } catch (e) {
   console.error(e instanceof StepFailed ? `capture stopped: ${e.message}\n  screenshot and tree: ${e.dump}.{png,json}` : e);
   process.exitCode = 1;
 } finally {
-  await sim.stopRecording().catch(() => undefined);
-  await sim.disconnect();
-  await stage.down();
+  if (!stopping) await cleanup();
 }

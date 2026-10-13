@@ -117,3 +117,30 @@ test('a zoom lets go after its hold, unless the next one comes first', () => {
   // c comes before a's release: no release in between
   assert.deepEqual(close.scenes[0].zoom.map((k) => k.scale > 1), [false, true, true, false]);
 });
+
+test('a zoom on a step that is not a marked one is a script error, named', () => {
+  const s = script([phone('connect', ['a'], { zoomOn: ['nope'] })]);
+  assert.throws(() => buildEdl(s, timeline([{ id: 'connect.a', t: 1 }]), { connect: { file: 'v.wav', seconds: 3 } }, []),
+    /scene connect: zoomOn nope is not a marked step/);
+});
+
+test('marks after the last recorded frame (the screen stood still) keep a valid clip and zooms inside the scene', () => {
+  // sim.mp4 is 297 s long: recordVideo writes no frame while nothing moves
+  const s = script([phone('name', ['a', 'b'], { zoomOn: ['b'] })]);
+  const box = { x: 100, y: 700, w: 200, h: 50 };
+  const e = buildEdl(s, { ...timeline([{ id: 'name.a', t: 296 }, { id: 'name.b', t: 301.3, box }]), video: { width: 1206, height: 2622, duration: 297 } },
+    { name: { file: 'v.wav', seconds: 3 } }, []);
+  const sc = e.scenes[0];
+  assert.ok(sc.clip!.start <= sc.clip!.end);
+  assert.ok(sc.zoom.every((k) => k.f >= 0 && k.f < sc.duration));
+  assert.ok(sc.zoom.some((k) => k.scale > 1));
+});
+
+test('a scene that happens wholly after the last frame holds that frame', () => {
+  const s = script([phone('name', ['a'])]);
+  const e = buildEdl(s, { ...timeline([{ id: 'name.a', t: 305 }]), video: { width: 1206, height: 2622, duration: 297 } },
+    { name: { file: 'v.wav', seconds: 3 } }, []);
+  const c = e.scenes[0].clip!;
+  assert.ok(c.start <= c.end && c.end <= 297);
+  assert.equal(c.holdFrames + Math.round(((c.end - c.start) / c.rate) * FPS), e.scenes[0].duration);
+});

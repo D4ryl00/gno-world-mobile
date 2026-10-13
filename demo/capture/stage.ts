@@ -7,12 +7,14 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { IDB_PORT } from './sim.ts';
+
 const run = promisify(execFile);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const ROOT = resolve(import.meta.dirname, '..', '..');
 export const STATE = join(ROOT, 'demo', '.state');
-export const PORTS = { rpc: 26657, web: 8888, chat: 8787, relay: 4000 } as const;
+export const PORTS = { rpc: 26657, web: 8888, chat: 8787, relay: 4000, idb: IDB_PORT } as const;
 export const CHAIN_ID = 'dev';
 export const REALM = 'gno.land/r/g1leu8d2vsplhehcfkjg50mwgdpxdkt8tztu95wr/bubblerumble6';
 export const POOL_NAME = 'Friday pot';
@@ -26,8 +28,8 @@ export const BOB = {
   name: 'bob',
   mnemonic: 'place adjust exist demise learn during junior child brown trend van intact hard piece envelope mercy wise renew depend mixed front rice bag token',
 };
-const RELAY_BIN = join(homedir(), 'gno-gnokey-pair/contribs/gnokey-pair/.venv/bin/twist');
-const GNOROOT = join(ROOT, '.e2e/gnoroot-5cdbc25fcde0');
+export const RELAY_BIN = join(homedir(), 'gno-gnokey-pair/contribs/gnokey-pair/.venv/bin/twist');
+export const GNOROOT = join(ROOT, '.e2e/gnoroot-5cdbc25fcde0');
 
 export async function busyPorts(ports: number[]): Promise<number[]> {
   const taken = await Promise.all(ports.map((p) => new Promise<boolean>((res) => {
@@ -38,9 +40,24 @@ export async function busyPorts(ports: number[]): Promise<number[]> {
   return ports.filter((_, i) => taken[i]);
 }
 
-const until = async (what: string, ok: () => Promise<boolean>, ms = 120_000) => {
+export const busyMessage = (busy: number[]) =>
+  `port${busy.length > 1 ? 's' : ''} ${busy.join(', ')} already in use — stop what listens there (a previous run, npm run gnodev, ` +
+  `npm run fake-offchain, an idb companion) and try again; to see who: ${busy.map((p) => `lsof -nP -iTCP:${p} -sTCP:LISTEN`).join(' ; ')}`;
+
+/** Starts `cmd` in its own process group, logging to <logs>/<name>.log; a program that cannot start calls onFail. */
+export function spawnLogged(logs: string, name: string, cmd: string, args: string[], env: Record<string, string>, onFail: (why: string) => void): ChildProcess {
+  mkdirSync(logs, { recursive: true });
+  const log = openSync(join(logs, `${name}.log`), 'w');
+  const p = spawn(cmd, args, { cwd: ROOT, env: { ...process.env, ...env }, stdio: ['ignore', log, log], detached: true });
+  p.on('error', (e) => onFail(`${name}: ${e.message}`));
+  return p;
+}
+
+const until = async (what: string, ok: () => Promise<boolean>, failed: () => string | null, ms = 120_000) => {
   const end = Date.now() + ms;
   while (Date.now() < end) {
+    const f = failed();
+    if (f) throw new Error(`${what} could not start — ${f}`);
     if (await ok().catch(() => false)) return;
     await sleep(1000);
   }
@@ -53,11 +70,10 @@ export class Stage {
   readonly bin = join(STATE, 'bin');
   private procs: ChildProcess[] = [];
 
+  private failure: string | null = null;
+
   private start(name: string, cmd: string, args: string[], env: Record<string, string> = {}) {
-    mkdirSync(join(STATE, 'logs'), { recursive: true });
-    const log = openSync(join(STATE, 'logs', `${name}.log`), 'w');
-    const p = spawn(cmd, args, { cwd: ROOT, env: { ...process.env, ...env }, stdio: ['ignore', log, log], detached: true });
-    this.procs.push(p);
+    this.procs.push(spawnLogged(join(STATE, 'logs'), name, cmd, args, env, (why) => (this.failure ??= why)));
   }
 
   /** gnokey list: no key, no password */
@@ -83,7 +99,7 @@ export class Stage {
 
   async up() {
     const busy = await busyPorts(Object.values(PORTS));
-    if (busy.length) throw new Error(`port${busy.length > 1 ? 's' : ''} ${busy.join(', ')} already in use — stop what listens there (a previous run, npm run gnodev, npm run fake-offchain) and try again`);
+    if (busy.length) throw new Error(busyMessage(busy));
     rmSync(this.home, { recursive: true, force: true });
     mkdirSync(this.home, { recursive: true });
     for (const k of [ALICE, BOB]) {
@@ -94,10 +110,10 @@ export class Stage {
     this.start('gnodev', 'bash', ['scripts/gnodev.sh'], { GNODEV_WEB: '1', GNOROOT });
     this.start('chat', 'node', ['--experimental-strip-types', '--no-warnings', 'scripts/fake-offchain/main.mjs'], { PORT: String(PORTS.chat) });
     this.start('relay', RELAY_BIN, ['wormhole-mailbox', '--port', `tcp:${PORTS.relay}`, '--channel-db', join(STATE, 'relay.sqlite')]);
-    await until('gnodev', httpOk(`http://127.0.0.1:${PORTS.rpc}/status`));
-    await until('gnoweb', httpOk(`http://127.0.0.1:${PORTS.web}/`));
-    await until('the chat server', httpOk(`http://127.0.0.1:${PORTS.chat}/api/chat?since=0&wait=0&limit=1`));
-    await until('the relay', async () => (await busyPorts([PORTS.relay])).length === 1);
+    await until('gnodev', httpOk(`http://127.0.0.1:${PORTS.rpc}/status`), () => this.failure);
+    await until('gnoweb', httpOk(`http://127.0.0.1:${PORTS.web}/`), () => this.failure);
+    await until('the chat server', httpOk(`http://127.0.0.1:${PORTS.chat}/api/chat?since=0&wait=0&limit=1`), () => this.failure);
+    await until('the relay', async () => (await busyPorts([PORTS.relay])).length === 1, () => this.failure);
     const bob = (await this.list()).match(/bob \(local\) - addr: (g1\w+)/)?.[1];
     if (!bob) throw new Error('bob is not in the demo keybase');
     await this.tx(['send', '-send', '1000000000ugnot', '-to', bob], ALICE.name);

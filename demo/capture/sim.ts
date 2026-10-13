@@ -13,6 +13,9 @@ const KEY_GAP = 300; // ms between key events (memory: faster makes iOS SIGQUIT 
 const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5';
 const DEVICE_TYPE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro';
 
+/** idb_companion's own default is 10882: another port, so the demo never meets a companion it did not start. */
+export const IDB_PORT = 10982;
+
 export class StepFailed extends Error {
   readonly dump: string;
   constructor(message: string, dump: string) {
@@ -24,13 +27,20 @@ export class StepFailed extends Error {
 export class Sim {
   private companion: ChildProcess | null = null;
   private recorder: ChildProcess | null = null;
-  private port = 10882;
+  private port: number;
+  private companionCmd: string[] | undefined;
+  private recordCmd: string[] | undefined;
+  private died: string | null = null;
   private last: AxElement[] = [];
   readonly udid: string;
   private failDir: string;
-  constructor(udid: string, failDir = 'out/capture/fail') {
+  /** `companionCmd` and `recordCmd` replace idb_companion and recordVideo (tests). */
+  constructor(udid: string, failDir = 'out/capture/fail', o: { port?: number; companionCmd?: string[]; recordCmd?: string[] } = {}) {
     this.udid = udid;
     this.failDir = failDir;
+    this.port = o.port ?? IDB_PORT;
+    this.companionCmd = o.companionCmd;
+    this.recordCmd = o.recordCmd;
   }
 
   /** The udid of the device `name`, created on the iPhone 17 Pro / iOS 26.5 runtime when absent. */
@@ -61,10 +71,16 @@ export class Sim {
   }
 
   async connect() {
-    this.companion = spawn('idb_companion', ['--udid', this.udid, '--grpc-port', String(this.port)], { stdio: 'ignore' });
-    // the companion takes 3 to 6 s to listen
+    const [cmd, ...args] = this.companionCmd ?? ['idb_companion', '--udid', this.udid, '--grpc-port', String(this.port)];
+    const c = spawn(cmd, args, { stdio: 'ignore' });
+    this.companion = c;
+    let exited: number | null | undefined;
+    c.on('exit', (code) => (exited = code));
+    c.on('error', () => (exited = -1));
+    // the companion takes 3 to 6 s to listen; one that exits (its port taken by another) is not waited for
     for (let i = 0; ; i++) {
       await sleep(1000);
+      if (exited !== undefined) throw new Error(`idb_companion exited (${exited}) before answering on port ${this.port}`);
       try {
         await run('idb', ['connect', 'localhost', String(this.port)]);
         return;
@@ -165,21 +181,33 @@ export class Sim {
   /** Starts recording; resolves with Date.now() at the first frame ("Recording started" on stderr). */
   startRecording(file: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      const p = spawn('xcrun', ['simctl', 'io', this.udid, 'recordVideo', '--codec=h264', '--force', file]);
+      const [cmd, ...args] = this.recordCmd ?? ['xcrun', 'simctl', 'io', this.udid, 'recordVideo', '--codec=h264', '--force', file];
+      const p = spawn(cmd, args);
       this.recorder = p;
+      this.died = null;
       let said = '';
       p.stderr.on('data', (d: Buffer) => {
         said += d.toString();
         if (said.includes('Recording started')) resolve(Date.now());
       });
-      p.on('exit', (code) => reject(new Error(`recordVideo stopped (${code}): ${said.trim()}`)));
+      // before the first frame it fails the start; after, the capture asks recorderDied() between steps
+      p.on('exit', (code) => {
+        if (this.recorder === p) this.died = `recordVideo exited (${code}): ${said.trim().split('\n').at(-1) ?? ''}`;
+        reject(new Error(`recordVideo stopped (${code}): ${said.trim()}`));
+      });
     });
+  }
+
+  /** Why the recording stopped on its own, or null while it runs (or once stopped by stopRecording). */
+  recorderDied(): string | null {
+    return this.died;
   }
 
   async stopRecording() {
     const p = this.recorder;
     if (!p) return;
     this.recorder = null;
+    if (p.exitCode !== null || p.signalCode !== null) return; // already gone: nothing to wait for
     await new Promise<void>((resolve) => {
       p.removeAllListeners('exit');
       p.on('exit', () => resolve());

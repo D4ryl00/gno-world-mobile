@@ -129,10 +129,11 @@ const script: Script = {
         { id: 'challenge', do: { waitFor: 'TEXT TO SIGN' }, mark: true },
         { id: 'sign', do: { computer: 'sign' }, mark: true },
         { id: 'proved', do: { waitFor: '✓ yours', timeout: 60_000 }, mark: true },
-        { id: 'done', do: { tap: 'Done', timeout: 4000 }, optional: true }, // the sheet may already be closed
+        // the sheet may already be closed; while it is open it hides the chip
+        { id: 'done', do: { tap: 'Done', timeout: 1500 }, optional: true },
         { id: 'chip', do: { waitFor: 'alice ✓' }, mark: true },
       ],
-      zoomOn: ['challenge', 'proved', 'chip'],
+      zoomOn: ['chip'], // the challenge screen gives way to the code sheet too fast for a zoom to hold on it
     },
     {
       id: 'end', show: 'card', captions: [],
