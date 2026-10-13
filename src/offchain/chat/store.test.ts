@@ -642,3 +642,27 @@ test('cancelling stops waiting for the wallet', async () => {
   expect(h.store.getState().proving).toBeNull();
   expect(await h.store.getState().onProofReply(okReply())).toBe(false);
 });
+
+// The minutes at the computer are long: the OS may evict the app meanwhile. The
+// wallet's answer then reaches a new store, which must still know what it asked.
+test('a proof that comes back to a relaunched app still reserves the name', async () => {
+  const h = await provingHarness();
+  const relaunched = harness([], { identity: { ...NO_IDENTITY, name: 'ann' }, kv: h.kv });
+  await relaunched.store.ready;
+  expect(relaunched.store.getState().proving).toEqual(h.store.getState().proving);
+  relaunched.client.proveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
+  expect(await relaunched.store.getState().onProofReply(okReply())).toBe(true);
+  expect(relaunched.client.proveName).toHaveBeenCalledWith('ann', { doc: PROOF.doc, sig: PROOF.sig, pub: PROOF.pub, addr: ADDR });
+
+  const again = harness([], { kv: h.kv });
+  await again.store.ready;
+  expect(again.store.getState().proving).toBeNull(); // answered: nothing left to wait for
+});
+
+test('a proof given up on is forgotten across launches', async () => {
+  const h = await provingHarness();
+  h.store.getState().cancelProving();
+  const relaunched = harness([], { kv: h.kv });
+  await relaunched.store.ready;
+  expect(relaunched.store.getState().proving).toBeNull();
+});

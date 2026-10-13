@@ -70,6 +70,8 @@ export interface ChatDeps {
 
 export const SEEN_KEY = 'br.chat.seen';
 export const MARKS_KEY = 'br.chat.marks';
+/** The proof the chat waits for: kept, since the OS may evict the app during the minutes at the computer. */
+export const PROVING_KEY = 'br.chat.proving';
 /** As the site's br.rx: the newest 400 lines' marks are kept. */
 const MARKS_MAX = 400;
 
@@ -102,6 +104,20 @@ const walletRefusal = (code: string) =>
       ? 'The wallet is on another network than the app.'
       : `The wallet refused (${code || 'no reason given'}).`;
 
+/** The stored proof being waited for; null for anything else (none, or unreadable). */
+const parseProving = (raw: string | null): ChatState['proving'] => {
+  try {
+    const p: unknown = raw ? JSON.parse(raw) : null;
+    if (!p || typeof p !== 'object') return null;
+    const { state, name, identity, chainId } = p as Record<string, unknown>;
+    return [state, name, identity, chainId].every((v) => typeof v === 'string' && v)
+      ? { state, name, identity, chainId } as NonNullable<ChatState['proving']>
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 /** The stored seen mark: "<gen>:<id>"; a plain number (older builds) has no gen. */
 const parseSeen = (raw: string | null): { gen: number | null; id: number } => {
   const m = raw ? /^(\d+):(\d+)$/.exec(raw) : null;
@@ -116,6 +132,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
   let olderBusy = false;
   let seenLoaded: number | null = null; // the stored last seen id; null until read
   const seenKey = () => (d.scope ? `${SEEN_KEY}:${d.scope()}` : SEEN_KEY);
+  const provingKey = () => (d.scope ? `${PROVING_KEY}:${d.scope()}` : PROVING_KEY);
   const marksKey = () => (d.scope ? `${MARKS_KEY}:${d.scope()}` : MARKS_KEY);
   let typingAt = 0;
   let typingN = 0;
@@ -205,6 +222,11 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         set({ [field]: say(e) } as Partial<ChatState>);
         return false;
       }
+    };
+
+    const setProving = (proving: ChatState['proving']) => {
+      set({ proving });
+      void d.kv.setItem(provingKey(), proving ? JSON.stringify(proving) : '').catch(() => undefined);
     };
 
     return {
@@ -335,7 +357,8 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         const n = get().identity.name.trim();
         try {
           const r = await d.client.reserveName(n, identity);
-          set({ identity: await d.identity.save({ name: r.name, reservedName: r.name, nameKey: r.key }), identityError: '', proving: null });
+          set({ identity: await d.identity.save({ name: r.name, reservedName: r.name, nameKey: r.key }), identityError: '' });
+          setProving(null);
           return true;
         } catch (e) {
           // as the site: a 409 asks for the wallet's signature, whatever it says
@@ -349,16 +372,17 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           const challenge = await d.client.nameChallenge();
           const state = wallet.randomHex(16);
           const { chainId, remote } = wallet.network();
-          set({ proving: { state, name: n, identity, chainId } });
+          setProving({ state, name: n, identity, chainId });
           await wallet.open(buildChallengeLink({ challenge, signer: identity, chainid: chainId, rpc: remote, callback: CALLBACK_URL, state }));
         }, 'identityError');
-        if (!launched) set({ proving: null }); // no wallet opened: nothing to wait for
+        if (!launched) setProving(null); // no wallet opened: nothing to wait for
         return false;
       },
       onProofReply: async (r) => {
+        await ready; // a relaunched app reads what it waits for first
         const p = get().proving;
         if (!p || r.state !== p.state) return false;
-        set({ proving: null });
+        setProving(null);
         if (r.status === 'cancelled') return true;
         if (r.status === 'error') {
           set({ identityError: walletRefusal(r.code) });
@@ -370,7 +394,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
         }, 'identityError');
         return true;
       },
-      cancelProving: () => set({ proving: null }),
+      cancelProving: () => setProving(null),
       releaseName: () =>
         act(async () => {
           try {
@@ -390,9 +414,18 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
     };
   });
 
-  const ready = d.identity.load().then(
-    (identity) => store.setState({ identity }),
-    () => undefined,
-  );
+  const ready = Promise.all([
+    d.identity.load().then(
+      (identity) => store.setState({ identity }),
+      () => undefined,
+    ),
+    d.kv.getItem(provingKey()).then(
+      (raw) => {
+        const proving = parseProving(raw);
+        if (proving && !store.getState().proving) store.setState({ proving });
+      },
+      () => undefined,
+    ),
+  ]).then(() => undefined);
   return Object.assign(store, { ready });
 }
