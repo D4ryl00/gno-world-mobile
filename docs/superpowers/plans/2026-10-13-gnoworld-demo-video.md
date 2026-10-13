@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Output: `demo/out/gnoworld-demo.mp4`, 1920×1080, 30 fps, H.264 + AAC, total length between 1 min 45 s and 2 min 15 s.
+- Output: `demo/out/gnoworld-demo.mp4`, 1920×1080, 30 fps, H.264 + AAC, total length between 1 min 30 s and 2 min 15 s.
 - English narration and captions; audience: gno developers.
 - iOS simulator only: a dedicated device named `gnoworld-demo` (iPhone 17 Pro, iOS 26.5 runtime), erased at the start of every capture. Never touch other simulators.
 - No code is added to the app (`src/`) or to gnokey-mobile for the demo. A behaviour that looks wrong on camera is reported to the user as an app bug, not worked around.
@@ -1505,7 +1505,7 @@ With `npm run demo:stage` running and the `gnoworld-demo` device prepared (`node
 
 - [ ] **Step 2: The script**
 
-`demo/script.ts` — setup and scenes 0–3 now (scenes 4–7 are added in Task 8); replace any label Step 1 found different:
+`demo/script.ts` — setup and scenes 0–3 now (scenes 4–6 are added in Task 8); replace any label Step 1 found different:
 
 ```ts
 import type { Script } from './lib/types.ts';
@@ -1768,7 +1768,7 @@ git commit -m "feat(demo): capture the chat, the session grant through the compu
 
 ---
 
-### Task 8: The capture — scenes 4–7 (name proof, revoke, end card)
+### Task 8: The capture — scenes 4–6 (Bob asks, name proof, end card)
 
 **Files:**
 - Modify: `demo/script.ts`
@@ -1780,10 +1780,6 @@ git commit -m "feat(demo): capture the chat, the session grant through the compu
 - [ ] **Step 1: Walk the new screens by hand and record the trees**
 
 1. App → Chat → `alice` chip → `Reserve this name` → `Open` → wallet `Prove your identity` → `Text to sign` card → `Scan or type the code` → (gnokey-pair) → back in the app: the chip reads `alice ✓`.
-2. App → Session → `Revoke` → alert `Revoke` → `Open` → wallet `Revoke on Computer` → (gnokey-pair) → back in the app: `Play from this phone`.
-3. App → Pools → `Friday pot` → what the pool screen offers without a session.
-
-**Check point (spec §5):** after the revocation, what does the pool screen do when Alice tries to boop? Expected by the scene: it asks for a session again (a prompt or the Session tab). If it shows an error that makes no sense to a user, or lets her tap `boop` and fails silently, stop and report it to the user as an app bug — do not film around it.
 
 - [ ] **Step 2: Add the scenes**
 
@@ -1818,26 +1814,6 @@ Append to `scenes` in `demo/script.ts` (labels as Step 1 found them):
       zoomOn: ['challenge', 'proved', 'sent'],
     },
     {
-      id: 'revoke', show: 'phone+terminal',
-      captions: ['Revoke any time'],
-      voice: "Revoking is the account's call: the computer signs it, and the dapp has to ask again.",
-      steps: [
-        { id: 'tab', do: { tap: 'Session' }, mark: true },
-        { id: 'revoke', do: { tap: 'Revoke' }, mark: true },
-        { id: 'confirm', do: { tap: 'Revoke' } },
-        { id: 'open-wallet', do: { tap: 'Open', timeout: 8000 } },
-        { id: 'wallet', do: { waitFor: 'Revoke on Computer' }, mark: true },
-        { id: 'go', do: { tap: 'Revoke on Computer' } },
-        { id: 'sign', do: { computer: 'sign' }, mark: true },
-        { id: 'gone', do: { waitFor: 'Play from this phone', timeout: 60_000 }, mark: true },
-        { id: 'pools', do: { tap: 'Pools' } },
-        { id: 'pool', do: { tap: /Friday pot/ }, mark: true },
-        // INSERT HERE the steps of Step 1, item 3: the boop attempt and the screen that asks for a session, each
-        // marked, the last one in `zoomOn`
-      ],
-      zoomOn: ['wallet', 'gone'],
-    },
-    {
       id: 'end', show: 'card', captions: [],
       voice: 'GnoConnect: one standard, any wallet.',
       card: {
@@ -1851,7 +1827,7 @@ Append to `scenes` in `demo/script.ts` (labels as Step 1 found them):
 - [ ] **Step 3: Full capture**
 
 Run: `npm run demo:capture`
-Expected: `capture done`; every marked step of every phone scene is in `timeline.json`; `terminal.jsonl` holds three gnokey-pair runs (session, challenge, revoke), each ending with `Done.`; the contact sheet (as in Task 7) shows `alice ✓` and `Play from this phone`.
+Expected: `capture done`; every marked step of every phone scene is in `timeline.json`; `terminal.jsonl` holds two gnokey-pair runs (session, challenge), each ending with `Done.`; the contact sheet (as in Task 7) shows `alice ✓` and her line under the reserved name.
 
 Run it a second time without changing anything.
 Expected: it succeeds again (fresh chain, erased device): the capture is repeatable.
@@ -1975,7 +1951,7 @@ Run: `cd demo && npm test && npx tsc --noEmit`
 Expected: PASS.
 
 Run: `npm run demo:voice`
-Expected: first run downloads the model (~90 MB, once) and prints `voiced <scene>` for title, chat, connect, play, name, revoke, end, then the durations; a second run prints only the durations (cache).
+Expected: first run downloads the model (~90 MB, once) and prints `voiced <scene>` for title, chat, connect, play, name, end, then the durations; a second run prints only the durations (cache).
 
 - [ ] **Step 4: Choose the voice with the user**
 
@@ -2299,7 +2275,7 @@ test('a fine edit has no problem', () => {
   assert.deepEqual(checkEdl(edl([scene('a', 300)]), { a: { file: 'voice/a.wav', seconds: 5 } }), []);
 });
 
-test('the total must be between 1 min 45 and 2 min 15', () => {
+test('the total must be between 1 min 30 and 2 min 15', () => {
   assert.match(checkEdl(edl([scene('a', 300)], 30 * 60), { a: { file: 'x', seconds: 5 } })[0], /total 60\.0 s/);
 });
 
@@ -2329,7 +2305,7 @@ import { promisify } from 'node:util';
 import { readDurations } from '../lib/files.ts';
 import type { Durations, Edl } from '../lib/types.ts';
 
-const MIN_S = 105;
+const MIN_S = 90;
 const MAX_S = 135;
 const CAPTION_MAX = 64; // two lines of the 40 px pill at 1100 px
 
@@ -2371,7 +2347,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 - [ ] **Step 3: Run the tests and the check**
 
 Run: `cd demo && npm test && npx tsc --noEmit && cd .. && npm run demo:check`
-Expected: tests PASS; `demo:check ok — <105–135> s; contact sheets in demo/out/review/`. If it reports problems, fix the script (narration too long → shorten the line; total out of range → adjust lines), re-run `demo:voice`, `demo:render`, `demo:check`.
+Expected: tests PASS; `demo:check ok — <90–135> s; contact sheets in demo/out/review/`. If it reports problems, fix the script (narration too long → shorten the line; total out of range → adjust lines), re-run `demo:voice`, `demo:render`, `demo:check`.
 
 - [ ] **Step 4: Claude's review passes**
 
