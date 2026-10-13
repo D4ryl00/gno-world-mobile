@@ -65,7 +65,9 @@
     "gnodev": "bash scripts/gnodev.sh",
     "devchain:update": "node scripts/devchain-update.mjs",
     "fake-offchain": "node --experimental-strip-types --no-warnings scripts/fake-offchain/main.mjs",
-    "e2e:chat": "jest -c jest.e2e.config.js --runInBand e2e/fake-offchain e2e/chat"
+    "e2e:chat": "jest -c jest.e2e.config.js --runInBand e2e/fake-offchain e2e/chat",
+    "e2e:pair": "jest -c jest.e2e.config.js --runInBand e2e/pair",
+    "fake-browser": "node --experimental-strip-types --no-warnings scripts/fake-offchain/browser.mjs"
   },
   "private": true,
   "license": "Apache-2.0",
