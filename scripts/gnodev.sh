@@ -29,6 +29,9 @@ fi
 [ -d "$ROOT/devchain/gno.land" ] || { echo "devchain/ is missing: run npm run devchain:update" >&2; exit 1; }
 
 # -C: run from devchain so no other workspace is picked up; -no-examples: everything comes from devchain/
+# GNODEV_WEB=1 keeps gnoweb (127.0.0.1:8888, -web-listener to move it), for the demo video's realm shot.
+WEB=(-no-web)
+[ "${GNODEV_WEB:-}" = 1 ] && WEB=()
 mkdir -p "$E/gnohome"
-exec "$BIN" local -C "$ROOT/devchain" -home "$E/gnohome" -no-web -no-watch -empty-blocks \
+exec "$BIN" local -C "$ROOT/devchain" -home "$E/gnohome" ${WEB[@]+"${WEB[@]}"} -no-watch -empty-blocks \
   -no-examples -extra-root "$ROOT/devchain" "$@"
