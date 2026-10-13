@@ -633,7 +633,7 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   wallet holds the name … already » après la signature. Corrections de la revue finale
   (2026-10-13, I1–I4, M1–M6) : `connect` épingle `signer` aussi sans clé (standard #5970
   `a548c81b7`, #6016 rebasée), et le producteur vérifie `signed` comme un document sign-data ;
-  gnokey-mobile (`caaa012..c119736`) refuse à l'arrivée une identité épinglée qu'il ne détient pas
+  gnokey-mobile (`caaa012..d29b60e`) refuse à l'arrivée une identité épinglée qu'il ne détient pas
   (`signer_unavailable`), attend le pont au lancement à froid sur iOS, répond `signer_unavailable`
   si l'utilisateur renonce après un échec de l'ordinateur, et la feuille du challenge ne montre plus
   la session ; l'app (`004b956..8f78391`) rouvre la feuille du nom au retour du wallet, refuse une

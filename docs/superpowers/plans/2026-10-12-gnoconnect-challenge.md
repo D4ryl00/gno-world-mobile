@@ -2469,7 +2469,7 @@ a failing test first when it is made. Tasks 1–9 are done (ledger:
 
 Done 2026-10-13, each with a test that failed first (ledger has the commits and checks): I1/I2
 standard `a548c81b7` (#6016 rebased), gnokey-mobile `caaa012`, `5302bc9`, `41c102a`; I3 `5302bc9`,
-checked by cold launches on the simulator; I4 app `004b956`; M1/M3 `c119736`; M2 with I1; M4 `41c102a`;
+checked by cold launches on the simulator; I4 app `004b956`; M1/M3 `c119736`; M2 with I1; the final review's Important (a pin re-checked after onboarding) `d29b60e`; M4 `41c102a`;
 M5 `21799f1`; M6 `8f78391`.
 
 ### Recommendation (not a fix)
