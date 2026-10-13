@@ -560,7 +560,7 @@ async function provingHarness() {
 
 test('a 409 has the wallet sign the phrase, then the proof reserves the name', async () => {
   const h = await provingHarness();
-  expect(h.store.getState().proving).toEqual({ state: 'feedfacefeedface', name: 'ann', identity: ADDR });
+  expect(h.store.getState().proving).toEqual({ state: 'feedfacefeedface', name: 'ann', identity: ADDR, chainId: 'gnoland-1' });
   expect(h.store.getState().identityError).toBe('');
   expect(h.opened).toHaveLength(1);
   const q = new URL(h.opened[0].replace('land.gno.gnokey://', 'https://x/')).searchParams;

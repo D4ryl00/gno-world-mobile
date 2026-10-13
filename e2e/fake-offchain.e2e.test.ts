@@ -139,7 +139,7 @@ test('a proof by another key, or of a phrase never handed out, is refused', asyn
   const link = (words: string) => buildChallengeLink({ challenge: words, signer: w.address, chainid: 'dev', callback: 'x://cb', state: 's' });
   const proofOf = (wallet: ReturnType<typeof newTestWallet>, words: string) => {
     const r = wallet.answer(link(words));
-    return proofFromReply({ ...r, address: w.address }, w.address);
+    return proofFromReply({ ...r, address: w.address }, w.address, 'dev');
   };
   const byOther = await call('/api/name', { method: 'POST', body: { name: 'Ann', ...proofOf(other, json.words) } });
   expect(byOther.status).toBe(409);

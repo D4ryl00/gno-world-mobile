@@ -23,11 +23,12 @@ const SECP_PREFIX = [0x0a, 0x13, ...Array.from('/tm.PubKeySecp256k1', (c) => c.c
  * A wallet's `connect` reply to a challenge, as gno.world takes it. The wallet signed canonical bytes
  * (std.SignDataPayload), which are exactly the `doc` the site sends.
  */
-export function proofFromReply(r: WalletReply, identity: string): NameProof {
+export function proofFromReply(r: WalletReply, identity: string, chainId: string): NameProof {
   if (!r.signed || !r.signature || !r.pubkey) {
     throw new Error('Your wallet cannot prove the account. Boop from this app, then reserve within 3 minutes.');
   }
   if (r.address !== identity) throw new Error(`Your wallet proved ${r.address}, not ${identity}: choose that account in the wallet.`);
+  if (r.chainid !== chainId) throw new Error(`Your wallet signed for ${r.chainid}, not ${chainId}: switch its network, then reserve again.`);
   const any = decodePubKey(r.pubkey);
   if (any.length !== SECP_PREFIX.length + 33 || SECP_PREFIX.some((b, i) => any[i] !== b)) {
     throw new Error('Your wallet answered with an unknown kind of key.');

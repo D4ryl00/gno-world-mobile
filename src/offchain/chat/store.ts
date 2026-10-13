@@ -28,7 +28,7 @@ export interface ChatState extends ChatView {
   /** the last refused name or picture action, for the sheet */
   identityError: string;
   /** a reservation waiting for the wallet's proof */
-  proving: { state: string; name: string; identity: string } | null;
+  proving: { state: string; name: string; identity: string; chainId: string } | null;
   start(): void;
   stop(): void;
   restart(): void;
@@ -349,7 +349,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           const challenge = await d.client.nameChallenge();
           const state = wallet.randomHex(16);
           const { chainId, remote } = wallet.network();
-          set({ proving: { state, name: n, identity } });
+          set({ proving: { state, name: n, identity, chainId } });
           await wallet.open(buildChallengeLink({ challenge, signer: identity, chainid: chainId, rpc: remote, callback: CALLBACK_URL, state }));
         }, 'identityError');
         if (!launched) set({ proving: null }); // no wallet opened: nothing to wait for
@@ -365,7 +365,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           return true;
         }
         await act(async () => {
-          const got = await d.client.proveName(p.name, proofFromReply(r, p.identity));
+          const got = await d.client.proveName(p.name, proofFromReply(r, p.identity, p.chainId));
           set({ identity: await d.identity.save({ name: got.name, reservedName: got.name, nameKey: got.key }) });
         }, 'identityError');
         return true;
