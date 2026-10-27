@@ -1,5 +1,5 @@
 import { useImperativeHandle, useRef, useState, type Ref } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 
 import type { ChatLine } from '@/offchain/chat/types';
 import { colors, radius, space } from '@/theme';
@@ -35,7 +35,7 @@ export function Composer({ ref, reply, editing, typing, error, needsName, onNeed
       onChange(0);
     }
   };
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   useImperativeHandle(ref, () => ({ focus: () => input.current?.focus(), send: () => void send() }));
   return (
     <View style={[styles.box, { paddingBottom: space.s + bottomInset }]}>
