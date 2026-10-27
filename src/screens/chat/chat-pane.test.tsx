@@ -32,17 +32,19 @@ test('the screen shows lines, pins, the bot mark, a placeholder and the unreacha
   store.getState().start();
   // the loop loads once, then fails and waits forever: settle it before rendering (no update outside act)
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
   expect(screen.getByText('Chat · 26 here')).toBeTruthy();
   expect(screen.getAllByText('hello').length).toBeGreaterThanOrEqual(1); // the line and its pin
   expect(screen.getByText(/🤖/)).toBeTruthy();
   expect(screen.getByText('📎 picture')).toBeTruthy();
   expect(screen.getByText('server unreachable — retrying')).toBeTruthy();
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 test('on Android the pane lifts its content above the keyboard itself (edge-to-edge: the window is not resized)', async () => {
   const os = jest.replaceProperty(Platform, 'OS', 'android');
+  // Test Renderer only renders host elements: read the props the KeyboardAvoidingView class rendered with.
+  const kav = jest.spyOn(KeyboardAvoidingView.prototype, 'render');
   const client = { poll: jest.fn().mockRejectedValue(new Error('down')) } as unknown as ChatClient;
   const store = createChatStore({
     client, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
@@ -50,9 +52,10 @@ test('on Android the pane lifts its content above the keyboard itself (edge-to-e
   });
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
-  expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe('padding');
-  act(() => store.getState().stop());
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
+  expect((kav.mock.contexts.at(-1) as KeyboardAvoidingView).props.behavior).toBe('padding');
+  kav.mockRestore();
+  await act(() => store.getState().stop());
   os.restore();
 });
 
@@ -72,17 +75,17 @@ test('Reply picked while editing leaves the edit: send posts a reply, and the ed
   });
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
-  fireEvent(screen.getByText('my line'), 'longPress');
-  fireEvent.press(screen.getByText('Edit'));
-  fireEvent(screen.getByText('his line'), 'longPress');
-  fireEvent.press(screen.getByText('Reply'));
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
+  await fireEvent(screen.getByText('my line'), 'longPress');
+  await fireEvent.press(screen.getByText('Edit'));
+  await fireEvent(screen.getByText('his line'), 'longPress');
+  await fireEvent.press(screen.getByText('Reply'));
   expect(screen.getByPlaceholderText('say something').props.value).toBe('');
-  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
-  fireEvent.press(screen.getByLabelText('send'));
+  await fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  await fireEvent.press(screen.getByLabelText('send'));
   await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', 2));
   expect(edit).not.toHaveBeenCalled();
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 test('a typing update, a new count of people here or a new "you" does not re-render the lines', async () => {
@@ -95,12 +98,12 @@ test('a typing update, a new count of people here or a new "you" does not re-ren
   });
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
   const before = (splitLinks as jest.Mock).mock.calls.length;
-  act(() => store.setState({ typing: [{ name: 'bob', n: 3 }], here: 9, you: { cc: 'FR', tag: 'aaaa' } }));
+  await act(() => store.setState({ typing: [{ name: 'bob', n: 3 }], here: 9, you: { cc: 'FR', tag: 'aaaa' } }));
   expect(screen.getByText('Chat · 9 here')).toBeTruthy();
   expect((splitLinks as jest.Mock).mock.calls.length).toBe(before);
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 function storeWith(identity: ChatIdentity, msgs = [line(2, { name: 'bob', body: 'his line' })]) {
@@ -121,13 +124,14 @@ test('Reply puts the cursor in the field', async () => {
   const { store } = storeWith({ ...NO_IDENTITY, name: 'ann' });
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
-  const focus = screen.UNSAFE_getByType(TextInput).instance.focus as jest.Mock;
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
+  // The jest preset mocks TextInput as a class whose focus is a jest.fn shared on its prototype.
+  const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
   focus.mockClear();
-  fireEvent(screen.getByText('his line'), 'longPress');
-  fireEvent.press(screen.getByText('Reply'));
+  await fireEvent(screen.getByText('his line'), 'longPress');
+  await fireEvent.press(screen.getByText('Reply'));
   expect(focus).toHaveBeenCalled();
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 test('a line held back for a name goes out once the name is saved and the sheet closed', async () => {
@@ -135,68 +139,69 @@ test('a line held back for a name goes out once the name is saved and the sheet 
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
   const onOpenIdentity = jest.fn();
-  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} />);
-  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
-  fireEvent.press(screen.getByLabelText('send'));
+  const view = await render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} />);
+  await fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  await fireEvent.press(screen.getByLabelText('send'));
   expect(onOpenIdentity).toHaveBeenCalled();
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen />);
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen />);
   expect(post).not.toHaveBeenCalled();
   await act(() => store.getState().setName('ann'));
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen={false} />);
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={onOpenIdentity} identityOpen={false} />);
   await waitFor(() => expect(post).toHaveBeenCalledWith('ann', 'hi', undefined));
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 test('closing the sheet without a name drops the held-back line', async () => {
   const { store, post } = storeWith(NO_IDENTITY);
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
-  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
-  fireEvent.press(screen.getByLabelText('send'));
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
+  const view = await render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
+  await fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  await fireEvent.press(screen.getByLabelText('send'));
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
   await act(() => store.getState().setName('ann'));
   expect(post).not.toHaveBeenCalled();
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
 test('Send without a name, then Reserve: the line waits for the reservation, and goes once the sheet closes', async () => {
   const { store, post } = storeWith(NO_IDENTITY);
   store.getState().start();
   await waitFor(() => expect(store.getState().phase).toBe('unreachable'));
-  const view = render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
-  fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
-  fireEvent.press(screen.getByLabelText('send'));
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
+  const view = await render(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} />);
+  await fireEvent.changeText(screen.getByPlaceholderText('say something'), 'hi');
+  await fireEvent.press(screen.getByLabelText('send'));
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen />);
   await act(() => store.getState().setName('ann')); // Reserve's first step; its request is still in flight
   expect(post).not.toHaveBeenCalled();
-  act(() => store.setState({ identity: { ...store.getState().identity, reservedName: 'ann', nameKey: 'k' } }));
-  view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
+  await act(() => store.setState({ identity: { ...store.getState().identity, reservedName: 'ann', nameKey: 'k' } }));
+  await view.rerender(<ChatPane store={store} offchainUrl="http://fake" onOpenIdentity={() => undefined} identityOpen={false} />);
   await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
   expect(post).toHaveBeenCalledWith('ann', 'hi', undefined);
-  act(() => store.getState().stop());
+  await act(() => store.getState().stop());
 });
 
-test('the header opens the pairing screen', () => {
+test('the header opens the pairing screen', async () => {
   const store = createChatStore({
     client: {} as ChatClient, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
     kv: { getItem: async () => null, setItem: async () => undefined },
   });
   const onOpenPair = jest.fn();
-  render(<ChatPane store={store} offchainUrl="http://fake" onOpenPair={onOpenPair} />);
-  fireEvent.press(screen.getByLabelText('Pair with another device'));
+  await render(<ChatPane store={store} offchainUrl="http://fake" onOpenPair={onOpenPair} />);
+  await fireEvent.press(screen.getByLabelText('Pair with another device'));
   expect(onOpenPair).toHaveBeenCalled();
 });
 
-test('a long reserved name stays on one line and the title gives way', () => {
+test('a long reserved name stays on one line and the title gives way', async () => {
   const long = 'n'.repeat(40);
   const store = createChatStore({
     client: {} as ChatClient, identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
     kv: { getItem: async () => null, setItem: async () => undefined },
   });
+  await store.ready; // else the stored identity, loaded after render, replaces this one
   store.setState({ identity: { ...NO_IDENTITY, name: long, reservedName: long, nameKey: 'a'.repeat(32) } });
-  render(<ChatPane store={store} offchainUrl="http://fake" />);
+  await render(<ChatPane store={store} offchainUrl="http://fake" />);
   expect(screen.getByText(`${long} ✓`).props.numberOfLines).toBe(1);
   const title = screen.getByText(/^Chat · /);
   expect(title.props.numberOfLines).toBe(1);

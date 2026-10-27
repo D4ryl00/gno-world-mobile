@@ -30,27 +30,27 @@ beforeEach(async () => {
 
 // Back from the wallet, the answer to a proof (a name reserved, or refused) is
 // on the name sheet: the callback asks for it, whatever the screen kept.
-test('the chat opens on the name sheet when asked to', () => {
+test('the chat opens on the name sheet when asked to', async () => {
   mockParams.identity = '1';
-  render(<ChatScreen />);
+  await render(<ChatScreen />);
   expect(screen.getByLabelText('name')).toBeTruthy();
 });
 
-test('the chat opens without the name sheet otherwise', () => {
+test('the chat opens without the name sheet otherwise', async () => {
   delete mockParams.identity;
-  render(<ChatScreen />);
+  await render(<ChatScreen />);
   expect(screen.queryByLabelText('name')).toBeNull();
 });
 
-test('the param is spent once read: closed, the sheet stays closed; a second proof opens it again', () => {
+test('the param is spent once read: closed, the sheet stays closed; a second proof opens it again', async () => {
   mockParams.identity = '1';
-  const view = render(<ChatScreen />);
+  const view = await render(<ChatScreen />);
   expect(router.setParams).toHaveBeenCalledWith({ identity: undefined });
-  fireEvent.press(screen.getByText('Done'));
+  await fireEvent.press(screen.getByText('Done'));
   delete mockParams.identity; // what setParams did
-  view.rerender(<ChatScreen />);
+  await view.rerender(<ChatScreen />);
   expect(screen.queryByLabelText('name')).toBeNull();
   mockParams.identity = '1'; // the next proof comes back
-  view.rerender(<ChatScreen />);
+  await view.rerender(<ChatScreen />);
   expect(screen.getByLabelText('name')).toBeTruthy();
 });

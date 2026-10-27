@@ -102,7 +102,7 @@ export function PoolsScreen() {
               </Text>
             ))}
           </View>
-        ) : null
+        ) : undefined
       }
     />
   );

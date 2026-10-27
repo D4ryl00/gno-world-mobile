@@ -8,7 +8,7 @@ your computer. Renewing is a new `connect` naming the current key in `old`; logg
 
 ## Requirements
 
-- Node 22+, Xcode, Android SDK + NDK, Go (for gnonative and the e2e suite)
+- Node 22.13+ (or 24.3+), Xcode 26.4+, Android SDK + NDK, Go (for gnonative and the e2e suite)
 - `~/gno` (gnodev and gnokey for the e2e suite)
 
 ## Run
