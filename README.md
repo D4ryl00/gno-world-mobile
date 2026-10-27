@@ -9,13 +9,11 @@ your computer. Renewing is a new `connect` naming the current key in `old`; logg
 ## Requirements
 
 - Node 22+, Xcode, Android SDK + NDK, Go (for gnonative and the e2e suite)
-- `~/gnonative` on `main` (since [gnolang/gnonative#233](https://github.com/gnolang/gnonative/pull/233): `SignBytes`, and gno on the mainnet line so transaction results carrying `bank.TransferEvent` decode), packed: `cd ~/gnonative/expo && make build && npm run build && npm pack`
 - `~/gno` (gnodev and gnokey for the e2e suite)
 
 ## Run
 
 ```sh
-npm install ~/gnonative/expo/gnolang-gnonative-0.1.2.tgz
 npm install
 npx expo run:ios      # or: npx expo run:android
 ```
