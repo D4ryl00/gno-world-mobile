@@ -1,0 +1,58 @@
+# Run by hand when main should ship (Actions → Release → Run workflow, or `gh workflow run release.yml`):
+# check the app, then let semantic-release decide from the conventional commits since the last tag whether
+# there is a new version. If there is, it commits the version (app.json, package.json), tags vX.Y.Z,
+# publishes the GitHub release and starts store-release.yml on that tag.
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # release commit, tag, GitHub release
+  issues: write # semantic-release comments on released issues / opens one on failure
+  pull-requests: write
+  actions: write # gh workflow run store-release.yml
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+          cache: npm
+
+      - run: npm ci
+      - run: npx expo lint
+      - run: npx tsc --noEmit
+      - run: npx jest
+
+      - id: release
+        run: >
+          npx --yes
+          -p semantic-release@25
+          -p @semantic-release/exec@7
+          -p @semantic-release/git@11
+          -p conventional-changelog-conventionalcommits@9
+          semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+
+      # A release made with GITHUB_TOKEN does not trigger `on: release`; workflow_dispatch is the exception.
+      - if: steps.release.outputs.version
+        run: gh workflow run store-release.yml --ref "v${{ steps.release.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

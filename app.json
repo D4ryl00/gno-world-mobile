@@ -10,9 +10,22 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "world.gno.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "land.gno.gnokey"
+        ]
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          }
         ]
       }
     },
@@ -39,17 +52,35 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "gno.world uses a photo you pick as your chat picture."
+          "photosPermission": "gno.world uses a photo you pick as your chat picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "1855da70-2ffd-4c7b-b0f1-6cafdf70d9b8"
+      }
+    },
+    "owner": "bertytechnologies"
   }
 }

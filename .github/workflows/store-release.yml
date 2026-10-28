@@ -1,0 +1,37 @@
+# Builds the tagged version on EAS and submits it: iOS to TestFlight, Android to the Play internal testing track
+# (eas.json, profile "production"). release.yml starts it after each release; to retry a version by hand:
+#   gh workflow run store-release.yml --ref v1.2.3
+# The job only queues the builds (--no-wait); follow them and their submissions on expo.dev.
+name: Store release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eas:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+          cache: npm
+
+      - uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - run: >
+          eas build
+          --platform all
+          --profile production
+          --auto-submit
+          --non-interactive
+          --no-wait
+          --message "${{ github.ref_name }}"
