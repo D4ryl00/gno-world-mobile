@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~58.0.23",
-    "@gnolang/gnonative": "^5.3.0",
+    "@gnolang/gnonative": "^5.3.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "bech32": "^2.0.0",
     "expo": "~58.0.19",

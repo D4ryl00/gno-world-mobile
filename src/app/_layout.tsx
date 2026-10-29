@@ -25,6 +25,11 @@ export default function RootLayout() {
           <Stack.Screen name="create" options={{ title: 'New pool', presentation: 'modal' }} />
           <Stack.Screen name="pair" options={{ title: 'Pair with a browser', headerBackTitle: 'Chat' }} />
           <Stack.Screen name="session-callback" options={{ headerShown: false }} />
+          {/* Home's cards, full screen: an iOS sheet you swipe down to close; not the price, whose crosshair a sheet
+              would steal (iOS drags a sheet, even a locked one, on any downward slide) — it closes with ✕ */}
+          <Stack.Screen name="home/price" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+          <Stack.Screen name="home/here" options={{ presentation: 'modal', headerShown: false }} />
+          <Stack.Screen name="home/chat" options={{ presentation: 'modal', headerShown: false }} />
         </Stack>
       </AppServices>
     </GnoNativeProvider>

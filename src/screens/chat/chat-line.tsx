@@ -10,25 +10,27 @@ import { flagEmoji } from '@/utils/flag';
 import { ago, placeholder, pollBars, rxWho, splitLinks } from './line-model';
 
 /** Memoised: a row renders again only when its line, its marks, the clock or a handler changes. */
-export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote, onLongPress, onJump, onReact, onVote }: {
+export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchainUrl, myReactions, myVote, onLongPress, onJump, onReact, onVote, readOnly }: {
   line: ChatLine; mine: boolean; now: number; offchainUrl: string; myReactions: string[]; myVote: number | undefined;
   onLongPress: (l: ChatLine) => void; onJump: (id: number) => void; onReact: (l: ChatLine, emoji: string) => void;
   onVote: (l: ChatLine, opt: number) => void;
+  /** to read only (Home's full-screen chat): no menu, no reacting, no voting; links and the quote jump still work */
+  readOnly?: boolean;
 }) {
   const extra = placeholder(line);
   const [who, setWho] = useState<string | null>(null);
   const poll = line.poll ? pollBars(line.poll, myVote) : null;
   return (
     // not one accessible element: poll options, reactions and links stay reachable on their own
-    <Pressable onLongPress={() => onLongPress(line)} delayLongPress={300} accessible={false} style={[styles.row, mine && styles.mine]}>
+    <Pressable onLongPress={readOnly ? undefined : () => onLongPress(line)} delayLongPress={300} accessible={false} style={[styles.row, mine && styles.mine]}>
       {line.av ? <Image source={{ uri: avatarUrl(offchainUrl, line.av) }} style={styles.av} /> : <View style={styles.av} />}
       <View style={styles.main}>
         {/* the row is not one accessible element: its menu is an accessibility action on the name line */}
         <Text style={styles.who} numberOfLines={1} accessible
           accessibilityLabel={`${line.name}${line.reserved ? ' ✓' : ''}, ${ago(line.t, now)}${line.edited ? ', edited' : ''}`}
-          accessibilityHint="actions: reply, react, edit"
-          accessibilityActions={[{ name: 'menu', label: 'reply, react, edit' }, { name: 'longpress' }]}
-          onAccessibilityAction={(e) => {
+          accessibilityHint={readOnly ? undefined : 'actions: reply, react, edit'}
+          accessibilityActions={readOnly ? undefined : [{ name: 'menu', label: 'reply, react, edit' }, { name: 'longpress' }]}
+          onAccessibilityAction={readOnly ? undefined : (e) => {
             if (e.nativeEvent.actionName === 'menu' || e.nativeEvent.actionName === 'longpress') onLongPress(line);
           }}>
           {line.bot ? '🤖' : flagEmoji(line.cc)} <Text style={styles.name}>{line.name}</Text>
@@ -43,12 +45,20 @@ export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchain
         {poll ? (
           <View style={styles.poll}>
             <Text style={styles.body}>📊 {line.poll!.q}</Text>
-            {poll.bars.map((b, i) => (
-              <Pressable key={i} accessibilityRole="button" onPress={() => onVote(line, i)} style={[styles.opt, b.mine && styles.optMine]}>
-                <View style={[styles.optFill, { width: `${b.pct}%` }]} />
-                <Text style={styles.optText}>{b.label} · {b.count}{poll.total ? ` · ${b.pct}%` : ''}</Text>
-              </Pressable>
-            ))}
+            {poll.bars.map((b, i) => {
+              const bar = (
+                <>
+                  <View style={[styles.optFill, { width: `${b.pct}%` }]} />
+                  <Text style={styles.optText}>{b.label} · {b.count}{poll.total ? ` · ${b.pct}%` : ''}</Text>
+                </>
+              );
+              const style = [styles.opt, b.mine && styles.optMine];
+              return readOnly ? (
+                <View key={i} style={style}>{bar}</View>
+              ) : (
+                <Pressable key={i} accessibilityRole="button" onPress={() => onVote(line, i)} style={style}>{bar}</Pressable>
+              );
+            })}
             <Text style={styles.meta}>{poll.total} vote{poll.total === 1 ? '' : 's'}</Text>
           </View>
         ) : (
@@ -60,13 +70,21 @@ export const ChatLineRow = memo(function ChatLineRow({ line, mine, now, offchain
         {extra ? <Text style={styles.meta}>{extra}</Text> : null}
         {Object.keys(line.rx).length ? (
           <View style={styles.rxRow}>
-            {Object.entries(line.rx).map(([e, n]) => (
-              <Pressable key={e} accessibilityRole="button" accessibilityLabel={`${e} ${n}${rxWho(line, e) ? `, ${rxWho(line, e)}` : ''}`}
-                accessibilityHint="hold to see who" onPress={() => onReact(line, e)} onLongPress={() => setWho(who === e ? null : e)}
-                style={[styles.rx, myReactions.includes(e) && styles.rxMine]}>
-                <Text style={styles.rxText}>{e} {n}</Text>
-              </Pressable>
-            ))}
+            {Object.entries(line.rx).map(([e, n]) => {
+              const label = `${e} ${n}${rxWho(line, e) ? `, ${rxWho(line, e)}` : ''}`;
+              const style = [styles.rx, myReactions.includes(e) && styles.rxMine];
+              return readOnly ? (
+                <View key={e} accessible accessibilityLabel={label} style={style}>
+                  <Text style={styles.rxText}>{e} {n}</Text>
+                </View>
+              ) : (
+                <Pressable key={e} accessibilityRole="button" accessibilityLabel={label}
+                  accessibilityHint="hold to see who" onPress={() => onReact(line, e)} onLongPress={() => setWho(who === e ? null : e)}
+                  style={style}>
+                  <Text style={styles.rxText}>{e} {n}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
         {who && rxWho(line, who) ? <Text style={styles.meta}>{who} {rxWho(line, who)}</Text> : null}

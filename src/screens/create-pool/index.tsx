@@ -20,7 +20,7 @@ import { findCreated, validatePoolForm } from './form';
 const leave = (poolKey?: string) => {
   if (poolKey) router.replace({ pathname: '/pool/[key]', params: { key: poolKey } });
   else if (router.canGoBack()) router.back();
-  else router.replace('/');
+  else router.replace('/pools');
 };
 
 export function CreatePoolScreen() {

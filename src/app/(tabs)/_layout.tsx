@@ -24,7 +24,8 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.muted,
         sceneStyle: { backgroundColor: colors.bg },
       }}>
-      <Tabs.Screen name="index" options={{ title: 'Pools', tabBarIcon: icon({ ios: 'bubbles.and.sparkles', android: 'bubble_chart' }) }} />
+      <Tabs.Screen name="index" options={{ title: 'gno.world', tabBarLabel: 'Home', tabBarIcon: icon({ ios: 'house.fill', android: 'home' }) }} />
+      <Tabs.Screen name="pools" options={{ title: 'Pools', tabBarIcon: icon({ ios: 'bubbles.and.sparkles', android: 'bubble_chart' }) }} />
       <Tabs.Screen
         name="chat"
         options={{

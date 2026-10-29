@@ -1,6 +1,6 @@
 # Temporary patches
 
-`@gnolang+gnonative+0.1.2.patch` fixes a crash on Expo SDK 57 (Hermes): gnonative's
+`@gnolang+gnonative+5.3.1.patch` (first made on 0.1.2, still needed on 5.3.1) fixes a crash on Expo SDK 57 (Hermes): gnonative's
 `expo/src/index.ts:10` (and build/index.js) assigns `Symbol.asyncIterator`, which is
 read-only there ("Cannot assign to read-only property 'asyncIterator'"), so importing
 `@gnolang/gnonative` throws. The patch only defines it when missing.
