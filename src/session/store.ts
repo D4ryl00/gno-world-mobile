@@ -43,6 +43,8 @@ export interface SessionDeps {
   randomHex: (bytes: number) => string;
   now: () => number;
   network: () => { chainId: string; remote: string };
+  /** false: no wallet app to open (a build without gnokey-mobile); every request shows the desktop command */
+  wallet?: boolean;
   pollIntervalMs?: number;
   /** how long a renewal waits for the old session to leave the chain before saying it is still there */
   previousWaitMs?: number;
@@ -195,6 +197,10 @@ export const createSessionStore = (d: SessionDeps) => {
           poll.aborted = true; // abort any running poll before setting new pending
           set({ pending: p, phase: 'waiting-wallet', command: commandFor(p), error: undefined });
           starting = false; // the pending request now blocks a second one, even if the wallet never comes back
+          if (d.wallet === false) {
+            get().useDesktop();
+            return;
+          }
           try {
             await d.openURL(link);
           } catch {

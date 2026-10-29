@@ -6,7 +6,10 @@
   "build": {
     "production": {
       "node": "22.23.2",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_WALLET": "off"
+      }
     }
   },
   "submit": {

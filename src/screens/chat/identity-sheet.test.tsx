@@ -11,6 +11,12 @@ jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(async () => ({ granted: true })),
   launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })),
 }));
+const mockBuild = { walletEnabled: true };
+jest.mock('@/session/wallet-build', () => ({
+  get walletEnabled() {
+    return mockBuild.walletEnabled;
+  },
+}));
 jest.mock('@/screens/chat/avatar', () => ({ avatarJpeg: jest.fn(async () => new Uint8Array([1, 2, 3])) }));
 
 function make(identity: ChatIdentity, client: Partial<ChatClient> = {}) {
@@ -46,6 +52,28 @@ test('reserving shows the mark, and the server\'s refusal as is', async () => {
   await fireEvent.press(screen.getByText('Reserve this name'));
   expect(await screen.findByText('✓ yours')).toBeTruthy();
   expect(screen.getByText('Release')).toBeTruthy();
+});
+
+test('a name the server wants signed, without a wallet: coming soon, and how to reserve meanwhile', async () => {
+  const reserveName = jest.fn().mockRejectedValueOnce(new OffchainError(409, 'Connect your wallet and let it sign the phrase'));
+  const store = make({ ...NO_IDENTITY, name: 'ann' }, { reserveName } as Partial<ChatClient>);
+  await store.ready;
+  await render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" identity="g1x" />);
+  await fireEvent.press(screen.getByText('Reserve this name'));
+  expect(await screen.findByText('Coming soon')).toBeTruthy();
+  expect(screen.getByText(/Proving this name with a signature comes with gnokey mobile/)).toBeTruthy();
+  expect(screen.getByText(/boop from a pool, then reserve within 3 minutes/)).toBeTruthy();
+  expect(screen.queryByText('Connect your wallet and let it sign the phrase')).toBeNull();
+});
+
+test('without a wallet, the hint does not offer the wallet\'s signature', async () => {
+  mockBuild.walletEnabled = false;
+  const store = make({ ...NO_IDENTITY, name: 'ann' });
+  await store.ready;
+  await render(<IdentitySheet store={store} visible onClose={() => undefined} offchainUrl="http://fake" identity="g1x" />);
+  expect(screen.getByText(/Boop from this app, then reserve within 3 minutes/)).toBeTruthy();
+  expect(screen.queryByText(/Your wallet signs a phrase/)).toBeNull();
+  mockBuild.walletEnabled = true;
 });
 
 test('on Android the sheet rises above the keyboard itself (edge-to-edge: the window is not resized)', async () => {

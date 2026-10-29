@@ -103,6 +103,32 @@ test('no wallet installed: falls back to the desktop command; master typed by th
   expect(store.getState().phase).toBe('active');
 });
 
+test('a build without the wallet: create, renew and revoke go straight to the desktop command, no link opened', async () => {
+  const { api, store, opened, onChain } = setup({ wallet: false });
+  await store.getState().begin('create', DEFAULT_GRANT);
+  expect(store.getState().phase).toBe('desktop');
+  expect(store.getState().pending!.via).toBe('desktop');
+  expect(store.getState().command).toMatch(/^gnokey maketx session create -pubkey gpub1/);
+  onChain(store.getState().pending!.key.address);
+  await store.getState().submitMaster(M);
+  expect(store.getState().phase).toBe('active');
+
+  await store.getState().begin('replace', { ...DEFAULT_GRANT, spendPerPeriod: 1000000 });
+  expect(store.getState().pending!.via).toBe('desktop');
+  expect(store.getState().command).toMatch(/session create .* && gnokey maketx session revoke -pubkey /);
+  onChain(store.getState().pending!.key.address);
+  await settle();
+  expect(store.getState().phase).toBe('active');
+
+  await store.getState().revoke();
+  expect(store.getState().pending!.via).toBe('desktop');
+  expect(store.getState().command).toMatch(/^gnokey maketx session revoke -pubkey /);
+  api.sessions.clear();
+  await settle();
+  expect(store.getState().phase).toBe('none');
+  expect(opened).toEqual([]);
+});
+
 test('a pending request survives a restart and resumes', async () => {
   const { store, deps, onChain } = setup({ openURL: async () => { throw new Error('no app'); } });
   await store.getState().begin('create', DEFAULT_GRANT);

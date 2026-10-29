@@ -10,9 +10,11 @@ import { Card } from '@/components/card';
 import { Page } from '@/components/page';
 import { CommandBlock } from '@/components/command-block';
 import { Field } from '@/components/field';
+import { WalletSoon } from '@/components/wallet-soon';
 import { useNow } from '@/hooks/use-now';
 import { revokeCommand } from '@/session/fallback';
 import { expiresSoon, missingPaths, remaining, resetsIn } from '@/session/status';
+import { walletEnabled } from '@/session/wallet-build';
 import { useServices, useSession } from '@/state/app-services';
 import { useSettings } from '@/state/settings';
 import { colors, space } from '@/theme';
@@ -210,14 +212,25 @@ export function SessionScreen() {
   }
 
   return page(
-    <Card>
-      <Text style={styles.h}>Play from this phone</Text>
-      <Text style={styles.muted}>
-        gno.world gets its own key, which your account authorises once, with a budget and an expiry. Boops are then
-        signed here, without opening a wallet each time. Your account key never leaves your computer.
-      </Text>
-      <GrantForm submitLabel="Get a session from gnokey-mobile" onSubmit={(g) => void s.begin('create', g)} />
-    </Card>,
+    <>
+      {walletEnabled ? null : (
+        <WalletSoon title="gnokey mobile">
+          <Text style={styles.t}>The Gno wallet for your phone is coming soon to the App Store and Google Play.</Text>
+          <Text style={styles.muted}>Until then, set up a session from a computer with gnokey.</Text>
+        </WalletSoon>
+      )}
+      <Card>
+        <Text style={styles.h}>Play from this phone</Text>
+        <Text style={styles.muted}>
+          gno.world gets its own key, which your account authorises once, with a budget and an expiry. Boops are then
+          signed here, without opening a wallet each time. Your account key never leaves your computer.
+        </Text>
+        <GrantForm
+          submitLabel={walletEnabled ? 'Get a session from gnokey-mobile' : 'Get a session from a computer'}
+          onSubmit={(g) => void s.begin('create', g)}
+        />
+      </Card>
+    </>,
   );
 }
 

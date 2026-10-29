@@ -18,6 +18,7 @@ import { expoCrypto } from '@/offchain/sync/expo-crypto';
 import { createBookStore } from '@/offchain/sync/rooms';
 import { createSyncStore, type SyncState } from '@/offchain/sync/store';
 import { createSessionStore, type SessionState } from '@/session/store';
+import { walletEnabled } from '@/session/wallet-build';
 import { createNetworkSync } from '@/state/network-sync';
 import { settingsStore, watchHydration } from '@/state/settings';
 import { randomHex } from '@/utils/random';
@@ -67,7 +68,7 @@ export function AppServices({ children }: PropsWithChildren) {
     const chat = createChatStore({
       client: chatClient, identity, kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl,
       // a name the server wants proven: the wallet signs the phrase (GnoConnect connect + challenge)
-      wallet: { open: (url) => Linking.openURL(url).then(() => undefined), randomHex, network: () => net.current() },
+      wallet: walletEnabled ? { open: (url) => Linking.openURL(url).then(() => undefined), randomHex, network: () => net.current() } : undefined,
     });
     const scope = () => settingsStore.getState().offchainUrl;
     // /pair: the rooms book and the reserved name shared with gno.world in a browser
@@ -84,6 +85,7 @@ export function AppServices({ children }: PropsWithChildren) {
       randomHex,
       now: Date.now,
       network: () => net.current(),
+      wallet: walletEnabled,
     });
     return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, chatClient, sync };
   }, [api]);

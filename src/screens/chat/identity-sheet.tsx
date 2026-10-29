@@ -4,8 +4,10 @@ import { Image, KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, TextIn
 import { useStore, type StoreApi } from 'zustand';
 
 import { Button } from '@/components/button';
+import { WalletSoon } from '@/components/wallet-soon';
 import { avatarUrl } from '@/offchain/chat/client';
 import type { ChatState } from '@/offchain/chat/store';
+import { walletEnabled } from '@/session/wallet-build';
 import { colors, radius, space } from '@/theme';
 
 import { avatarJpeg } from './avatar';
@@ -18,6 +20,7 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, identity: 
   const identity = useStore(store, (s) => s.identity);
   const proving = useStore(store, (s) => s.proving);
   const error = useStore(store, (s) => s.identityError);
+  const walletSoon = useStore(store, (s) => s.walletSoon);
   const [name, setName] = useState(identity.name || 'anon'); // "anon" is proposed (M2a spec §5)
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState('');
@@ -91,12 +94,22 @@ export function IdentitySheet({ store, visible, onClose, offchainUrl, identity: 
                     })} />
                 )}
                 <Text style={styles.muted}>
-                  {canReserve
-                    ? 'A reserved name is yours alone and your lines carry a ✓. Your wallet signs a phrase on your computer — or boop from this app, then reserve within 3 minutes.'
-                    : 'Reserving needs a session (Session tab).'}
+                  {!canReserve
+                    ? 'Reserving needs a session (Session tab).'
+                    : walletEnabled
+                      ? 'A reserved name is yours alone and your lines carry a ✓. Your wallet signs a phrase on your computer — or boop from this app, then reserve within 3 minutes.'
+                      : 'A reserved name is yours alone and your lines carry a ✓. Boop from this app, then reserve within 3 minutes.'}
                 </Text>
               </>
             )}
+            {walletSoon && !reserved ? (
+              <WalletSoon>
+                <Text style={styles.t}>Proving this name with a signature comes with gnokey mobile.</Text>
+                <Text style={styles.muted}>
+                  Meanwhile: boop from a pool, then reserve within 3 minutes. Or reserve it on gno.world and bring it here with pair.
+                </Text>
+              </WalletSoon>
+            ) : null}
             {photoError ? <Text style={styles.error}>{photoError}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Button kind="secondary" title="Done" onPress={close} />
@@ -116,6 +129,7 @@ const styles = StyleSheet.create({
   av: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.line },
   input: { color: colors.fg, borderColor: colors.line, borderWidth: 1, borderRadius: radius.s, padding: space.m },
   ok: { color: colors.ring, fontWeight: '600' },
+  t: { color: colors.fg },
   muted: { color: colors.muted, fontSize: 12 },
   error: { color: colors.bad },
 });

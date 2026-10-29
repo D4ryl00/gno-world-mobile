@@ -15,7 +15,7 @@ const flush = async () => {
 /** Poll answers are queued; once the queue is empty a poll hangs until it is aborted. */
 function harness(
   answers: (ChatPollReply | Error)[],
-  opts: { identity?: ChatIdentity; seen?: string; kv?: Map<string, string>; scope?: string } = {},
+  opts: { identity?: ChatIdentity; seen?: string; kv?: Map<string, string>; scope?: string; noWallet?: boolean } = {},
 ) {
   const queries: PollQuery[] = [];
   const sleeps: number[] = [];
@@ -57,7 +57,7 @@ function harness(
     random: () => 0.5,
     now: () => clock,
     scope: opts.scope === undefined ? undefined : () => opts.scope!,
-    wallet,
+    wallet: opts.noWallet ? undefined : wallet,
   });
   return { store, client, queries, sleeps, kv, opened, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
 }
@@ -580,6 +580,25 @@ test('a reservation that needs no proof does not open the wallet', async () => {
   h.client.reserveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
   expect(await h.store.getState().reserveName(ADDR)).toBe(true);
   expect(h.opened).toHaveLength(0);
+});
+
+test('without a wallet, a 409 says the signature is coming instead of the server\'s words', async () => {
+  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' }, noWallet: true });
+  await h.store.ready;
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'Connect your wallet and let it sign the phrase'));
+  expect(await h.store.getState().reserveName(ADDR)).toBe(false);
+  expect(h.store.getState().walletSoon).toBe(true);
+  expect(h.store.getState().identityError).toBe('');
+  expect(h.client.nameChallenge).not.toHaveBeenCalled();
+
+  // the next try (here a refusal of another kind) and closing the sheet forget it
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(400, 'a name is 1 to 32 characters'));
+  await h.store.getState().reserveName(ADDR);
+  expect(h.store.getState().walletSoon).toBe(false);
+  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'sign the phrase'));
+  await h.store.getState().reserveName(ADDR);
+  h.store.getState().clearIdentityError();
+  expect(h.store.getState().walletSoon).toBe(false);
 });
 
 test('a reply with another state is not the chat\'s', async () => {

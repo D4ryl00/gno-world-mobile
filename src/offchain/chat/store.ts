@@ -27,6 +27,8 @@ export interface ChatState extends ChatView {
   error: string;
   /** the last refused name or picture action, for the sheet */
   identityError: string;
+  /** the server wants the wallet's signature and this build has no wallet to ask */
+  walletSoon: boolean;
   /** a reservation waiting for the wallet's proof */
   proving: { state: string; name: string; identity: string; chainId: string } | null;
   start(): void;
@@ -242,6 +244,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       identity: NO_IDENTITY,
       error: '',
       identityError: '',
+      walletSoon: false,
       proving: null,
       start: () => {
         if (run) return;
@@ -358,6 +361,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
       },
       reserveName: async (identity) => {
         const n = get().identity.name.trim();
+        set({ walletSoon: false });
         try {
           const r = await d.client.reserveName(n, identity);
           set({ identity: await d.identity.save({ name: r.name, reservedName: r.name, nameKey: r.key }), identityError: '' });
@@ -365,8 +369,12 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           return true;
         } catch (e) {
           // as the site: a 409 asks for the wallet's signature, whatever it says
-          if (!(e instanceof OffchainError && e.status === 409) || !d.wallet) {
+          if (!(e instanceof OffchainError && e.status === 409)) {
             set({ identityError: say(e) });
+            return false;
+          }
+          if (!d.wallet) {
+            set({ walletSoon: true, identityError: '' });
             return false;
           }
         }
@@ -413,7 +421,7 @@ export function createChatStore(d: ChatDeps): StoreApi<ChatState> & { ready: Pro
           set({ identity: await d.identity.save({ av: r.id, avkey: r.key }) });
         }, 'identityError'),
       clearError: () => set({ error: '' }),
-      clearIdentityError: () => set({ identityError: '' }),
+      clearIdentityError: () => set({ identityError: '', walletSoon: false }),
       reloadIdentity: async () => {
         const e = epoch;
         try {

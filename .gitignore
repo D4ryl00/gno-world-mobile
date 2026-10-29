@@ -50,3 +50,6 @@ modules/*/android/build/
 demo/node_modules/
 demo/out/
 demo/.state/
+
+# brainstorming mockups (superpowers visual companion)
+.superpowers/
