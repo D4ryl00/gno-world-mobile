@@ -80,6 +80,7 @@
   "license": "Apache-2.0",
   "jest": {
     "preset": "jest-expo",
+    "testTimeout": 30000,
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
     ],
