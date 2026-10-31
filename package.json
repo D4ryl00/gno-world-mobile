@@ -1,7 +1,7 @@
 {
   "name": "gno-world",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "dependencies": {
     "@expo/ui": "~58.0.23",
     "@gnolang/gnonative": "^5.3.1",
