@@ -757,7 +757,8 @@ test('(f) a renewal that left the old session on chain says so; one that revoked
   const p = store.getState().pending!;
   onChain(p.key.address);
   await store.getState().onReply(reply({ state: p.state, address: M, session: p.key.address }));
-  await settle();
+  // the check of the old session runs after the reply: a fixed wait loses that race on a busy machine
+  for (let i = 0; i < 100 && !store.getState().previous; i++) await settle();
   expect(store.getState().previous?.address).toBe(first.address);
 
   api.sessions.delete(`${bytesToHex(decodeAddress(M))}/${bytesToHex(decodeAddress(first.address))}`);

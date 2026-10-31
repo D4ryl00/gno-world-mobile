@@ -23,7 +23,24 @@ interface Line {
 }
 
 export interface FakeOptions { host?: string; now?: () => number; maxWait?: number; gen?: number }
-export interface FakeServer { url: string; close(): Promise<void> }
+export interface FakeServer {
+  url: string;
+  close(): Promise<void>;
+  /** the room is gone (404 everywhere), as one quiet for a month */
+  vanish(roomId: string): void;
+  /** long polls waiting right now, by room ('' is Public) */
+  waiting(): string[];
+}
+
+interface Log { lines: Line[]; gone: { id: number; at: number }[]; typing: Map<string, { name: string; n: number; until: number }> }
+const newLog = (): Log => ({ lines: [], gone: [], typing: new Map() });
+interface Room { id: string; name: string; key: string; listed: boolean; made: number; vanished: boolean; log: Log }
+interface Dm { room: string; name: string; from: string; kind: 'room'; at: number }
+// the site's words (M2b-2 spec §3)
+const NO_SUCH_ROOM = 'no such room — the link may be wrong, or the room was quiet for a month and is gone';
+const NOT_MAKER = 'only the room\'s maker can do that';
+const ROOM_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+const newRoomId = () => [...randomBytes(20)].map((b) => ROOM_CHARS[b % 64]).join('');
 
 const tagOf = (bid: string) => createHash('sha256').update(bid).digest('hex').slice(0, 4);
 const fold = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
@@ -82,9 +99,13 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   let seq = 0;
   // a new run is a new log, as a real server's reset: clients that knew the old one reload
   let gen = o.gen ?? Date.now() % 1_000_000_000;
-  const lines: Line[] = [];
-  const gone: { id: number; at: number }[] = [];
-  const typing = new Map<string, { name: string; n: number; until: number }>();
+  const pub = newLog();
+  const rooms = new Map<string, Room>();
+  // who last polled under a name: invitations go to them (the site's "whoever last spoke as bob")
+  const spokeAs = new Map<string, string>();
+  const dms = new Map<string, Dm[]>();
+  const pollers = new Map<number, string>();
+  let pollSeq = 0;
   const names = new Map<string, { name: string; key: string; addr: string }>();
   const boops = new Map<string, { addr: string; at: number }>();
   const challenges = new Set<string>();
@@ -99,10 +120,10 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
     for (const w of [...waiters]) w();
     waiters.clear();
   };
-  const add = (p: Partial<Line> & { name: string; body: string; author: string }) => {
+  const add = (p: Partial<Line> & { name: string; body: string; author: string }, log: Log = pub) => {
     const id = ++seq;
     const l: Line = { id, t: now(), tag: p.author === OTHER ? 'zzzz' : tagOf(p.author), cc: 'FR', rxBy: {}, rxNames: {}, changedAt: id, ...p };
-    lines.push(l);
+    log.lines.push(l);
     wake();
     return l;
   };
@@ -143,17 +164,18 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
     }
   };
 
-  const page = (bid: string, since: number, limit: number) => {
+  const page = (log: Log, bid: string, since: number, limit: number, room?: Room) => {
     const t = now();
-    for (const [k, v] of typing) if (v.until <= t) typing.delete(k);
-    const msgs = since === 0 ? lines.slice(-limit) : lines.filter((l) => l.id > since).slice(0, limit);
+    for (const [k, v] of log.typing) if (v.until <= t) log.typing.delete(k);
+    const msgs = since === 0 ? log.lines.slice(-limit) : log.lines.filter((l) => l.id > since).slice(0, limit);
     return {
       msgs: msgs.map(wire),
-      upd: since === 0 ? [] : lines.filter((l) => l.id <= since && l.changedAt > since).map(wire),
-      gone: gone.filter((g) => g.at > since).map((g) => g.id),
-      next: seq, gen, now: t, here: 3, you: { cc: 'FR', tag: tagOf(bid) },
-      pins: lines.filter((l) => l.pinned).map(wire),
-      typing: [...typing.entries()].filter(([k]) => k !== bid).map(([, v]) => ({ name: v.name, n: v.n })),
+      upd: since === 0 ? [] : log.lines.filter((l) => l.id <= since && l.changedAt > since).map(wire),
+      gone: log.gone.filter((g) => g.at > since).map((g) => g.id),
+      next: seq, gen, now: t, here: room ? 2 : 3, you: { cc: 'FR', tag: tagOf(bid) },
+      pins: log.lines.filter((l) => l.pinned).map(wire),
+      typing: [...log.typing.entries()].filter(([k]) => k !== bid).map(([, v]) => ({ name: v.name, n: v.n })),
+      ...(room ? { name: room.name } : { dm: dms.get(bid) ?? [] }),
       build: 'fake',
     };
   };
@@ -168,6 +190,12 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
       const route = `${req.method} ${url.pathname}`;
       const raw = await readBody(req);
       const body = jsonOf(raw);
+      // a room's chat: room= on most routes, X-Room on react and vote
+      const roomId = q.get('room') ?? String(req.headers['x-room'] ?? '');
+      const where = roomId ? rooms.get(roomId) : undefined;
+      if (roomId && url.pathname.startsWith('/api/chat') && (!where || where.vanished)) return send(res, 404, { error: NO_SUCH_ROOM });
+      const log = where?.log ?? pub;
+      const maker = !!where && String(req.headers['x-room-key'] ?? '') === where.key;
 
       if (route === 'GET /api/chat') {
         if (failNext) {
@@ -178,22 +206,33 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
         if (q.has('before')) {
           const before = Number(q.get('before'));
           const limit = Number(q.get('limit') ?? 100);
-          const older = lines.filter((l) => l.id < before);
+          const older = log.lines.filter((l) => l.id < before);
           return send(res, 200, { msgs: older.slice(-limit).map(wire), more: older.length > limit });
         }
         const since = Number(q.get('since') ?? 0);
         const limit = Number(q.get('limit') ?? 80);
         const wait = Math.min(Number(q.get('wait') ?? 0), maxWait);
-        let p = page(bid, since, limit);
+        if (q.get('name')) spokeAs.set(fold(String(q.get('name'))), bid);
+        let p = page(log, bid, since, limit, where);
         if (!hasNews(p) && wait > 0) {
           await new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, wait * 1000);
-            waiters.add(() => {
-              clearTimeout(timer);
+            const n = ++pollSeq;
+            pollers.set(n, roomId);
+            const done = () => {
+              pollers.delete(n);
               resolve();
-            });
+            };
+            const timer = setTimeout(done, wait * 1000);
+            const early = () => {
+              clearTimeout(timer);
+              done();
+            };
+            waiters.add(early);
+            // a client that gave up (a stopped loop) no longer waits
+            res.on('close', early);
           });
-          p = page(bid, since, limit);
+          if (res.destroyed) return;
+          p = page(log, bid, since, limit, where);
         }
         return send(res, 200, p);
       }
@@ -204,18 +243,18 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
         const name = String(body.name ?? '').trim() || 'anon';
         const owner = names.get(fold(name));
         if (owner && owner.key !== key) return send(res, 403, { error: `"${name}" is reserved — pick another name` });
-        const re = lines.find((l) => l.id === Number(body.re));
+        const re = log.lines.find((l) => l.id === Number(body.re));
         const av = typeof body.av === 'string' && avatars.get(body.av)?.key === body.avkey ? body.av : undefined;
         const l = add({
           name: owner ? owner.name : name, body: text, author: bid, v: !!owner, av,
           re: re ? { id: re.id, name: re.name, body: re.body.slice(0, 80) } : undefined,
-        });
-        typing.delete(bid);
+        }, log);
+        log.typing.delete(bid);
         return send(res, 200, { msg: wire(l) });
       }
 
       if (route === 'PATCH /api/chat') {
-        const l = lines.find((x) => x.id === Number(q.get('id')));
+        const l = log.lines.find((x) => x.id === Number(q.get('id')));
         if (!l) return send(res, 404, { error: 'no such line' });
         if (l.author !== bid || now() - l.t >= WINDOW) return send(res, 403, { error: 'only your own line, under fifteen minutes old' });
         const text = String(body.body ?? '').trim();
@@ -226,17 +265,36 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
         return send(res, 200, { msg: wire(l) });
       }
 
+      if (route === 'POST /api/chat/pin') {
+        if (!maker) return send(res, 403, { error: NOT_MAKER });
+        const l = log.lines.find((x) => x.id === Number(q.get('id')));
+        if (!l) return send(res, 404, { error: 'no such line' });
+        l.pinned = q.get('on') !== '0';
+        touch(l);
+        return send(res, 200, { pins: log.lines.filter((x) => x.pinned).map(wire), msg: wire(l) });
+      }
+
+      if (route === 'DELETE /api/chat') {
+        if (!maker) return send(res, 403, { error: NOT_MAKER });
+        const i = log.lines.findIndex((x) => x.id === Number(q.get('id')));
+        if (i < 0) return send(res, 404, { error: 'no such line' });
+        const [l] = log.lines.splice(i, 1);
+        log.gone.push({ id: l.id, at: ++seq });
+        wake();
+        return send(res, 200, { ok: true });
+      }
+
       if (route === 'POST /api/chat/withdraw') {
-        const l = lines.at(-1);
+        const l = log.lines.at(-1);
         if (!l || l.author !== bid || now() - l.t >= WINDOW) return send(res, 200, { deleted: 0 });
-        lines.pop();
-        gone.push({ id: l.id, at: ++seq });
+        log.lines.pop();
+        log.gone.push({ id: l.id, at: ++seq });
         wake();
         return send(res, 200, { deleted: l.id });
       }
 
       if (route === 'POST /api/chat/react') {
-        const l = lines.find((x) => x.id === Number(body.id));
+        const l = log.lines.find((x) => x.id === Number(body.id));
         const emoji = String(body.emoji ?? '');
         if (!REACTIONS.includes(emoji)) return send(res, 400, { error: 'not a reaction' });
         if (!l) return send(res, 404, { error: 'no such line' });
@@ -256,7 +314,7 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
       }
 
       if (route === 'POST /api/chat/vote') {
-        const l = lines.find((x) => x.id === Number(body.id));
+        const l = log.lines.find((x) => x.id === Number(body.id));
         const opt = Number(body.opt);
         if (!l?.poll || !(opt >= 0 && opt < l.poll.opts.length)) return send(res, 400, { error: 'no such option' });
         l.voters ??= {};
@@ -270,10 +328,52 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
 
       if (route === 'POST /api/chat/typing') {
         const n = Number(body.n) || 0;
-        if (n > 0) typing.set(bid, { name: String(body.name ?? 'anon'), n, until: now() + 6 });
-        else typing.delete(bid);
+        if (n > 0) log.typing.set(bid, { name: String(body.name ?? 'anon'), n, until: now() + 6 });
+        else log.typing.delete(bid);
         wake();
         return send(res, 200, {});
+      }
+
+      if (route === 'POST /api/room' && !q.has('id')) {
+        const name = String(body.name ?? '').trim().slice(0, 120);
+        if (!name) return send(res, 400, { error: 'a room needs a name' });
+        const r: Room = { id: newRoomId(), name, key: randomBytes(16).toString('hex'), listed: body.public === true, made: now(), vanished: false, log: newLog() };
+        rooms.set(r.id, r);
+        return send(res, 200, { id: r.id, name: r.name, key: r.key });
+      }
+      if (url.pathname === '/api/room' || url.pathname === '/api/room/invite') {
+        const r = rooms.get(q.get('id') ?? q.get('room') ?? '');
+        if (!r || r.vanished) return send(res, 404, { error: NO_SUCH_ROOM });
+        if (req.method === 'GET') return send(res, 200, { id: r.id, name: r.name, public: r.listed, here: 2, made: r.made, announce: '' });
+        if (String(req.headers['x-room-key'] ?? '') !== r.key) return send(res, 403, { error: NOT_MAKER });
+        if (route === 'DELETE /api/room') {
+          rooms.delete(r.id);
+          wake();
+          return send(res, 200, { ok: true });
+        }
+        if (route === 'POST /api/room/invite') {
+          const to = String(body.to ?? '').trim();
+          const who = spokeAs.get(fold(to));
+          if (!who) return send(res, 404, { error: `nobody spoke as ${to} lately` });
+          const list = dms.get(who) ?? [];
+          list.push({ room: r.id, name: r.name, from: String(body.name ?? 'anon'), kind: 'room', at: now() });
+          dms.set(who, list);
+          wake();
+          return send(res, 200, { to });
+        }
+        if (typeof body.name === 'string') {
+          r.name = body.name.trim().slice(0, 120) || r.name;
+          wake();
+          return send(res, 200, { name: r.name });
+        }
+        if (typeof body.public === 'boolean') r.listed = body.public;
+        return send(res, 200, {});
+      }
+      if (route === 'GET /api/rooms') {
+        return send(res, 200, {
+          rooms: [...rooms.values()].filter((r) => r.listed && !r.vanished)
+            .map((r) => ({ id: r.id, name: r.name, slug: r.name.toLowerCase(), here: 2, voice: 0, made: r.made, lat: 0, lon: 0 })),
+        });
       }
 
       if (route === 'POST /api/bubble/boop') {
@@ -413,7 +513,7 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
         return send(res, 200, {});
       }
       if (route === 'POST /__test/age') {
-        const l = lines.find((x) => x.id === Number(body.id));
+        const l = pub.lines.find((x) => x.id === Number(body.id));
         if (l) l.t -= Number(body.seconds) || 0;
         return send(res, 200, {});
       }
@@ -428,6 +528,12 @@ export async function startFakeServer(port = 0, o: FakeOptions = {}): Promise<Fa
   const actual = typeof addr === 'object' && addr ? addr.port : port;
   return {
     url: `http://${o.host ?? '127.0.0.1'}:${actual}`,
+    vanish: (roomId) => {
+      const r = rooms.get(roomId);
+      if (r) r.vanished = true;
+      wake();
+    },
+    waiting: () => [...pollers.values()],
     close: () =>
       new Promise<void>((resolve) => {
         wake();

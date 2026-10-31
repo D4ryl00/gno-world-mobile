@@ -1,21 +1,27 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { useEffect as mockUseEffect } from 'react';
 import { useStore as mockUseStore } from 'zustand';
 
-import { NO_IDENTITY } from '@/offchain/chat/identity';
-import { createChatStore } from '@/offchain/chat/store';
 import { line } from '@/offchain/chat/testing';
+import { screenServices } from '@/screens/channels/testing';
 import type { Prices, Where } from '@/offchain/home';
 import { ChatCard } from '@/screens/home/chat-card';
 import { HereCard } from '@/screens/home/here-card';
 import { PriceCard } from '@/screens/home/price-card';
 
-let mockChat: ReturnType<typeof createChatStore>;
-jest.mock('expo-router', () => ({ router: { navigate: jest.fn() } }));
-jest.mock('@/state/app-services', () => ({
-  useChat: <T,>(sel: (s: ReturnType<typeof mockChat.getState>) => T) => mockUseStore(mockChat, sel),
+let mockS: ReturnType<typeof screenServices>;
+jest.mock('expo-router', () => ({
+  router: { navigate: jest.fn() },
+  useFocusEffect: (cb: () => void | (() => void)) => mockUseEffect(cb, [cb]),
 }));
+jest.mock('@/state/app-services', () => ({
+  useServices: () => mockS,
+  useRooms: <T,>(sel: (s: ReturnType<typeof mockS.rooms.getState>) => T) => mockUseStore(mockS.rooms, sel),
+  useHomeChannels: <T,>(sel: (s: ReturnType<typeof mockS.homeChannels.getState>) => T) => mockUseStore(mockS.homeChannels, sel),
+}));
+const ROOM = 'AAAAAAAAAAAAAAAAAAAA';
 
 const PRICES: Prices = { days: 1, now: 0.05822, change: -0.308, cap: 11487970.4, fdv: 77713900, supply: 0, series: [[1793183280, 0.0584], [1793183340, 0.0583]], volumes: [] };
 const WHERE: Where = { count: 18, byCountry: [{ cc: 'FR', n: 3 }, { cc: 'AU', n: 1 }], elsewhere: 2, geo: true, spots: [] };
@@ -120,6 +126,14 @@ describe('HereCard', () => {
     expect(screen.getByText('2')).toBeTruthy();
   });
 
+  test('a row without a country has a "?" badge in place of a flag, not a dot', async () => {
+    // 18 here: 4 by country, 2 elsewhere, 12 unknown
+    await render(<HereCard data={WHERE} failed={false} />);
+    // hidden from screen readers: the row's name says it
+    expect(screen.getAllByTestId('no-flag', { includeHiddenElements: true })).toHaveLength(2);
+    expect(screen.queryByText('·', { includeHiddenElements: true })).toBeNull();
+  });
+
   test('countries unavailable: one unknown row with the total', async () => {
     await render(<HereCard data={{ ...WHERE, byCountry: [], elsewhere: 0, geo: false, spots: [] }} failed={false} />);
     expect(screen.getByText('18 people · countries unavailable on this build')).toBeTruthy();
@@ -157,17 +171,13 @@ describe('HereCard', () => {
 describe('ChatCard', () => {
   beforeEach(async () => {
     (router.navigate as jest.Mock).mockClear();
-    mockChat = createChatStore({
-      client: {} as never,
-      identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
-      kv: { getItem: async () => null, setItem: async () => undefined },
-    });
-    await mockChat.ready;
+    mockS = screenServices({ book: { rooms: [{ id: ROOM, name: 'Dev chat', key: '', at: 1 }], left: {} } });
+    await mockS.ready;
   });
 
   test('the last 3 lines, oldest first, with their age; a press opens Chat', async () => {
     const now = Math.floor(Date.now() / 1000);
-    mockChat.setState({
+    mockS.chat.setState({
       lines: [
         line(1, { name: 'old', body: 'too old' }),
         line(2, { name: 'ann', body: 'gm', t: now - 3 * 3600 }),
@@ -182,33 +192,33 @@ describe('ChatCard', () => {
     expect(screen.getByText('3h')).toBeTruthy();
     expect(screen.getByText('📎 picture')).toBeTruthy();
     // a screen reader reads the lines, not just the card's purpose
-    const card = screen.getByRole('button', { name: /^Chat\. ann: gm, 3h\. bob: 📎 picture, [^.]+\. cid: when gnoverse\?, [^.]+$/ });
+    const card = screen.getByRole('button', { name: /^Chat, Public\. ann: gm, 3h\. bob: 📎 picture, [^.]+\. cid: when gnoverse\?, [^.]+$/ });
     expect(card.props.accessibilityHint).toBe('Opens the chat to read');
     await fireEvent.press(card);
     expect(router.navigate).toHaveBeenCalledWith('/home/chat');
   });
 
   test('before the first lines arrive, the card says it is loading', async () => {
-    mockChat.setState({ phase: 'loading' });
+    mockS.chat.setState({ phase: 'loading' });
     await render(<ChatCard />);
     expect(screen.getByText('loading…')).toBeTruthy();
     expect(screen.queryByText('nothing said yet')).toBeNull();
   });
 
   test('an unreachable chat says so, under the lines it still has', async () => {
-    mockChat.setState({ phase: 'unreachable' });
+    mockS.chat.setState({ phase: 'unreachable' });
     const view = await render(<ChatCard />);
     expect(screen.getByText('chat unreachable — retrying')).toBeTruthy();
     expect(screen.queryByText('nothing said yet')).toBeNull();
     await view.unmount();
-    mockChat.setState({ phase: 'unreachable', lines: [line(1, { name: 'ann', body: 'gm' })] });
+    mockS.chat.setState({ phase: 'unreachable', lines: [line(1, { name: 'ann', body: 'gm' })] });
     await render(<ChatCard />);
     expect(screen.getByText('gm')).toBeTruthy();
     expect(screen.getByText('chat unreachable — retrying')).toBeTruthy();
   });
 
   test('as many of the newest lines as the card has room for', async () => {
-    mockChat.setState({ phase: 'live', lines: Array.from({ length: 12 }, (_, i) => line(i + 1, { name: `n${i + 1}`, body: 'hi' })) });
+    mockS.chat.setState({ phase: 'live', lines: Array.from({ length: 12 }, (_, i) => line(i + 1, { name: `n${i + 1}`, body: 'hi' })) });
     await render(<ChatCard />);
     expect(screen.getAllByTestId('chat-card-name')).toHaveLength(3); // until measured
     await layout(screen.getByTestId('chat-card-lines'), 300, 140);
@@ -218,10 +228,67 @@ describe('ChatCard', () => {
   });
 
   test('an empty chat says so and still opens Chat', async () => {
-    mockChat.setState({ phase: 'live' });
+    mockS.chat.setState({ phase: 'live' });
     await render(<ChatCard />);
     expect(screen.getByText('nothing said yet')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'Chat. nothing said yet' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Chat, Public. nothing said yet' }));
     expect(router.navigate).toHaveBeenCalledWith('/home/chat');
+  });
+
+  test('the card shows the current channel\'s lines and its tabs; a tab switches without opening', async () => {
+    mockS.chat.setState({ phase: 'live', lastSeen: 1, lines: [line(1, { name: 'ann', body: 'in public' })] });
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    mockS.rooms.getState().room(ROOM).setState({ phase: 'live', lines: [line(2, { name: 'jae', body: 'in the room' })] });
+    await render(<ChatCard />);
+    expect(screen.getByText('in the room')).toBeTruthy();
+    expect(screen.queryByText('in public')).toBeNull();
+    expect(screen.getAllByRole('tab').map((t) => t.props.accessibilityLabel)).toEqual(['Public', 'Dev chat']);
+    await fireEvent.press(screen.getByRole('tab', { name: 'Public' }));
+    expect(screen.getByText('in public')).toBeTruthy();
+    expect(mockS.homeChannels.getState().current).toBe('');
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  test('the card\'s label names the channel, and its room long-polls while Home is shown', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    mockS.rooms.getState().room(ROOM).setState({ phase: 'live', lines: [line(2, { name: 'jae', body: 'hey' })] });
+    await render(<ChatCard />);
+    expect(screen.getByRole('button', { name: /^Chat, Dev chat\. jae: hey/ })).toBeTruthy();
+    expect(mockS.rooms.getState().focused).toBe(ROOM);
+  });
+
+  test('a tab whose room is no longer joined nor listed goes, once the listing is read; a failed listing removes nothing', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    mockS.rooms.setState({ book: { rooms: [], left: {} }, listed: null });
+    await render(<ChatCard />);
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    await act(() => mockS.rooms.setState({ listed: [] }));
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(mockS.homeChannels.getState().current).toBe('');
+  });
+
+  test('a tab whose room is gone goes; one scan\'s 404 alone does not', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    await render(<ChatCard />);
+    await act(() => mockS.rooms.setState({ gone: { [ROOM]: true } }));
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    await act(() => mockS.rooms.getState().room(ROOM).setState({ gone: true }));
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+  });
+
+  // Home off screen while Chat goes through more rooms than the registry keeps: the card's store is dropped
+  test('a card whose room store was dropped meanwhile shows the new store\'s lines', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    const old = mockS.rooms.getState().room(ROOM);
+    await render(<ChatCard />);
+    await act(() => {
+      const r = mockS.rooms.getState();
+      r.blur(ROOM); // Home loses the focus
+      for (let n = 0; n < 9; n++) r.focus(`other${String(n).padStart(15, '0')}`);
+      r.focus(ROOM); // and has it again
+    });
+    expect(mockS.rooms.getState().room(ROOM)).not.toBe(old);
+    await act(() => mockS.rooms.getState().room(ROOM).setState({ phase: 'live', lines: [line(3, { name: 'kim', body: 'still here' })] }));
+    expect(screen.getByText('still here')).toBeTruthy();
   });
 });

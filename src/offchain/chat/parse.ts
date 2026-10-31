@@ -1,4 +1,6 @@
-import type { ChatLine, ChatOlderReply, ChatPoll, ChatPollReply, Typing } from './types';
+import { ROOM_ID } from '@/offchain/sync/rooms';
+
+import type { ChatLine, ChatOlderReply, ChatPoll, ChatPollReply, RoomInvite, Typing } from './types';
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d);
 const str = (x: unknown) => (typeof x === 'string' ? x : '');
@@ -58,6 +60,11 @@ export function parsePollReply(x: unknown): ChatPollReply {
     typing,
     here: orNull(o.here),
     you: typeof you.tag === 'string' ? { cc: str(you.cc), tag: str(you.tag) } : null,
+    roomName: typeof o.name === 'string' ? o.name : null,
+    // other kinds are DMs, not handled yet
+    dm: arr(o.dm).map(obj)
+      .filter((d) => d.kind === 'room' && ROOM_ID.test(str(d.room)))
+      .map((d): RoomInvite => ({ room: str(d.room), name: str(d.name), from: str(d.from), at: num(d.at) })),
   };
 }
 

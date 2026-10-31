@@ -7,7 +7,7 @@ import type { Teams } from '@/chain/parse';
 import { Button } from '@/components/button';
 import { useNow } from '@/hooks/use-now';
 import { isPlayBlocked, NOPLAY_TEXT, usePresence } from '@/offchain/presence';
-import { useServices } from '@/state/app-services';
+import { useServices, useSession } from '@/state/app-services';
 import { colors, space } from '@/theme';
 import { flagEmoji } from '@/utils/flag';
 import { gnot } from '@/utils/gnot';
@@ -20,6 +20,7 @@ export function PoolsScreen() {
   const { game } = useServices();
   const now = useNow(1000); // the rows' countdowns tick on the same shared timer; a closed pool leaves Live at once
   const blocked = usePresence((s) => isPlayBlocked(s.country));
+  const active = useSession((s) => s.active);
   const [data, setData] = useState<AllPools | null>(null);
   const [teams, setTeams] = useState<Teams | null>({}); // null: the teams could not be loaded
   const [error, setError] = useState('');
@@ -71,7 +72,20 @@ export function PoolsScreen() {
       ListHeaderComponent={
         <View style={{ gap: space.m }}>
           <Text style={styles.lede}>Last boop standing takes the pot. Every boop resets the clock.</Text>
-          {blocked ? <Text style={styles.warn}>{NOPLAY_TEXT}</Text> : <Button title="New pool" onPress={() => router.push('/create')} />}
+          {blocked ? (
+            <Text style={styles.warn}>{NOPLAY_TEXT}</Text>
+          ) : (
+            <>
+              <Button title="New pool" kind={active ? 'primary' : 'secondary'} disabled={!active} onPress={() => router.push('/create')} />
+              {/* the form would only say so at its bottom: say it here, with the way there */}
+              {active ? null : (
+                <>
+                  <Text style={[styles.muted, styles.center]}>A session lets this phone play. Start one to create a pool.</Text>
+                  <Button title="Go to Session ›" onPress={() => router.navigate('/session')} />
+                </>
+              )}
+            </>
+          )}
           {error ? <Text style={styles.warn}>{error}</Text> : null}
           {notice ? <Text style={styles.warn}>{notice}</Text> : null}
           {!data && !error ? <Text style={styles.muted}>Loading pools…</Text> : null}
@@ -112,6 +126,7 @@ const styles = StyleSheet.create({
   page: { padding: space.l, gap: space.s },
   lede: { color: colors.muted },
   muted: { color: colors.muted },
+  center: { textAlign: 'center' },
   h: { color: colors.fg, fontSize: 18, fontWeight: '800', marginTop: space.l, marginBottom: space.s },
   warn: { color: colors.accent },
   team: { color: colors.fg },

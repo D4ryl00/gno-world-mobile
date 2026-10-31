@@ -2,12 +2,25 @@
 # npm run demo:build — everything the capture needs, built once (re-run after the app or the wallet changes):
 # gnokey with sign-data and gnokey-pair (from ~/gno-gnokey-pair, feat/gnokey-pair, rebased on feat/gnokey-sign-data),
 # the relay's venv, the app's Release build for the simulator, gnokey-mobile's simulator build.
+# DEMO=beta: only the app, without the wallet.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 S=$ROOT/demo/.state
 PAIR=${GNO_PAIR:-$HOME/gno-gnokey-pair}
 WALLET=${GNOKEY_MOBILE:-$HOME/gnokey-mobile}
 mkdir -p "$S/bin"
+
+# DEMO=beta films the store build alone: the Release app without gnokey-mobile (EXPO_PUBLIC_WALLET=off, as eas.json's
+# production profile), in its own folder
+if [ "${DEMO:-}" = beta ]; then
+  echo "• gno.world Release build for the simulator, without the wallet"
+  [ -d "$ROOT/ios" ] || (cd "$ROOT" && npx expo prebuild --platform ios)
+  EXPO_PUBLIC_WALLET=off xcodebuild -workspace "$ROOT/ios/gnoworld.xcworkspace" -scheme gnoworld -configuration Release \
+    -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$S/build-nowallet" build -quiet
+  ls -d "$S/build-nowallet/Build/Products/Release-iphonesimulator/gnoworld.app"
+  echo "done"
+  exit 0
+fi
 
 echo "• gnokey (sign-data) and gnokey-pair from $PAIR ($(git -C "$PAIR" branch --show-current))"
 (cd "$PAIR" && go build -o "$S/bin/gnokey" ./gno.land/cmd/gnokey)

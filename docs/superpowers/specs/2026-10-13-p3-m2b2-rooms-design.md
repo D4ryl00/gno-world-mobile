@@ -1,5 +1,8 @@
 # P3-M2b-2 : rooms — design
 
+> **2026-10-30 :** les écrans (§6 : liste de conversations, `room/[id]`) sont remplacés par des onglets de canaux,
+> voir `2026-10-30-chat-channel-tabs-design.md`. Le reste fait foi.
+
 Deuxième des trois jalons de M2b (découpage du 2026-10-13) : M2b-1 `/pair` (livré), **M2b-2 rooms**, M2b-3 DM et amis
 (`/api/dm`, `/api/friends`, notes, lignes scellées `🔒 e2e/1`). M2b-1 a posé le carnet de rooms (`BookStore`, synchronisé
 avec le navigateur, listé en lecture seule) ; M2b-2 l'ouvre. Specs parentes : `2026-10-01-bubblerumble-mobile-design.md`

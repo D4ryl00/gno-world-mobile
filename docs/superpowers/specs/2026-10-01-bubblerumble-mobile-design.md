@@ -682,6 +682,22 @@ Chaque étape fait l'objet d'un plan d'implémentation séparé.
   l'essai de l'utilisateur sur la production** — appairer l'app avec son Chrome sur gno.world (Chrome tenant `remi`),
   dans les deux sens, `remi` ✓ dans l'app. Ledger (non versionné) : `.superpowers/sdd/2026-10-13-p3-m2b1-pair/progress.md`.
 
+- P3-M2b-2 (rooms) avec des **onglets de canaux** à la place de la liste de conversations : spec
+  `docs/superpowers/specs/2026-10-30-chat-channel-tabs-design.md` (qui reprend
+  `2026-10-13-p3-m2b2-rooms-design.md` et en remplace les écrans), plan
+  `docs/superpowers/plans/2026-10-30-chat-channel-tabs.md`, 12 tâches inline sur la branche `feat/channel-tabs`
+  (2026-10-30). Store d'identité séparé du chat, un store de chat par room (`room=`, `X-Room`, `X-Room-Key`, `&name=`
+  au poll, trois 404 → room disparue), registre des rooms (carnet, rooms listées en ordre stable par `made`, au plus 8
+  stores, un seul long-poll de room à côté de Public, relevés des non-lus toutes les 2 min au premier plan,
+  invitations), composition commune `src/state/chat-services.ts`. Home : onglets choisis en plein écran (« Show on
+  Home »), « Write in … » ouvre Chat sur le bon canal. Chat : rangée Public / rooms rejointes / rooms listées, ＋
+  (créer, rejoindre par lien, rooms publiques), ⋯ (lien, inviter, renommer, lister, supprimer, quitter, appairer),
+  épingler et retirer une ligne avec la clé. Pools : « New pool » désactivé sans session, avec « Go to Session › ».
+  Faux serveur : rooms, invitations, `vanish()`, long-polls abandonnés relâchés. `npm run e2e:rooms` 7/7. Trouvé en
+  route : une boucle de chat démarrée puis arrêtée dans le même tick repassait en `loading` (corrigé) ; le test de
+  renouvellement de session attendait 20 ms fixes et échouait sous charge (il attend maintenant sa condition).
+  Ledger : `.superpowers/sdd/2026-10-30-chat-channel-tabs/progress.md`.
+
 **À faire avant d'utiliser l'app sur mainnet :** rien.
 
 **Réglé le 2026-10-02 :**
@@ -751,8 +767,8 @@ réponse `connect` sans session pour la clé de la dapp donne l'adresse maître 
      M2c pièces jointes et vocaux, M2d appairage avec le navigateur et présence « people here ».
      **M2a livré le 2026-10-05** (voir Livré). M2b redécoupé le 2026-10-13 en M2b-1 `/pair` (**livré**, voir
      Livré ; l'appairage quitte M2d, qui garde la présence « people here »), M2b-2 rooms, M2b-3 DM et amis (lignes
-     scellées `🔒 e2e/1` du site comprises) ; suivant : l'essai de `/pair` sur la production par l'utilisateur, puis
-     M2b-2.
+     scellées `🔒 e2e/1` du site comprises) ; M2b-2 **livré le 2026-10-30** avec des onglets de canaux (voir Livré) ;
+     suivant : l'essai de `/pair` sur la production par l'utilisateur, puis M2b-3.
      Vérification sur un faux serveur local écrit d'après le JS du site (pas de serveur de test
      public) ; la production n'est lue qu'en lecture seule, plus un passage manuel court dans une
      room privée ;

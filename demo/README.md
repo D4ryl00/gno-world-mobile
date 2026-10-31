@@ -19,6 +19,22 @@ Everything to change is in `demo/script.ts` (labels as the accessibility tree re
 cannot find its element stops the capture and leaves a screenshot and the accessibility tree in
 `demo/out/capture/fail/`. Ports 26657, 8888, 8787 and 4000 must be free.
 
+## The beta video
+
+`DEMO=beta` picks `demo/beta.ts` (design: `docs/superpowers/specs/2026-10-30-gnoworld-beta-video-design.md`): what's
+new since the first video, then how to join the beta. It films the store build (no gnokey-mobile) on the real
+gno.world and gno.land mainnet — no local stage, nothing signed — on an iPhone 18 Pro (iOS 27) simulator named
+`gnoworld-beta`, and writes everything to `demo/out-beta/` (`gnoworld-beta.mp4`).
+
+```bash
+DEMO=beta npm run demo:build   # once: the Release build with EXPO_PUBLIC_WALLET=off
+DEMO=beta npm run demo         # capture, voice, render, check (about 6 min)
+```
+
+The room it makes on camera ("gno devs", unlisted) is deleted after the recording (the script's `teardown`, run even
+when a scene fails; check the log for `teardown:` errors). The chat on screen is live: look at the contact sheets in
+`demo/out-beta/review/` before sharing the video.
+
 Remotion is free for individuals, non-profits and companies of up to 3 employees; larger companies need a company
 license (remotion.pro).
 

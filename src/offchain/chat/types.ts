@@ -34,6 +34,9 @@ export interface Typing { name: string; n: number }
 /** The server's view of this client. */
 export interface ChatYou { cc: string; tag: string }
 
+/** A `dm` entry of kind "room": someone opened a room for this client. `at` in seconds. */
+export interface RoomInvite { room: string; name: string; from: string; at: number }
+
 export interface ChatPollReply {
   msgs: ChatLine[];
   gone: number[];
@@ -44,6 +47,10 @@ export interface ChatPollReply {
   typing: Typing[];
   here: number | null;
   you: ChatYou | null;
+  /** a room poll's `name`: the room's name */
+  roomName: string | null;
+  /** invitations to rooms (the Public poll's `dm`, kind "room" only) */
+  dm: RoomInvite[];
 }
 
 export interface ChatOlderReply { msgs: ChatLine[]; more: boolean }

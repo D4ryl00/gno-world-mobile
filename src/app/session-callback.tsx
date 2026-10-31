@@ -6,7 +6,7 @@ import { useServices } from '@/state/app-services';
 
 export default function SessionCallback() {
   const params = useLocalSearchParams<Record<string, string | string[]>>();
-  const { session, chat } = useServices();
+  const { session, identity } = useServices();
   useEffect(() => {
     const entries: [string, string][] = Object.entries(params).flatMap(([k, v]) =>
       (Array.isArray(v) ? v : [v]).map((x) => [k, String(x)] as [string, string]),
@@ -14,7 +14,7 @@ export default function SessionCallback() {
     const reply = parseReplyEntries(entries);
     void (async () => {
       // the chat's challenge comes back here too: its state says whose it is
-      if (reply && (await chat.getState().onProofReply(reply).catch(() => false))) {
+      if (reply && (await identity.getState().onProofReply(reply).catch(() => false))) {
         router.replace({ pathname: '/chat', params: { identity: '1' } });
         return;
       }

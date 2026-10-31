@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 
 import type { ChatClient } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
-import { createChatStore } from '@/offchain/chat/store';
+import { createIdentityState } from '@/offchain/chat/identity-store';
 import { OffchainError } from '@/offchain/http';
 import { IdentitySheet } from '@/screens/chat/identity-sheet';
 
@@ -21,7 +21,7 @@ jest.mock('@/screens/chat/avatar', () => ({ avatarJpeg: jest.fn(async () => new 
 
 function make(identity: ChatIdentity, client: Partial<ChatClient> = {}) {
   let ident = identity;
-  const store = createChatStore({
+  const store = createIdentityState({
     client: client as ChatClient,
     identity: { load: async () => ident, save: async (p) => (ident = { ...ident, ...p }) },
     kv: { getItem: async () => null, setItem: async () => undefined },
@@ -112,14 +112,14 @@ test('a picker that fails says so and leaves the sheet usable', async () => {
   await waitFor(() => expect(picker.launchImageLibraryAsync).toHaveBeenCalledTimes(2));
 });
 
-test('the sheet shows its own error, not the composer\'s, and closing it clears its own', async () => {
+// the composer's error lives in the chat store: the sheet cannot show it
+test('the sheet shows its error, and closing it clears it', async () => {
   const store = make(NO_IDENTITY);
   await store.ready;
-  store.setState({ error: 'the composer\'s trouble', identityError: 'the sheet\'s trouble' });
+  store.setState({ identityError: 'the sheet\'s trouble' });
   const onClose = jest.fn();
   await render(<IdentitySheet store={store} visible onClose={onClose} offchainUrl="http://fake" identity="" />);
   expect(screen.getByText('the sheet\'s trouble')).toBeTruthy();
-  expect(screen.queryByText('the composer\'s trouble')).toBeNull();
   await fireEvent.press(screen.getByText('Done'));
   expect(onClose).toHaveBeenCalled();
   expect(store.getState().identityError).toBe('');
@@ -151,7 +151,7 @@ test('while the wallet signs, the sheet waits for it, and Cancel stops waiting',
   const nameChallenge = jest.fn().mockResolvedValueOnce('example: prove it · tok');
   const opened: string[] = [];
   let ident: ChatIdentity = { ...NO_IDENTITY, name: 'ann' };
-  const store = createChatStore({
+  const store = createIdentityState({
     client: { reserveName, nameChallenge } as Partial<ChatClient> as ChatClient,
     identity: { load: async () => ident, save: async (p) => (ident = { ...ident, ...p }) },
     kv: { getItem: async () => null, setItem: async () => undefined },

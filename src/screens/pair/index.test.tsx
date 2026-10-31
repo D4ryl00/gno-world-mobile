@@ -103,7 +103,8 @@ test('the name and the rooms book', async () => {
   expect(screen.getByText('Rooms (2)')).toBeTruthy();
   expect(screen.getByText('tea 🔑')).toBeTruthy();
   expect(screen.getByText('libera #gno · IRC')).toBeTruthy();
-  expect(screen.getByText('Opening rooms comes with the next update.')).toBeTruthy();
+  expect(screen.queryByText('Opening rooms comes with the next update.')).toBeNull();
+  expect(screen.getByText('They are the channels of the Chat tab.')).toBeTruthy();
 });
 
 test('no reserved name: the other device brings its own', async () => {

@@ -10,11 +10,13 @@ import { centre, find, isKey, parseDescribeAll, SCREEN_H, visibleBottom, type Ax
 const run = promisify(execFile);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const KEY_GAP = 300; // ms between key events (memory: faster makes iOS SIGQUIT the app)
-const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5';
-const DEVICE_TYPE = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro';
 
 /** idb_companion's own default is 10882: another port, so the demo never meets a companion it did not start. */
 export const IDB_PORT = 10982;
+
+/** idb's arguments for a drag: a slow swipe moving one point at a time, which the app takes for a hold then a slide. */
+export const dragArgs = (x1: number, y1: number, x2: number, y2: number, seconds: number) =>
+  ['ui', 'swipe', ...[x1, y1, x2, y2].map((v) => String(Math.round(v))), '--duration', String(seconds), '--delta', '1'];
 
 export class StepFailed extends Error {
   readonly dump: string;
@@ -43,13 +45,13 @@ export class Sim {
     this.recordCmd = o.recordCmd;
   }
 
-  /** The udid of the device `name`, created on the iPhone 17 Pro / iOS 26.5 runtime when absent. */
-  static async ensureDevice(name: string): Promise<string> {
+  /** The udid of the device `name`, created with `type` on `runtime` when absent. */
+  static async ensureDevice(name: string, type: string, runtime: string): Promise<string> {
     const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', '-j']);
     const devices = JSON.parse(stdout).devices as Record<string, { name: string; udid: string }[]>;
-    const have = devices[RUNTIME]?.find((d) => d.name === name);
+    const have = devices[runtime]?.find((d) => d.name === name);
     if (have) return have.udid;
-    const made = await run('xcrun', ['simctl', 'create', name, DEVICE_TYPE, RUNTIME]);
+    const made = await run('xcrun', ['simctl', 'create', name, type, runtime]);
     return made.stdout.trim();
   }
 
@@ -160,6 +162,11 @@ export class Sim {
 
   async swipe(x1: number, y1: number, x2: number, y2: number) {
     await this.idb('ui', 'swipe', String(x1), String(y1), String(x2), String(y2), '--duration', '0.4');
+    await sleep(KEY_GAP);
+  }
+
+  async drag(x1: number, y1: number, x2: number, y2: number, seconds = 4) {
+    await this.idb(...dragArgs(x1, y1, x2, y2, seconds));
     await sleep(KEY_GAP);
   }
 

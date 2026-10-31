@@ -121,13 +121,9 @@ export function createSyncStore(d: SyncDeps): StoreApi<SyncState> {
           const v = await openJson(d.crypto, k, r.blob);
           if (e !== epoch) return false;
           const rec = (v && typeof v === 'object' ? v : {}) as { rooms?: unknown; left?: unknown; name?: unknown };
-          const local = await d.book.load();
+          // the book's own update: the rooms registry may be changing it too
+          const book = await d.book.update((local) => mergeBook(local, rec));
           if (e !== epoch) return false;
-          const book = mergeBook(local, rec);
-          if (JSON.stringify(book) !== JSON.stringify(local)) {
-            await d.book.save(book);
-            if (e !== epoch) return false;
-          }
           const id0 = await d.identity.load();
           if (e !== epoch) return false;
           const n = await nameIn(rec.name, id0, (name, key) => (e === epoch ? d.client.checkName(name, key) : Promise.resolve(null)));

@@ -59,8 +59,11 @@ export interface HereRow {
 export function hereRows(w: Where): HereRow[] {
   // without countries, everyone in one row rather than an empty table (decided 2026-10-29)
   if (!w.geo) return w.count > 0 ? [{ cc: '', name: 'unknown', n: w.count, share: 1 }] : [];
-  const max = Math.max(1, ...w.byCountry.map((c) => c.n));
+  // the rest of the count, which the server places in no country: a row with its bar like a country's
+  const unknown = Math.max(0, w.count - w.elsewhere - w.byCountry.reduce((t, c) => t + c.n, 0));
+  const max = Math.max(1, unknown, ...w.byCountry.map((c) => c.n));
   const rows: HereRow[] = w.byCountry.map((c) => ({ cc: c.cc, name: countryName(c.cc), n: c.n, share: c.n / max }));
+  if (unknown > 0) rows.push({ cc: '', name: 'unknown', n: unknown, share: unknown / max });
   if (w.elsewhere > 0) rows.push({ cc: '', name: 'elsewhere', n: w.elsewhere, share: null });
   return rows;
 }

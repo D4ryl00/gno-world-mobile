@@ -1,8 +1,8 @@
 import { PairScreen } from '@/screens/pair';
-import { useChat, useServices } from '@/state/app-services';
+import { useIdentity, useServices } from '@/state/app-services';
 
 export default function PairRoute() {
   const { sync } = useServices();
-  const identity = useChat((c) => c.identity);
+  const identity = useIdentity((c) => c.identity);
   return <PairScreen store={sync} identity={identity} />;
 }

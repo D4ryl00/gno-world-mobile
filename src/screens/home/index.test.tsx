@@ -4,12 +4,11 @@ import { useEffect as mockUseEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { useStore as mockUseStore } from 'zustand';
 
-import { NO_IDENTITY } from '@/offchain/chat/identity';
-import { createChatStore } from '@/offchain/chat/store';
+import { screenServices } from '@/screens/channels/testing';
 import { HomeScreen } from '@/screens/home';
 import { CARD_HEIGHT } from '@/screens/home/layout';
 
-let mockChat: ReturnType<typeof createChatStore>;
+let mockS: ReturnType<typeof screenServices>;
 const serve = async (path: string): Promise<unknown> => {
   if (path.startsWith('/api/prices')) return { now: 0.05822, change: -0.308, cap: 11487970.4, fdv: 77713900, series: [[1, 0.0584], [2, 0.0583]] };
   if (path === '/api/where') return { by_country: [{ cc: 'FR', n: 3 }], count: 18, elsewhere: 0, geo: true };
@@ -22,18 +21,15 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void | (() => void)) => mockUseEffect(cb, [cb]),
 }));
 jest.mock('@/state/app-services', () => ({
-  useServices: () => ({ offchain: { get: mockGet }, chat: mockChat }),
-  useChat: <T,>(sel: (s: ReturnType<typeof mockChat.getState>) => T) => mockUseStore(mockChat, sel),
+  useServices: () => ({ ...mockS, offchain: { get: mockGet } }),
+  useRooms: <T,>(sel: (s: ReturnType<typeof mockS.rooms.getState>) => T) => mockUseStore(mockS.rooms, sel),
+  useHomeChannels: <T,>(sel: (s: ReturnType<typeof mockS.homeChannels.getState>) => T) => mockUseStore(mockS.homeChannels, sel),
 }));
 
 beforeEach(async () => {
   mockGet.mockClear().mockImplementation(serve);
-  mockChat = createChatStore({
-    client: {} as never,
-    identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
-    kv: { getItem: async () => null, setItem: async () => undefined },
-  });
-  await mockChat.ready;
+  mockS = screenServices();
+  await mockS.ready;
 });
 
 test('Home shows the price, who is here and the chat; a period asks for its prices', async () => {

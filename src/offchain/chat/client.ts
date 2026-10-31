@@ -8,7 +8,14 @@ import type { ChatLine, ChatOlderReply, ChatPoll, ChatPollReply } from './types'
 /** The site's CHATRX: what the server accepts. */
 export const REACTIONS: readonly string[] = ['👍', '🔥', '❤️', '😂', '🤔', '🤝', '👎'];
 
-export interface PollQuery { since: number; wait: number; limit: number; gen: number | null }
+export interface PollQuery {
+  since: number; wait: number; limit: number; gen: number | null;
+  /** the display name: the server learns who to deliver invitations to from it */
+  name: string;
+}
+
+/** The room a client talks to: '' is Public; `key` is the maker's key, '' when not the maker. */
+export interface RoomAccess { room: string; key: () => string }
 
 export interface ChatClient {
   poll(q: PollQuery, o: { timeoutMs: number; signal: AbortSignal }): Promise<ChatPollReply>;
@@ -20,6 +27,10 @@ export interface ChatClient {
   react(id: number, emoji: string, name: string): Promise<{ rx: Record<string, number>; mine: boolean }>;
   vote(id: number, opt: number): Promise<{ mine: number; poll: ChatPoll | undefined }>;
   typing(name: string, n: number): Promise<void>;
+  /** the maker pins or unpins a line (X-Room-Key) */
+  pin(id: number, on: boolean): Promise<{ pins: ChatLine[] }>;
+  /** the maker removes a line (X-Room-Key) */
+  deleteLine(id: number): Promise<void>;
   /** POST /api/name for the wallet `addr`: a 409 asks for its proof (nameChallenge, then proveName) */
   reserveName(name: string, addr: string): Promise<{ name: string; key: string; addr: string }>;
   /** the phrase the wallet signs (GET /api/name/challenge) */
@@ -37,11 +48,21 @@ const str = (x: unknown) => (typeof x === 'string' ? x : '');
 
 export const avatarUrl = (baseUrl: string, id: string) => `${baseUrl.replace(/\/+$/, '')}/api/avatar/${id}.jpg`;
 
-export function createChatClient(oc: Offchain, identity: () => Promise<ChatIdentity>): ChatClient {
+export function createChatClient(oc: Offchain, identity: () => Promise<ChatIdentity>, access?: RoomAccess): ChatClient {
+  const room = access?.room ?? '';
+  // the site's room=: last in the query, after whatever the route takes
+  const q = (path: string) => (room ? `${path}${path.includes('?') ? '&' : '?'}room=${room}` : path);
   const keyed = async () => {
     const id = await identity();
     return { id, headers: id.nameKey ? { 'X-Name-Key': id.nameKey } : ({} as Record<string, string>) };
   };
+  /** react and vote name the room in a header, as the site does */
+  const inRoom = (h: Record<string, string>) => (room ? { ...h, 'X-Room': room } : h);
+  const asMaker = async () => {
+    const { headers } = await keyed();
+    return { ...headers, 'X-Room-Key': access?.key() ?? '' };
+  };
+  const pins = (x: unknown) => (Array.isArray(x) ? x.map(parseLine).filter((l): l is ChatLine => l !== null) : []);
   const reserved = (r: Obj, name: string) => {
     if (!str(r?.key)) throw new OffchainError(0, 'the server answered without the name key');
     return { name: str(r.name) || name, key: str(r.key), addr: str(r.addr) };
@@ -52,38 +73,45 @@ export function createChatClient(oc: Offchain, identity: () => Promise<ChatIdent
     return l;
   };
   return {
-    poll: async (q, o) => {
-      const gen = q.gen !== null ? `&gen=${q.gen}` : '';
-      const r = await oc.get<unknown>(`/api/chat?since=${q.since}&wait=${q.wait}&limit=${q.limit}${gen}`, o);
-      return parsePollReply(r);
+    poll: async (p, o) => {
+      const gen = p.gen !== null ? `&gen=${p.gen}` : '';
+      const name = p.name ? `&name=${encodeURIComponent(p.name.slice(0, 96))}` : '';
+      return parsePollReply(await oc.get<unknown>(q(`/api/chat?since=${p.since}&wait=${p.wait}&limit=${p.limit}${gen}${name}`), o));
     },
-    older: async (before) => parseOlderReply(await oc.get<unknown>(`/api/chat?before=${before}&limit=100`)),
+    older: async (before) => parseOlderReply(await oc.get<unknown>(q(`/api/chat?before=${before}&limit=100`))),
     post: async (name, body, re) => {
       const { id, headers } = await keyed();
       const payload = { name, body, ...(re ? { re } : {}), ...(id.av ? { av: id.av, avkey: id.avkey } : {}) };
-      return lineOf(await oc.post<Obj>('/api/chat', payload, { headers }));
+      return lineOf(await oc.post<Obj>(q('/api/chat'), payload, { headers }));
     },
     edit: async (lineId, body) => {
       const { headers } = await keyed();
-      return lineOf(await oc.patch<Obj>(`/api/chat?id=${lineId}`, { body }, { headers }));
+      return lineOf(await oc.patch<Obj>(q(`/api/chat?id=${lineId}`), { body }, { headers }));
     },
     withdraw: async () => {
       const { headers } = await keyed();
-      const r = await oc.post<Obj>('/api/chat/withdraw', undefined, { headers });
+      const r = await oc.post<Obj>(q('/api/chat/withdraw'), undefined, { headers });
       return typeof r?.deleted === 'number' && r.deleted > 0 ? r.deleted : null;
     },
     react: async (lineId, emoji, name) => {
       const { headers } = await keyed();
-      const r = await oc.post<Obj>('/api/chat/react', { id: lineId, emoji, name }, { headers });
+      const r = await oc.post<Obj>('/api/chat/react', { id: lineId, emoji, name }, { headers: inRoom(headers) });
       return { rx: parseRx(r?.rx), mine: r?.mine === true };
     },
     vote: async (lineId, opt) => {
       const { headers } = await keyed();
-      const r = await oc.post<Obj>('/api/chat/vote', { id: lineId, opt }, { headers });
+      const r = await oc.post<Obj>('/api/chat/vote', { id: lineId, opt }, { headers: inRoom(headers) });
       return { mine: typeof r?.mine === 'number' ? r.mine : -1, poll: parsePoll(r?.poll) };
     },
     typing: async (name, n) => {
-      await oc.post('/api/chat/typing', { name, n });
+      await oc.post(q('/api/chat/typing'), { name, n });
+    },
+    pin: async (lineId, on) => {
+      const r = await oc.post<Obj>(q(`/api/chat/pin?id=${lineId}${on ? '' : '&on=0'}`), undefined, { headers: await asMaker() });
+      return { pins: pins(r?.pins) };
+    },
+    deleteLine: async (lineId) => {
+      await oc.del(q(`/api/chat?id=${lineId}`), { headers: await asMaker() });
     },
     reserveName: async (name, addr) => {
       const { headers } = await keyed();

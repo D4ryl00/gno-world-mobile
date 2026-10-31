@@ -8,8 +8,8 @@
     "capture": "node --experimental-strip-types --no-warnings capture/run.ts",
     "voice": "node --experimental-strip-types --no-warnings voice/voice.ts",
     "plan": "node --experimental-strip-types --no-warnings video/plan.ts",
-    "render": "npm run plan && remotion render video/index.ts Demo out/gnoworld-demo.mp4 --props=out/edl.json",
-    "studio": "npm run plan && remotion studio video/index.ts --props=out/edl.json",
+    "render": "node --experimental-strip-types --no-warnings video/render.ts",
+    "studio": "node --experimental-strip-types --no-warnings video/render.ts studio",
     "check": "node --experimental-strip-types --no-warnings check/check.ts",
     "all": "npm run capture && npm run voice && npm run render && npm run check",
     "stage": "node --experimental-strip-types --no-warnings capture/stage.ts"

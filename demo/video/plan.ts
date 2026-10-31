@@ -1,11 +1,11 @@
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import script from '../script.ts';
 import { buildEdl } from '../lib/fit.ts';
 import { readDurations, readTerminal, readTimeline } from '../lib/files.ts';
+import { loadScript } from '../lib/which.ts';
 
-const OUT = join(import.meta.dirname, '..', 'out');
+const { script, out: OUT } = await loadScript();
 const edl = buildEdl(
   script,
   readTimeline(join(OUT, 'capture', 'timeline.json')),

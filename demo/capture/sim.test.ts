@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { Sim } from './sim.ts';
+import { dragArgs, Sim } from './sim.ts';
 
 const dir = () => mkdtempSync(join(tmpdir(), 'sim-'));
 
@@ -30,4 +30,8 @@ test('a companion that cannot start (its port is taken) fails connect at once, n
   const t = Date.now();
   await assert.rejects(sim.connect(), /idb_companion exited \(1\) before answering on port 10982/);
   assert.ok(Date.now() - t < 5000);
+});
+
+test('a drag is a slow swipe, one point at a time: the app sees a hold, then the finger sliding', () => {
+  assert.deepEqual(dragArgs(100, 300, 300, 310, 5), ['ui', 'swipe', '100', '300', '300', '310', '--duration', '5', '--delta', '1']);
 });

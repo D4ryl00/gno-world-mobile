@@ -39,10 +39,22 @@ test('a production older page parses, with its more flag', () => {
 
 test('missing reply fields become safe defaults', () => {
   expect(parsePollReply({})).toEqual({
-    msgs: [], gone: [], upd: [], next: null, gen: null, pins: [], typing: [], here: null, you: null,
+    msgs: [], gone: [], upd: [], next: null, gen: null, pins: [], typing: [], here: null, you: null, roomName: null, dm: [],
   });
   expect(parsePollReply('<html>')).toEqual(parsePollReply({}));
   expect(parsePollReply({ typing: [{ name: 'a', n: 5 }, { n: 3 }, 'x'], gone: [4, 'y', -1] })).toMatchObject({
     typing: [{ name: 'a', n: 5 }], gone: [4],
   });
+});
+
+test('a poll reply reads the room name and keeps only room invitations with a valid id', () => {
+  const room = 'AAAAAAAAAAAAAAAAAAAA';
+  const r = parsePollReply({
+    name: 'Dev chat',
+    dm: [{ room, name: 'x', from: 'bob', kind: 'room', at: 5 }, { room, name: 'y', from: 'cat', kind: 'dm', at: 5 }, { room: 'bad', kind: 'room', at: 5 }],
+  });
+  expect(r.roomName).toBe('Dev chat');
+  expect(r.dm).toEqual([{ room, name: 'x', from: 'bob', at: 5 }]);
+  expect(parsePollReply({}).roomName).toBeNull();
+  expect(parsePollReply({}).dm).toEqual([]);
 });

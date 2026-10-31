@@ -32,6 +32,8 @@ export type Action =
   | { backspace: number }
   | { waitFor: Match; timeout?: number; enabled?: boolean }
   | { swipe: [number, number, number, number] }
+  /** a finger held, then slid slowly (a chart's crosshair), over `seconds` (4 by default) */
+  | { drag: [number, number, number, number]; seconds?: number }
   | { launch: 'app' | 'wallet' }
   | { bob: string }
   | { computer: 'sign' }
@@ -59,7 +61,23 @@ export interface Scene {
   zoomOn?: string[];
 }
 
-export interface Script { voice: string; setup: Step[]; scenes: Scene[] }
+export interface Script {
+  voice: string;
+  setup: Step[];
+  scenes: Scene[];
+  /** 'local' (default): gnodev, the fake chat server, the relay and the wallet; 'production': the app alone, on its defaults */
+  target?: 'local' | 'production';
+  /** the simulator: its name, device type and runtime identifiers */
+  device?: { name: string; type: string; runtime: string };
+  /** the app build, relative to demo/.state */
+  app?: string;
+  /** off camera, after the recording stops — also when a scene failed */
+  teardown?: Step[];
+  /** demo:check's bounds on the total, in seconds */
+  check?: { min: number; max: number };
+  /** the MP4's file name */
+  output?: string;
+}
 
 /** Camera state from frame `f` (scene-relative) on: scale ≥ 1, centre in 0..1 of the phone screen. */
 export interface ZoomKey { f: number; scale: number; cx: number; cy: number }

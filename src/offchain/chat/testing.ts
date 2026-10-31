@@ -9,7 +9,7 @@ export const line = (id: number, p: Partial<ChatLine> = {}): ChatLine => ({
 });
 
 export const reply = (p: Partial<ChatPollReply> = {}): ChatPollReply => ({
-  msgs: [], gone: [], upd: [], next: null, gen: 1, pins: [], typing: [], here: 3, you: { cc: 'FR', tag: 'aaaa' }, ...p,
+  msgs: [], gone: [], upd: [], next: null, gen: 1, pins: [], typing: [], here: 3, you: { cc: 'FR', tag: 'aaaa' }, roomName: null, dm: [], ...p,
 });
 
 /**

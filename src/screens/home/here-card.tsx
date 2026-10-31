@@ -49,7 +49,16 @@ export function HereCard({ data, failed, onOpen }: { data: Where | null; failed:
 export function CountryRow({ row, total }: { row: HereRow; total?: number }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.flag}>{row.cc ? flagEmoji(row.cc) : '·'}</Text>
+      {row.cc ? (
+        <Text style={styles.flag}>{flagEmoji(row.cc)}</Text>
+      ) : (
+        // no country (unknown, elsewhere): a blank flag with a "?", drawn the same on iOS and Android; the name says it
+        <View style={styles.flag} accessible={false} importantForAccessibility="no-hide-descendants">
+          <View testID="no-flag" style={styles.noFlag}>
+            <Text style={styles.noFlagMark}>?</Text>
+          </View>
+        </View>
+      )}
       <Text style={styles.name} numberOfLines={1}>{row.name}</Text>
       <View style={styles.barBox}>{row.share !== null && <View style={[styles.bar, { width: `${Math.round(row.share * 100)}%` }]} />}</View>
       <Text style={styles.n}>{row.n}</Text>
@@ -70,7 +79,10 @@ const styles = StyleSheet.create({
   rowsGrow: { flexGrow: 1 },
   rowsIn: { flexGrow: 1, gap: space.s, paddingRight: space.s }, // the scroll bar clear of the counts
   row: { flexDirection: 'row', alignItems: 'center', gap: space.s },
-  flag: { width: 22, textAlign: 'center', color: colors.muted },
+  flag: { width: 22, alignItems: 'center', textAlign: 'center', color: colors.muted },
+  // about a flag emoji's size at the default text size
+  noFlag: { width: 20, height: 14, borderRadius: 2, borderWidth: 1, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center' },
+  noFlagMark: { color: colors.muted, fontSize: 10, lineHeight: 12, fontWeight: '700' },
   name: { color: colors.fg, width: 110 },
   barBox: { flex: 1 },
   bar: { height: 6, borderRadius: 3, backgroundColor: colors.accent },

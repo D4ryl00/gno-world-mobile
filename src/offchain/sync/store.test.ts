@@ -204,14 +204,13 @@ test('the server changed while a pull read the book: its rooms stay out of the n
   const key = (await b.store.getState().open(code))!;
   const check = jest.spyOn(server.client, 'checkName');
   const realLoad = b.book.load.bind(b.book);
-  let n = 0;
-  // the first read is use()'s own load; the second is the pull's, mid-merge: Settings switch the server there
-  jest.spyOn(b.book, 'load').mockImplementation(async () => {
-    if (++n === 2) {
-      b.setScope('http://other');
-      b.store.getState().restart();
-    }
-    return realLoad();
+  const realUpdate = b.book.update.bind(b.book);
+  // the pull's merge into the book is under way when Settings switch the server
+  jest.spyOn(b.book, 'update').mockImplementation((f) => {
+    const merging = realUpdate(f);
+    b.setScope('http://other');
+    b.store.getState().restart();
+    return merging;
   });
   await b.store.getState().use(key);
   expect(check).not.toHaveBeenCalled();

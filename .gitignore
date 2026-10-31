@@ -49,6 +49,7 @@ modules/*/android/build/
 # demo video tool
 demo/node_modules/
 demo/out/
+demo/out-*/
 demo/.state/
 
 # brainstorming mockups (superpowers visual companion)

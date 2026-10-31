@@ -47,7 +47,7 @@ const Card = ({ scene }: { scene: EdlScene }) => {
       <Logo size={180} />
       <div style={{ color: C.white, fontSize: 96, fontWeight: 800, letterSpacing: -2 }}>{card.title}</div>
       {card.sub ? <div style={{ color: C.green, fontSize: 48, fontWeight: 700 }}>{card.sub}</div> : null}
-      {(card.lines ?? []).map((l) => <div key={l} style={{ color: C.muted, fontSize: 32 }}>{l}</div>)}
+      {(card.lines ?? []).map((l) => <div key={l} style={{ color: C.muted, fontSize: 40 }}>{l}</div>)}
     </AbsoluteFill>
   );
 };

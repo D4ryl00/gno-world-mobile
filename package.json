@@ -67,6 +67,7 @@
     "fake-offchain": "node --experimental-strip-types --no-warnings scripts/fake-offchain/main.mjs",
     "e2e:chat": "jest -c jest.e2e.config.js --runInBand e2e/fake-offchain e2e/chat",
     "e2e:pair": "jest -c jest.e2e.config.js --runInBand e2e/pair",
+    "e2e:rooms": "jest -c jest.e2e.config.js --runInBand e2e/rooms",
     "fake-browser": "node --experimental-strip-types --no-warnings scripts/fake-offchain/browser.mjs",
     "demo": "npm --prefix demo run all",
     "demo:build": "bash demo/tools/build.sh",

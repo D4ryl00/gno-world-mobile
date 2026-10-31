@@ -48,6 +48,20 @@ test('rows: bars against the biggest, elsewhere without a bar', () => {
   ]);
 });
 
+test('rows: those here the server places nowhere make an "unknown" row with its bar, before elsewhere', () => {
+  // 11 here, 5 by country, 2 elsewhere: 4 unknown, the biggest row
+  expect(hereRows({ count: 11, byCountry: [{ cc: 'FR', n: 3 }, { cc: 'AU', n: 2 }], elsewhere: 2, geo: true, spots: [] })).toEqual([
+    { cc: 'FR', name: 'France', n: 3, share: 3 / 4 },
+    { cc: 'AU', name: 'Australia', n: 2, share: 2 / 4 },
+    { cc: '', name: 'unknown', n: 4, share: 1 },
+    { cc: '', name: 'elsewhere', n: 2, share: null },
+  ]);
+  // a count lagging behind the table: no negative row
+  expect(hereRows({ count: 2, byCountry: [{ cc: 'FR', n: 3 }], elsewhere: 0, geo: true, spots: [] })).toEqual([
+    { cc: 'FR', name: 'France', n: 3, share: 1 },
+  ]);
+});
+
 test('countries unavailable: one "unknown" row with a full bar and the total', () => {
   expect(hereRows({ count: 18, byCountry: [], elsewhere: 0, geo: false, spots: [] })).toEqual([{ cc: '', name: 'unknown', n: 18, share: 1 }]);
   expect(hereRows({ count: 0, byCountry: [], elsewhere: 0, geo: false, spots: [] })).toEqual([]);

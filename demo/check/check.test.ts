@@ -29,3 +29,9 @@ test('a caption too long for one line pair is reported', () => {
   const long = 'x'.repeat(70);
   assert.match(checkEdl(edl([scene('a', 300, [long])]), { a: { file: 'x', seconds: 5 } })[0], /scene a: caption .* 70 characters/);
 });
+
+test('a script can set its own bounds', () => {
+  const d = { a: { file: 'x', seconds: 5 } };
+  assert.match(checkEdl(edl([scene('a', 300)], 30 * 50), d, { min: 60, max: 110 })[0], /total 50\.0 s is outside 60–110 s/);
+  assert.deepEqual(checkEdl(edl([scene('a', 300)], 30 * 75), d, { min: 60, max: 110 }), []);
+});

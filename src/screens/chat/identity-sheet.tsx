@@ -6,7 +6,7 @@ import { useStore, type StoreApi } from 'zustand';
 import { Button } from '@/components/button';
 import { WalletSoon } from '@/components/wallet-soon';
 import { avatarUrl } from '@/offchain/chat/client';
-import type { ChatState } from '@/offchain/chat/store';
+import type { IdentityState } from '@/offchain/chat/identity-store';
 import { walletEnabled } from '@/session/wallet-build';
 import { colors, radius, space } from '@/theme';
 
@@ -14,7 +14,7 @@ import { avatarJpeg } from './avatar';
 
 /** `identity`: the session's master, which a reserved name belongs to; '' without a session. */
 export function IdentitySheet({ store, visible, onClose, offchainUrl, identity: wallet }: {
-  store: StoreApi<ChatState>; visible: boolean; onClose: () => void; offchainUrl: string; identity: string;
+  store: StoreApi<IdentityState>; visible: boolean; onClose: () => void; offchainUrl: string; identity: string;
 }) {
   const canReserve = !!wallet;
   const identity = useStore(store, (s) => s.identity);

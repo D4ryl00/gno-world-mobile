@@ -10,11 +10,13 @@ export interface ComposerHandle {
   send(): void;
 }
 
-export function Composer({ ref, reply, editing, typing, error, needsName, onNeedName, onCancel, onChange, onSend, onDismissError, bottomInset }: {
+export function Composer({ ref, reply, editing, typing, error, needsName, onNeedName, onCancel, onChange, onSend, onDismissError, bottomInset, placeholder = 'say something' }: {
   ref?: Ref<ComposerHandle>;
   reply: ChatLine | null; editing: ChatLine | null; typing: string; error: string; needsName: boolean;
   onNeedName?: () => void; onCancel: () => void; onChange: (n: number) => void;
   onSend: (text: string) => Promise<boolean>; onDismissError: () => void; bottomInset: number;
+  /** names the channel written in */
+  placeholder?: string;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,7 +60,7 @@ export function Composer({ ref, reply, editing, typing, error, needsName, onNeed
       ) : null}
       <View style={styles.row}>
         <TextInput
-          ref={input} style={styles.input} value={text} multiline placeholder="say something" placeholderTextColor={colors.muted}
+          ref={input} style={styles.input} value={text} multiline placeholder={placeholder} placeholderTextColor={colors.muted}
           onChangeText={(t) => {
             setText(t);
             onChange(t.length);

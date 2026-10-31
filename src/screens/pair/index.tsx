@@ -112,7 +112,7 @@ export function PairScreen({ store, identity }: { store: StoreApi<SyncState>; id
         {s.rooms.map((r) => (
           <Text key={r.id} style={styles.text}>{`${r.name}${r.key ? ' 🔑' : ''}${r.irc ? ' · IRC' : ''}`}</Text>
         ))}
-        <Text style={styles.muted}>Opening rooms comes with the next update.</Text>
+        <Text style={styles.muted}>They are the channels of the Chat tab.</Text>
       </Card>
     </Page>
   );

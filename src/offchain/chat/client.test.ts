@@ -26,10 +26,10 @@ test('poll builds the site\'s query and passes timeout and signal', async () => 
   const { oc, calls } = fakeOffchain({ msgs: [lineWire], next: 7, gen: 2 });
   const c = createChatClient(oc, async () => NO_IDENTITY);
   const signal = new AbortController().signal;
-  const r = await c.poll({ since: 5, wait: 55, limit: 200, gen: 2 }, { timeoutMs: 70000, signal });
-  expect(calls[0]).toMatchObject({ verb: 'GET', path: '/api/chat?since=5&wait=55&limit=200&gen=2', o: { timeoutMs: 70000, signal } });
+  const r = await c.poll({ since: 5, wait: 55, limit: 200, gen: 2, name: 'ann' }, { timeoutMs: 70000, signal });
+  expect(calls[0]).toMatchObject({ verb: 'GET', path: '/api/chat?since=5&wait=55&limit=200&gen=2&name=ann', o: { timeoutMs: 70000, signal } });
   expect(r.msgs[0].id).toBe(7);
-  await c.poll({ since: 0, wait: 0, limit: 80, gen: null }, { timeoutMs: 20000, signal });
+  await c.poll({ since: 0, wait: 0, limit: 80, gen: null, name: '' }, { timeoutMs: 20000, signal });
   expect(calls[1].path).toBe('/api/chat?since=0&wait=0&limit=80');
 });
 
@@ -117,4 +117,74 @@ test('the challenge, then the proof', async () => {
 test('a challenge answer without the phrase is an error', async () => {
   const { oc } = fakeOffchain({});
   await expect(createChatClient(oc, async () => NO_IDENTITY).nameChallenge()).rejects.toBeTruthy();
+});
+
+const ROOM = 'AAAAAAAAAAAAAAAAAAAA';
+const inRoom = (oc: Offchain, key = '') => createChatClient(oc, async () => reserved, { room: ROOM, key: () => key });
+const signal = new AbortController().signal;
+
+test('a room client puts room= on poll, older, post, edit, withdraw and typing', async () => {
+  const { oc, calls } = fakeOffchain({ msg: lineWire, msgs: [], deleted: 3 });
+  const c = inRoom(oc);
+  await c.poll({ since: 0, wait: 0, limit: 80, gen: null, name: 'ann' }, { timeoutMs: 1, signal });
+  await c.older(9);
+  await c.post('ann', 'hi');
+  await c.edit(5, 'hey');
+  await c.withdraw();
+  await c.typing('ann', 2);
+  expect(calls.map((x) => `${x.verb} ${x.path}`)).toEqual([
+    `GET /api/chat?since=0&wait=0&limit=80&name=ann&room=${ROOM}`,
+    `GET /api/chat?before=9&limit=100&room=${ROOM}`,
+    `POST /api/chat?room=${ROOM}`,
+    `PATCH /api/chat?id=5&room=${ROOM}`,
+    `POST /api/chat/withdraw?room=${ROOM}`,
+    `POST /api/chat/typing?room=${ROOM}`,
+  ]);
+});
+
+test('react and vote carry X-Room, not room=', async () => {
+  const { oc, calls } = fakeOffchain({ rx: {}, mine: 1 });
+  const c = inRoom(oc);
+  await c.react(5, '👍', 'ann');
+  await c.vote(5, 1);
+  expect(calls.map((x) => x.path)).toEqual(['/api/chat/react', '/api/chat/vote']);
+  for (const x of calls) expect(x.o?.headers).toMatchObject({ 'X-Room': ROOM, 'X-Name-Key': 'nk' });
+});
+
+test('pin and deleteLine carry X-Room-Key', async () => {
+  const { oc, calls } = fakeOffchain({ pins: [lineWire] });
+  const c = inRoom(oc, 'k1');
+  expect((await c.pin(5, true)).pins[0].id).toBe(7);
+  await c.pin(5, false);
+  await c.deleteLine(5);
+  expect(calls.map((x) => `${x.verb} ${x.path}`)).toEqual([
+    `POST /api/chat/pin?id=5&room=${ROOM}`,
+    `POST /api/chat/pin?id=5&on=0&room=${ROOM}`,
+    `DELETE /api/chat?id=5&room=${ROOM}`,
+  ]);
+  for (const x of calls) expect(x.o?.headers).toMatchObject({ 'X-Room-Key': 'k1' });
+});
+
+test('Public sends no room and no X-Room; the poll carries name= (URL-encoded, cut to 96)', async () => {
+  const { oc, calls } = fakeOffchain({ rx: {}, mine: true, msgs: [] });
+  const c = createChatClient(oc, async () => reserved);
+  await c.poll({ since: 1, wait: 55, limit: 200, gen: null, name: `a b&${'x'.repeat(200)}` }, { timeoutMs: 1, signal });
+  await c.react(5, '👍', 'ann');
+  expect(calls[0].path).toBe(`/api/chat?since=1&wait=55&limit=200&name=${encodeURIComponent(`a b&${'x'.repeat(92)}`)}`);
+  expect(calls[1].o?.headers).not.toHaveProperty('X-Room');
+});
+
+test('name routes never carry room', async () => {
+  const { oc, calls } = fakeOffchain({ key: 'k', name: 'ann', words: 'w', id: 'i' });
+  const c = inRoom(oc, 'k1');
+  await c.reserveName('ann', 'g1x');
+  await c.nameChallenge();
+  await c.releaseName();
+  await c.uploadAvatar(new Uint8Array([1]), 'image/jpeg');
+  await c.reportBoop('g1x', 1, 1, 6);
+  for (const x of calls) {
+    expect(x.path).not.toContain('room=');
+    expect(x.o?.headers ?? {}).not.toHaveProperty('X-Room');
+    expect(x.o?.headers ?? {}).not.toHaveProperty('X-Room-Key');
+  }
 });

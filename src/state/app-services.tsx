@@ -7,18 +7,20 @@ import { useStore, type StoreApi } from 'zustand';
 
 import type { ChainApi } from '@/chain/api';
 import { GameClient } from '@/chain/game-client';
-import { createChatClient, type ChatClient } from '@/offchain/chat/client';
+import type { ChatClient } from '@/offchain/chat/client';
 import { followAppState } from '@/offchain/chat/app-state';
-import { createIdentityStore } from '@/offchain/chat/identity';
-import { createChatStore, type ChatState } from '@/offchain/chat/store';
+import type { IdentityState } from '@/offchain/chat/identity-store';
+import type { ChatState } from '@/offchain/chat/store';
 import { browserId, createOffchain, type Offchain } from '@/offchain/http';
 import { presenceStore, sendPresence } from '@/offchain/presence';
-import { createSyncClient } from '@/offchain/sync/client';
+import type { RoomsState } from '@/offchain/rooms/store';
 import { expoCrypto } from '@/offchain/sync/expo-crypto';
-import { createBookStore } from '@/offchain/sync/rooms';
-import { createSyncStore, type SyncState } from '@/offchain/sync/store';
+import type { SyncState } from '@/offchain/sync/store';
 import { createSessionStore, type SessionState } from '@/session/store';
 import { walletEnabled } from '@/session/wallet-build';
+import { createChatChannel, type ChatChannelState } from '@/screens/channels/chat-channels';
+import { createHomeChannels, type HomeChannelsState } from '@/screens/channels/home-channels';
+import { createChatServices } from '@/state/chat-services';
 import { createNetworkSync } from '@/state/network-sync';
 import { settingsStore, watchHydration } from '@/state/settings';
 import { randomHex } from '@/utils/random';
@@ -33,8 +35,16 @@ interface Services {
   session: SessionStore;
   net: ReturnType<typeof createNetworkSync>;
   chat: StoreApi<ChatState> & { ready: Promise<void> };
+  /** the name, reservation and picture the chat writes under */
+  identity: StoreApi<IdentityState> & { ready: Promise<void> };
   chatClient: ChatClient;
   sync: StoreApi<SyncState>;
+  /** the rooms: the book, the listed ones, a store per room */
+  rooms: StoreApi<RoomsState>;
+  /** the channels Home's chat card shows */
+  homeChannels: StoreApi<HomeChannelsState> & { ready: Promise<void> };
+  /** the channel the Chat tab shows */
+  chatChannel: StoreApi<ChatChannelState> & { ready: Promise<void> };
 }
 
 const Ctx = createContext<Services | null>(null);
@@ -63,20 +73,13 @@ export function AppServices({ children }: PropsWithChildren) {
       baseUrl: () => settingsStore.getState().offchainUrl,
       bid: () => browserId(secureStore, randomHex),
     });
-    const identity = createIdentityStore(secureStore, () => settingsStore.getState().offchainUrl);
-    const chatClient = createChatClient(offchain, () => identity.load());
-    const chat = createChatStore({
-      client: chatClient, identity, kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl,
+    const { identityState, chatClient, chat, sync, rooms } = createChatServices({
+      offchain, secrets: secureStore, kv: AsyncStorage, crypto: expoCrypto, scope: () => settingsStore.getState().offchainUrl,
       // a name the server wants proven: the wallet signs the phrase (GnoConnect connect + challenge)
       wallet: walletEnabled ? { open: (url) => Linking.openURL(url).then(() => undefined), randomHex, network: () => net.current() } : undefined,
     });
-    const scope = () => settingsStore.getState().offchainUrl;
-    // /pair: the rooms book and the reserved name shared with gno.world in a browser
-    const sync = createSyncStore({
-      client: createSyncClient(offchain), crypto: expoCrypto, secrets: secureStore, identity, scope,
-      book: createBookStore({ kv: AsyncStorage, secrets: secureStore, crypto: expoCrypto, scope }),
-      identityChanged: () => void chat.getState().reloadIdentity(),
-    });
+    const homeChannels = createHomeChannels({ kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl });
+    const chatChannel = createChatChannel({ kv: AsyncStorage, scope: () => settingsStore.getState().offchainUrl });
     const session = createSessionStore({
       api: () => api,
       secrets: secureStore,
@@ -87,7 +90,7 @@ export function AppServices({ children }: PropsWithChildren) {
       network: () => net.current(),
       wallet: walletEnabled,
     });
-    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, chatClient, sync };
+    return { api, game: new GameClient(api, () => net.current().chainId), offchain, session, net, chat, identity: identityState, chatClient, sync, rooms, homeChannels, chatChannel };
   }, [api]);
 
   // follow network switches from Settings: gnonative first, then the session store
@@ -140,18 +143,36 @@ export function AppServices({ children }: PropsWithChildren) {
     };
   }, [services, pid]);
 
-  // chat long poll: while in the foreground (resumed from its cursor), from scratch when the server changes
+  // chat long poll and rooms (the room on screen, scans): while in the foreground (resumed from its cursor), from
+  // scratch when the server changes
   useEffect(() => {
     const chat = services.chat.getState;
-    if (AppState.currentState === 'active') chat().start();
-    const sub = AppState.addEventListener('change', (st) => followAppState(st, chat()));
+    const rooms = services.rooms.getState;
+    const lifecycle = {
+      start: () => {
+        chat().start();
+        rooms().resume();
+      },
+      stop: () => {
+        chat().stop();
+        rooms().pause();
+      },
+    };
+    if (AppState.currentState === 'active') lifecycle.start();
+    const sub = AppState.addEventListener('change', (st) => followAppState(st, lifecycle));
     const unsub = settingsStore.subscribe((now, before) => {
-      if (now.offchainUrl !== before.offchainUrl) chat().restart();
+      if (now.offchainUrl !== before.offchainUrl) {
+        services.identity.getState().restart();
+        chat().restart();
+        rooms().restart();
+        void services.homeChannels.getState().reload();
+        void services.chatChannel.getState().reload();
+      }
     });
     return () => {
       sub.remove();
       unsub();
-      chat().stop();
+      lifecycle.stop();
     };
   }, [services]);
 
@@ -165,7 +186,7 @@ export function AppServices({ children }: PropsWithChildren) {
     const unsubUrl = settingsStore.subscribe((now, before) => {
       if (now.offchainUrl !== before.offchainUrl) sync().restart();
     });
-    const unsubName = services.chat.subscribe((now, before) => {
+    const unsubName = services.identity.subscribe((now, before) => {
       if (now.identity.reservedName !== before.identity.reservedName || now.identity.nameKey !== before.identity.nameKey) sync().changed();
     });
     return () => {
@@ -191,6 +212,22 @@ export function useSession<T>(sel: (s: SessionState) => T): T {
 
 export function useChat<T>(sel: (s: ChatState) => T): T {
   return useStore(useServices().chat, sel);
+}
+
+export function useIdentity<T>(sel: (s: IdentityState) => T): T {
+  return useStore(useServices().identity, sel);
+}
+
+export function useRooms<T>(sel: (s: RoomsState) => T): T {
+  return useStore(useServices().rooms, sel);
+}
+
+export function useHomeChannels<T>(sel: (s: HomeChannelsState) => T): T {
+  return useStore(useServices().homeChannels, sel);
+}
+
+export function useChatChannel<T>(sel: (s: ChatChannelState) => T): T {
+  return useStore(useServices().chatChannel, sel);
 }
 
 export function useSync<T>(sel: (s: SyncState) => T): T {

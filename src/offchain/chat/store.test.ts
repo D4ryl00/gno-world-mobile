@@ -1,11 +1,10 @@
 import type { ChatClient, PollQuery } from '@/offchain/chat/client';
 import { NO_IDENTITY, type ChatIdentity } from '@/offchain/chat/identity';
 import { unreadCount } from '@/offchain/chat/merge';
-import { createChatStore, MARKS_KEY, SEEN_KEY } from '@/offchain/chat/store';
-import { line, PROOF, proofReply, reply } from '@/offchain/chat/testing';
-import type { ChatPollReply } from '@/offchain/chat/types';
+import { createChatStore, MARKS_KEY, SEEN_KEY, seenKeyFor } from '@/offchain/chat/store';
+import { line, reply } from '@/offchain/chat/testing';
+import type { ChatPollReply, RoomInvite } from '@/offchain/chat/types';
 import { OffchainError } from '@/offchain/http';
-import type { WalletReply } from '@/session/gnoconnect';
 
 // real timers: lets the loop's awaits (identity, kv, poll) settle; the stubbed sleep never waits
 const flush = async () => {
@@ -15,7 +14,10 @@ const flush = async () => {
 /** Poll answers are queued; once the queue is empty a poll hangs until it is aborted. */
 function harness(
   answers: (ChatPollReply | Error)[],
-  opts: { identity?: ChatIdentity; seen?: string; kv?: Map<string, string>; scope?: string; noWallet?: boolean } = {},
+  opts: {
+    identity?: ChatIdentity; seen?: string; kv?: Map<string, string>; scope?: string; room?: string;
+    onInvites?: (dm: RoomInvite[]) => void; onPosted?: () => void;
+  } = {},
 ) {
   const queries: PollQuery[] = [];
   const sleeps: number[] = [];
@@ -42,31 +44,29 @@ function harness(
     releaseName: jest.fn(),
     uploadAvatar: jest.fn(),
     reportBoop: jest.fn(),
-  };
-  const opened: string[] = [];
-  const wallet = {
-    open: async (url: string) => void opened.push(url),
-    randomHex: () => 'feedfacefeedface',
-    network: () => ({ chainId: 'gnoland-1', remote: 'https://rpc.gno.land:443' }),
+    pin: jest.fn(),
+    deleteLine: jest.fn(),
   };
   const store = createChatStore({
     client: client as unknown as ChatClient,
-    identity: { load: async () => ident, save: async (p) => (ident = { ...ident, ...p }) },
+    identity: () => ident,
     kv: { getItem: async (k) => kv.get(k) ?? null, setItem: async (k, v) => void kv.set(k, v) },
     sleep: async (ms) => void sleeps.push(ms),
     random: () => 0.5,
     now: () => clock,
     scope: opts.scope === undefined ? undefined : () => opts.scope!,
-    wallet: opts.noWallet ? undefined : wallet,
+    room: opts.room,
+    onInvites: opts.onInvites,
+    onPosted: opts.onPosted,
   });
-  return { store, client, queries, sleeps, kv, opened, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
+  return { store, client, queries, sleeps, kv, tick: (ms: number) => (clock += ms), setIdentity: (i: ChatIdentity) => (ident = i) };
 }
 
 test('the first poll takes the recent lines, the next ones wait on the cursor', async () => {
   const h = harness([reply({ msgs: [line(1), line(2)], next: 2, gen: 4 }), reply({ msgs: [line(3)], next: 3, gen: 4 })]);
   h.store.getState().start();
   await flush();
-  expect(h.queries).toEqual([
+  expect(h.queries).toMatchObject([
     { since: 0, wait: 0, limit: 80, gen: null },
     { since: 2, wait: 55, limit: 200, gen: 4 },
     { since: 3, wait: 55, limit: 200, gen: 4 },
@@ -80,7 +80,7 @@ test('a new gen reloads from the start', async () => {
   const h = harness([reply({ msgs: [line(5)], next: 5, gen: 1 }), reply({ msgs: [line(9)], gen: 2 }), reply({ msgs: [line(1)], next: 1, gen: 2 })]);
   h.store.getState().start();
   await flush();
-  expect(h.queries[2]).toEqual({ since: 0, wait: 0, limit: 80, gen: null });
+  expect(h.queries[2]).toMatchObject({ since: 0, wait: 0, limit: 80, gen: null });
   expect(h.store.getState().lines.map((l) => l.id)).toEqual([1]);
   h.store.getState().stop();
 });
@@ -265,45 +265,6 @@ test('older lines load once at a time, before the oldest held', async () => {
   h.store.getState().stop();
 });
 
-test('reserving saves the key; releasing clears it', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
-  await h.store.ready;
-  h.client.reserveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: 'g1x' });
-  expect(await h.store.getState().reserveName('g1x')).toBe(true);
-  expect(h.client.reserveName).toHaveBeenCalledWith('ann', 'g1x');
-  expect(h.store.getState().identity).toMatchObject({ name: 'Ann', reservedName: 'Ann', nameKey: 'k' });
-  h.client.releaseName.mockResolvedValueOnce(undefined);
-  expect(await h.store.getState().releaseName()).toBe(true);
-  expect(h.store.getState().identity).toMatchObject({ reservedName: '', nameKey: '' });
-});
-
-test('a release the server does not know (404) still clears the local name', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'Ann', reservedName: 'Ann', nameKey: 'k' } });
-  await h.store.ready;
-  h.client.releaseName.mockRejectedValueOnce(new OffchainError(404, 'no reserved name for this key'));
-  expect(await h.store.getState().releaseName()).toBe(true);
-  expect(h.store.getState().identity.nameKey).toBe('');
-});
-
-test('setName is refused while a name is reserved', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'Ann', reservedName: 'Ann', nameKey: 'k' } });
-  await h.store.ready;
-  await h.store.getState().setName('bob');
-  expect(h.store.getState().identity.name).toBe('Ann');
-  const free = harness([]);
-  await free.store.ready;
-  await free.store.getState().setName('  bob ');
-  expect(free.store.getState().identity.name).toBe('bob');
-});
-
-test('an avatar upload keeps its id and key', async () => {
-  const h = harness([]);
-  await h.store.ready;
-  h.client.uploadAvatar.mockResolvedValueOnce({ id: 'a1', key: 'ak' });
-  expect(await h.store.getState().setAvatar(new Uint8Array([1]), 'image/jpeg')).toBe(true);
-  expect(h.store.getState().identity).toMatchObject({ av: 'a1', avkey: 'ak' });
-});
-
 test('a last seen line beyond the newest one is stale (another server, a log reset): the newest is seen', async () => {
   const h = harness([reply({ msgs: [line(1), line(2), line(3)] }), reply({ msgs: [line(4)] })], { seen: '9068' });
   h.store.getState().start();
@@ -374,17 +335,6 @@ test('a post that answers after a restart neither adds its line nor marks that i
   await pending;
   expect(h.store.getState().lines.map((l) => l.id)).toEqual([20]);
   expect(h.store.getState().mine).toEqual([]);
-  h.store.getState().stop();
-});
-
-test('a restart (another server) reloads the identity: a reservation made elsewhere is not shown', async () => {
-  const h = harness([reply({ msgs: [line(1)] })], { identity: { ...NO_IDENTITY, name: 'ann', reservedName: 'ann', nameKey: 'k' } });
-  await h.store.ready;
-  expect(h.store.getState().identity.reservedName).toBe('ann');
-  h.setIdentity({ ...NO_IDENTITY, name: 'ann' }); // what the identity store holds for the new server
-  h.store.getState().restart();
-  await flush();
-  expect(h.store.getState().identity).toEqual({ ...NO_IDENTITY, name: 'ann' });
   h.store.getState().stop();
 });
 
@@ -478,21 +428,6 @@ test('a resume that meets a new gen reloads and forgets', async () => {
   h.store.getState().stop();
 });
 
-test('a refused reservation is the sheet\'s error, a refused post the composer\'s', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
-  await h.store.ready;
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(400, 'a name of 1 to 32 characters'));
-  await h.store.getState().reserveName('g1x');
-  expect(h.store.getState().identityError).toBe('a name of 1 to 32 characters');
-  expect(h.store.getState().error).toBe('');
-  h.client.post.mockRejectedValueOnce(new OffchainError(403, '"ann" is reserved — pick another name'));
-  await h.store.getState().send('hi');
-  expect(h.store.getState().error).toBe('"ann" is reserved — pick another name');
-  expect(h.store.getState().identityError).toBe('a name of 1 to 32 characters');
-  h.store.getState().clearIdentityError();
-  expect(h.store.getState().identityError).toBe('');
-});
-
 test('own reactions and votes of this log come back after a relaunch; another gen\'s do not', async () => {
   const kv = new Map([[MARKS_KEY, JSON.stringify({ gen: 1, rx: { 5: ['❤️'] }, votes: { 7: 1 } })]]);
   const h = harness([reply({ msgs: [line(5), line(7)], gen: 1 })], { kv });
@@ -545,158 +480,115 @@ test('an edit that changes nothing sends nothing', async () => {
   h.store.getState().stop();
 });
 
-const ADDR = PROOF.addr;
-const okReply = (o: Partial<WalletReply> = {}) => proofReply({ state: 'feedfacefeedface', ...o });
+const ROOM = 'AAAAAAAAAAAAAAAAAAAA';
 
-/** A store whose reservation is waiting for the wallet. */
-async function provingHarness() {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
+test('a room keeps its own seen mark and marks', async () => {
+  const kv = new Map<string, string>();
+  const h = harness([reply({ msgs: [line(1), line(2)], gen: 3 })], { kv, scope: 'S', room: ROOM });
+  h.store.getState().start();
+  await flush();
+  expect(kv.get(`${SEEN_KEY}:S:${ROOM}`)).toBe('3:2');
+  expect(seenKeyFor('S', ROOM)).toBe(`${SEEN_KEY}:S:${ROOM}`);
+  expect(seenKeyFor('S', '')).toBe(`${SEEN_KEY}:S`);
+  h.client.react.mockResolvedValueOnce({ rx: { '👍': 1 }, mine: true });
+  await h.store.getState().react(2, '👍');
+  expect(kv.has(`${MARKS_KEY}:S:${ROOM}`)).toBe(true);
+  expect(kv.has(`${SEEN_KEY}:S`)).toBe(false);
+  expect(kv.has(`${MARKS_KEY}:S`)).toBe(false);
+  h.store.getState().stop();
+});
+
+test('the poll sends the current display name', async () => {
+  const h = harness([reply({ next: 1 }), reply({ next: 2 })], { identity: { ...NO_IDENTITY, name: 'bob' } });
+  h.store.getState().start();
+  await flush();
+  expect(h.queries[0].name).toBe('bob');
+  h.setIdentity({ ...NO_IDENTITY, name: 'bob', reservedName: 'Bobby' });
+  h.store.getState().stop();
+  h.store.getState().start();
+  await flush();
+  expect(h.queries.at(-1)!.name).toBe('Bobby');
+  h.store.getState().stop();
+});
+
+test('the poll\'s room name is kept', async () => {
+  const h = harness([reply({ roomName: 'Dev chat' })], { room: ROOM });
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().roomName).toBe('Dev chat');
+  h.store.getState().stop();
+});
+
+test('three 404 polls 20 s apart make the room gone and stop polling; a success in between resets the count', async () => {
+  const nf = () => new OffchainError(404, 'no such room');
+  const h = harness([nf(), nf(), reply({ next: 1 }), nf(), nf(), nf()], { room: ROOM });
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().gone).toBe(true);
+  expect(h.store.getState().phase).toBe('idle');
+  expect(h.sleeps.filter((ms) => ms === 20_000)).toHaveLength(4);
+  expect(h.queries).toHaveLength(6);
+});
+
+test('Public is never gone: a 404 there is an unreachable server', async () => {
+  const h = harness([new OffchainError(404, 'x'), new OffchainError(404, 'x'), new OffchainError(404, 'x')]);
+  h.store.getState().start();
+  await flush();
+  expect(h.store.getState().gone).toBe(false);
+  h.store.getState().stop();
+});
+
+test('pin replaces the pins and patches the line; deleteLine removes it; refusals set error', async () => {
+  const h = harness([reply({ msgs: [line(1), line(2)] })], { room: ROOM });
+  h.store.getState().start();
+  await flush();
+  h.client.pin.mockResolvedValueOnce({ pins: [line(2, { pinned: true })] });
+  await h.store.getState().pin(2, true);
+  expect(h.client.pin).toHaveBeenCalledWith(2, true);
+  expect(h.store.getState().pins.map((l) => l.id)).toEqual([2]);
+  expect(h.store.getState().lines.find((l) => l.id === 2)?.pinned).toBe(true);
+  h.client.deleteLine.mockResolvedValueOnce(undefined);
+  await h.store.getState().deleteLine(1);
+  expect(h.store.getState().lines.map((l) => l.id)).toEqual([2]);
+  h.client.deleteLine.mockRejectedValueOnce(new OffchainError(403, 'only the room\'s maker can do that'));
+  await h.store.getState().deleteLine(2);
+  expect(h.store.getState().error).toBe('only the room\'s maker can do that');
+  h.store.getState().stop();
+});
+
+test('Public hands each poll\'s invitations to onInvites; a room does not', async () => {
+  const dm: RoomInvite[] = [{ room: ROOM, name: 'x', from: 'bob', at: 5 }];
+  const got: RoomInvite[][] = [];
+  const pub = harness([reply({ dm })], { onInvites: (d) => got.push(d) });
+  pub.store.getState().start();
+  await flush();
+  expect(got).toEqual([dm]);
+  pub.store.getState().stop();
+  const inRoom: RoomInvite[][] = [];
+  const r = harness([reply({ dm })], { room: ROOM, onInvites: (d) => inRoom.push(d) });
+  r.store.getState().start();
+  await flush();
+  expect(inRoom).toEqual([]);
+  r.store.getState().stop();
+});
+
+test('onPosted is called after a successful send only', async () => {
+  const onPosted = jest.fn();
+  const h = harness([], { room: ROOM, onPosted });
   await h.store.ready;
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'Connect your wallet and let it sign the phrase'));
-  h.client.nameChallenge.mockResolvedValueOnce('gno.world: prove this wallet is yours · tok');
-  await h.store.getState().reserveName(ADDR);
-  return h;
-}
-
-test('a 409 has the wallet sign the phrase, then the proof reserves the name', async () => {
-  const h = await provingHarness();
-  expect(h.store.getState().proving).toEqual({ state: 'feedfacefeedface', name: 'ann', identity: ADDR, chainId: 'gnoland-1' });
-  expect(h.store.getState().identityError).toBe('');
-  expect(h.opened).toHaveLength(1);
-  const q = new URL(h.opened[0].replace('land.gno.gnokey://', 'https://x/')).searchParams;
-  expect([q.get('challenge'), q.get('signer'), q.get('chainid'), q.get('state')])
-    .toEqual(['gno.world: prove this wallet is yours · tok', ADDR, 'gnoland-1', 'feedfacefeedface']);
-
-  h.client.proveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
-  expect(await h.store.getState().onProofReply(okReply())).toBe(true);
-  expect(h.client.proveName).toHaveBeenCalledWith('ann', { doc: PROOF.doc, sig: PROOF.sig, pub: PROOF.pub, addr: ADDR });
-  expect(h.store.getState().identity).toMatchObject({ reservedName: 'Ann', nameKey: 'k' });
-  expect(h.store.getState().proving).toBeNull();
+  h.client.post.mockRejectedValueOnce(new OffchainError(403, 'no'));
+  await h.store.getState().send('hi');
+  expect(onPosted).not.toHaveBeenCalled();
+  h.client.post.mockResolvedValueOnce(line(4));
+  await h.store.getState().send('hi');
+  expect(onPosted).toHaveBeenCalledTimes(1);
 });
 
-test('a reservation that needs no proof does not open the wallet', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
-  await h.store.ready;
-  h.client.reserveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
-  expect(await h.store.getState().reserveName(ADDR)).toBe(true);
-  expect(h.opened).toHaveLength(0);
-});
-
-test('without a wallet, a 409 says the signature is coming instead of the server\'s words', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' }, noWallet: true });
-  await h.store.ready;
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'Connect your wallet and let it sign the phrase'));
-  expect(await h.store.getState().reserveName(ADDR)).toBe(false);
-  expect(h.store.getState().walletSoon).toBe(true);
-  expect(h.store.getState().identityError).toBe('');
-  expect(h.client.nameChallenge).not.toHaveBeenCalled();
-
-  // the next try (here a refusal of another kind) and closing the sheet forget it
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(400, 'a name is 1 to 32 characters'));
-  await h.store.getState().reserveName(ADDR);
-  expect(h.store.getState().walletSoon).toBe(false);
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'sign the phrase'));
-  await h.store.getState().reserveName(ADDR);
-  h.store.getState().clearIdentityError();
-  expect(h.store.getState().walletSoon).toBe(false);
-});
-
-test('a reply with another state is not the chat\'s', async () => {
-  const h = await provingHarness();
-  expect(await h.store.getState().onProofReply(okReply({ state: 'other' }))).toBe(false);
-  expect(h.client.proveName).not.toHaveBeenCalled();
-  expect(h.store.getState().proving).not.toBeNull();
-  const idle = harness([]);
-  expect(await idle.store.getState().onProofReply(okReply())).toBe(false);
-});
-
-test('a wallet that cannot prove says how to boop instead', async () => {
-  const h = await provingHarness();
-  expect(await h.store.getState().onProofReply(okReply({ signed: '', signature: '' }))).toBe(true);
-  expect(h.store.getState().identityError).toMatch(/Boop from this app, then reserve within 3 minutes/);
-  expect(h.client.proveName).not.toHaveBeenCalled();
-  expect(h.store.getState().proving).toBeNull();
-});
-
-test('a proof for another account is not sent', async () => {
-  const h = await provingHarness();
-  expect(await h.store.getState().onProofReply(okReply({ address: 'g1other' }))).toBe(true);
-  expect(h.store.getState().identityError).toMatch(/g1other/);
-  expect(h.client.proveName).not.toHaveBeenCalled();
-});
-
-test('a refusal after the signature is the sheet\'s error', async () => {
-  const h = await provingHarness();
-  h.client.proveName.mockRejectedValueOnce(new OffchainError(409, 'this wallet holds the name remi already'));
-  expect(await h.store.getState().onProofReply(okReply())).toBe(true);
-  expect(h.store.getState().identityError).toBe('this wallet holds the name remi already');
-  expect(h.store.getState().identity.nameKey).toBe('');
-  expect(h.store.getState().proving).toBeNull();
-});
-
-test('a cancelled or refused wallet answer ends the wait', async () => {
-  const h = await provingHarness();
-  expect(await h.store.getState().onProofReply(okReply({ status: 'cancelled' }))).toBe(true);
-  expect(h.store.getState().proving).toBeNull();
-  expect(h.store.getState().identityError).toBe('');
-  const g = await provingHarness();
-  expect(await g.store.getState().onProofReply(okReply({ status: 'error', code: 'signer_unavailable' }))).toBe(true);
-  expect(g.store.getState().identityError).toBe(
-    'The wallet could not sign as this identity: its computer could not sign (run gnokey-pair with a gnokey that has sign-data), or the wallet does not hold this identity.',
-  );
-});
-
-test('a challenge the server will not give leaves nothing waiting', async () => {
-  const h = harness([], { identity: { ...NO_IDENTITY, name: 'ann' } });
-  await h.store.ready;
-  h.client.reserveName.mockRejectedValueOnce(new OffchainError(409, 'sign the phrase'));
-  h.client.nameChallenge.mockRejectedValueOnce(new OffchainError(503, 'busy'));
-  expect(await h.store.getState().reserveName(ADDR)).toBe(false);
-  expect(h.store.getState().proving).toBeNull();
-  expect(h.store.getState().identityError).toBe('busy');
-  expect(h.opened).toHaveLength(0);
-});
-
-test('cancelling stops waiting for the wallet', async () => {
-  const h = await provingHarness();
-  h.store.getState().cancelProving();
-  expect(h.store.getState().proving).toBeNull();
-  expect(await h.store.getState().onProofReply(okReply())).toBe(false);
-});
-
-// The minutes at the computer are long: the OS may evict the app meanwhile. The
-// wallet's answer then reaches a new store, which must still know what it asked.
-test('a proof that comes back to a relaunched app still reserves the name', async () => {
-  const h = await provingHarness();
-  const relaunched = harness([], { identity: { ...NO_IDENTITY, name: 'ann' }, kv: h.kv });
-  await relaunched.store.ready;
-  expect(relaunched.store.getState().proving).toEqual(h.store.getState().proving);
-  relaunched.client.proveName.mockResolvedValueOnce({ name: 'Ann', key: 'k', addr: ADDR });
-  expect(await relaunched.store.getState().onProofReply(okReply())).toBe(true);
-  expect(relaunched.client.proveName).toHaveBeenCalledWith('ann', { doc: PROOF.doc, sig: PROOF.sig, pub: PROOF.pub, addr: ADDR });
-
-  const again = harness([], { kv: h.kv });
-  await again.store.ready;
-  expect(again.store.getState().proving).toBeNull(); // answered: nothing left to wait for
-});
-
-test('a proof given up on is forgotten across launches', async () => {
-  const h = await provingHarness();
-  h.store.getState().cancelProving();
-  const relaunched = harness([], { kv: h.kv });
-  await relaunched.store.ready;
-  expect(relaunched.store.getState().proving).toBeNull();
-});
-
-test('reloadIdentity shows what the identity store holds now (a name that came by /pair)', async () => {
-  let held = { ...NO_IDENTITY };
-  const store = createChatStore({
-    client: {} as ChatClient,
-    identity: { load: async () => held, save: async (p) => (held = { ...held, ...p }) },
-    kv: { getItem: async () => null, setItem: async () => undefined },
-  });
-  await store.ready;
-  held = { ...held, name: 'remi', reservedName: 'remi', nameKey: 'a'.repeat(32) };
-  await store.getState().reloadIdentity();
-  expect(store.getState().identity).toMatchObject({ reservedName: 'remi', nameKey: 'a'.repeat(32) });
+test('a loop stopped before it got going stays stopped', async () => {
+  const h = harness([]);
+  h.store.getState().start();
+  h.store.getState().stop();
+  await flush();
+  expect(h.store.getState().phase).toBe('idle');
+  expect(h.queries).toHaveLength(0);
 });

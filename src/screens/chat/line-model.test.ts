@@ -71,7 +71,7 @@ test('who reacted: the names, then "+N" past twelve', () => {
 });
 
 test('the Chat tab says how many lines are unread', () => {
-  expect(chatTabLabel(0)).toBeUndefined(); // the navigator's own label stays (iOS: "Chat, tab, 2 of 4")
+  expect(chatTabLabel(0)).toBeUndefined(); // the navigator's own label stays (iOS: "Chat, tab, 2 of 5")
   expect(chatTabLabel(3)).toBe('Chat, 3 unread');
   expect(chatTabLabel(150)).toBe('Chat, 99+ unread');
 });

@@ -28,8 +28,9 @@ export function wavSeconds(bytes: Uint8Array): number {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { default: script } = await import('../script.ts');
-  const out = join(import.meta.dirname, '..', 'out', 'voice');
+  const { loadScript } = await import('../lib/which.ts');
+  const { script, out: base } = await loadScript();
+  const out = join(base, 'voice');
   mkdirSync(out, { recursive: true });
   const { KokoroTTS } = await import('kokoro-js');
   let tts: Awaited<ReturnType<typeof KokoroTTS.from_pretrained>> | null = null;

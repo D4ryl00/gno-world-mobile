@@ -24,6 +24,7 @@ export default function RootLayout() {
           <Stack.Screen name="pool/[key]" options={{ title: 'Bubble', headerBackTitle: 'Pools' }} />
           <Stack.Screen name="create" options={{ title: 'New pool', presentation: 'modal' }} />
           <Stack.Screen name="pair" options={{ title: 'Pair with a browser', headerBackTitle: 'Chat' }} />
+          <Stack.Screen name="rooms/new" options={{ title: 'New room', presentation: 'formSheet' }} />
           <Stack.Screen name="session-callback" options={{ headerShown: false }} />
           {/* Home's cards, full screen: an iOS sheet you swipe down to close; not the price, whose crosshair a sheet
               would steal (iOS drags a sheet, even a locked one, on any downward slide) — it closes with ✕ */}

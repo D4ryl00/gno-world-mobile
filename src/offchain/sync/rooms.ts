@@ -64,9 +64,31 @@ export function mergeBook(local: Book, incoming: { rooms?: unknown; left?: unkno
   return { rooms: capRooms(rooms), left };
 }
 
+/** The site's roomRemember: the room first, `at` now (ms), a known key kept, no longer left. */
+export function rememberRoom(b: Book, e: { id: string; name: string; key?: string }, at: number): Book {
+  const had = b.rooms.find((r) => r.id === e.id);
+  const entry: RoomEntry = {
+    id: e.id, name: (e.name || had?.name || 'private room').slice(0, 40), key: e.key || had?.key || '', at,
+    ...(had?.irc ? { irc: true as const } : {}),
+  };
+  const { [e.id]: _, ...left } = b.left;
+  return { rooms: capRooms([entry, ...b.rooms.filter((r) => r.id !== e.id)]), left };
+}
+
+/** The site's roomForget: the room out, and when it was left (ms), so a paired device leaves it too. */
+export function forgetRoom(b: Book, id: string, at: number): Book {
+  return { rooms: b.rooms.filter((r) => r.id !== id), left: { ...b.left, [id]: at } };
+}
+
 export interface BookStore {
   load(): Promise<Book>;
   save(b: Book): Promise<void>;
+  /**
+   * Reads, changes and writes the book, one change after the other: the rooms registry and the /pair pull both
+   * change it, and two read-then-write sequences at once would lose one (a room just made, with its key). The book
+   * of the server current when it starts; the new book.
+   */
+  update(f: (b: Book) => Book): Promise<Book>;
 }
 
 /**
@@ -91,21 +113,42 @@ export function createBookStore(d: { kv: KV; secrets: SecretStore; crypto: Crypt
       making = null;
       throw e;
     }));
+  const loadAt = async (where: string): Promise<Book> => {
+    try {
+      const [raw, lock] = await Promise.all([d.kv.getItem(where), readLock()]);
+      if (!raw || !lock) return EMPTY_BOOK;
+      const v = await openJson(d.crypto, lock, raw);
+      return mergeBook(EMPTY_BOOK, v && typeof v === 'object' ? v : {});
+    } catch {
+      return EMPTY_BOOK;
+    }
+  };
+  const saveAt = async (where: string, b: Book) => {
+    const lock = await lockForSave();
+    await d.kv.setItem(where, await sealJson(d.crypto, lock, { rooms: capRooms(b.rooms), left: b.left }));
+  };
+  // writes one after the other
+  let queue: Promise<unknown> = Promise.resolve();
+  const queued = <T>(job: () => Promise<T>): Promise<T> => {
+    const run = queue.then(job);
+    queue = run.catch(() => undefined);
+    return run;
+  };
   return {
-    load: async () => {
-      try {
-        const [raw, lock] = await Promise.all([d.kv.getItem(at()), readLock()]);
-        if (!raw || !lock) return EMPTY_BOOK;
-        const v = await openJson(d.crypto, lock, raw);
-        return mergeBook(EMPTY_BOOK, v && typeof v === 'object' ? v : {});
-      } catch {
-        return EMPTY_BOOK;
-      }
+    load: () => loadAt(at()),
+    // the server it was made for, whatever Settings say by the time it is sealed
+    save: (b) => {
+      const where = at();
+      return queued(() => saveAt(where, b));
     },
-    save: async (b) => {
-      const where = at(); // the server it was made for, whatever Settings say by the time it is sealed
-      const lock = await lockForSave();
-      await d.kv.setItem(where, await sealJson(d.crypto, lock, { rooms: capRooms(b.rooms), left: b.left }));
+    update: (f) => {
+      const where = at();
+      return queued(async () => {
+        const before = await loadAt(where);
+        const after = f(before);
+        if (JSON.stringify(after) !== JSON.stringify(before)) await saveAt(where, after);
+        return after;
+      });
     },
   };
 }

@@ -1,15 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useEffect as mockUseEffect } from 'react';
+import { useStore as mockUseStore } from 'zustand';
 
-import { NO_IDENTITY } from '@/offchain/chat/identity';
-import { createChatStore } from '@/offchain/chat/store';
 import { line } from '@/offchain/chat/testing';
+import { screenServices } from '@/screens/channels/testing';
 import { ChatFull } from '@/screens/home/full/chat-full';
 import { HereFull } from '@/screens/home/full/here-full';
 
-let mockChat: ReturnType<typeof createChatStore>;
+let mockS: ReturnType<typeof screenServices>;
+const ROOM = 'AAAAAAAAAAAAAAAAAAAA';
+const LISTED = 'BBBBBBBBBBBBBBBBBBBB';
 let mockWhere: Record<string, unknown>;
 const mockGet = jest.fn(async (path: string): Promise<unknown> => {
   if (path === '/api/where') return mockWhere;
@@ -22,7 +24,11 @@ jest.mock('expo-router', () => ({
 }));
 const mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => mockInsets }));
-jest.mock('@/state/app-services', () => ({ useServices: () => ({ offchain: { get: mockGet }, chat: mockChat }) }));
+jest.mock('@/state/app-services', () => ({
+  useServices: () => ({ ...mockS, offchain: { get: mockGet } }),
+  useRooms: <T,>(sel: (s: ReturnType<typeof mockS.rooms.getState>) => T) => mockUseStore(mockS.rooms, sel),
+  useHomeChannels: <T,>(sel: (s: ReturnType<typeof mockS.homeChannels.getState>) => T) => mockUseStore(mockS.homeChannels, sel),
+}));
 jest.mock('@/state/settings', () => ({ useSettings: <T,>(sel: (s: { offchainUrl: string }) => T) => sel({ offchainUrl: 'http://fake' }) }));
 
 const COUNTRIES = ['FR', 'CA', 'ES', 'UA', 'BG', 'BR', 'GB', 'GH', 'MX', 'NL', 'US', 'JP'];
@@ -79,13 +85,12 @@ describe('Here Now', () => {
 describe('Chat, read only', () => {
   beforeEach(async () => {
     (router.dismissTo as jest.Mock).mockClear();
-    mockChat = createChatStore({
-      client: {} as never,
-      identity: { load: async () => NO_IDENTITY, save: async () => NO_IDENTITY },
-      kv: { getItem: async () => null, setItem: async () => undefined },
+    mockS = screenServices({
+      book: { rooms: [{ id: ROOM, name: 'Dev chat', key: '', at: 1 }], left: {} },
+      listed: [{ id: LISTED, name: 'governance', here: 4, made: 1 }, { id: ROOM, name: 'Dev chat', here: 2, made: 2 }],
     });
-    await mockChat.ready;
-    mockChat.setState({
+    await mockS.ready;
+    mockS.chat.setState({
       phase: 'live',
       here: 7,
       lines: [line(1, { name: 'ann', body: 'gm' }), line(2, { name: 'bob', body: 'hi all', rx: { '❤️': 1 } })],
@@ -102,12 +107,12 @@ describe('Chat, read only', () => {
 
   test('reading here counts as seen', async () => {
     await render(<ChatFull />);
-    expect(mockChat.getState().lastSeen).toBe(2);
+    expect(mockS.chat.getState().lastSeen).toBe(2);
   });
 
   test('scrolling back loads older lines', async () => {
     const loadOlder = jest.fn(async () => undefined);
-    mockChat.setState({ loadOlder });
+    mockS.chat.setState({ loadOlder });
     await render(<ChatFull />);
     await fireEvent(screen.getByTestId('chat-full-list'), 'endReached');
     expect(loadOlder).toHaveBeenCalled();
@@ -117,15 +122,76 @@ describe('Chat, read only', () => {
     mockInsets.bottom = 48;
     try {
       await render(<ChatFull />);
-      expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Write in Chat ›' }).props.style).paddingBottom).toBe(48 + 12);
+      expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Write in Public ›' }).props.style).paddingBottom).toBe(48 + 12);
     } finally {
       mockInsets.bottom = 0;
     }
   });
 
-  test('Write in Chat › goes to the Chat tab', async () => {
+  test('Write in Public › goes to the Chat tab on Public, whatever it showed', async () => {
+    mockS.chatChannel.getState().select(ROOM);
     await render(<ChatFull />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Write in Chat ›' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Write in Public ›' }));
+    expect(mockS.chatChannel.getState().current).toBe('');
     expect(router.dismissTo).toHaveBeenCalledWith('/chat');
+  });
+
+  test('Write in Dev chat › goes to the Chat tab on that room', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    await render(<ChatFull />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Write in Dev chat ›' }));
+    expect(mockS.chatChannel.getState().current).toBe(ROOM);
+    expect(router.dismissTo).toHaveBeenCalledWith('/chat');
+  });
+
+  test('the full screen switches channel for Home too', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    mockS.rooms.getState().room(ROOM).setState({ phase: 'live', lines: [line(9, { body: 'room line' })] });
+    await render(<ChatFull />);
+    expect(screen.getByText('room line')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('tab', { name: /^Public/ }));
+    expect(screen.getByText('gm')).toBeTruthy();
+    expect(mockS.homeChannels.getState().current).toBe('');
+  });
+
+  test('＋ opens Show on Home: your rooms, then listed ones, ✓ on tabs there; a row adds or removes', async () => {
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    await render(<ChatFull />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Add a channel' }));
+    expect(screen.getByText('Show on Home')).toBeTruthy();
+    expect(screen.getByText('YOUR ROOMS')).toBeTruthy();
+    expect(screen.getByText('LISTED ON GNO.WORLD')).toBeTruthy();
+    const mine = screen.getByRole('button', { name: /^Dev chat/ });
+    expect(mine.props.accessibilityState.checked).toBe(true);
+    const listed = screen.getByRole('button', { name: /^governance/ });
+    expect(within(listed).getByText('4 here')).toBeTruthy();
+    expect(listed.props.accessibilityState.checked).toBe(false);
+    await fireEvent.press(listed);
+    expect(mockS.homeChannels.getState().tabs.map((t) => t.id)).toEqual(['', ROOM, LISTED]);
+    expect(mockS.homeChannels.getState().current).toBe(LISTED);
+    await fireEvent.press(screen.getByRole('button', { name: /^Dev chat/ }));
+    expect(mockS.homeChannels.getState().tabs.map((t) => t.id)).toEqual(['', LISTED]);
+    expect(mockS.book().rooms.map((r) => r.id)).toEqual([ROOM]); // adding a listed room does not join it
+  });
+
+  test('could not be listed right now when /api/rooms failed', async () => {
+    mockS.client.listPublic = async () => {
+      throw new Error('down');
+    };
+    await render(<ChatFull />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Add a channel' }));
+    expect(screen.getByText('could not be listed right now')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Dev chat/ })).toBeTruthy();
+  });
+
+  test('long-press a room tab offers Remove from Home', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    mockS.homeChannels.getState().add({ id: ROOM, name: 'Dev chat' });
+    await render(<ChatFull />);
+    await fireEvent(screen.getByRole('tab', { name: /^Dev chat/ }), 'longPress');
+    const buttons = alert.mock.calls[0][2]!;
+    await act(async () => buttons.find((b) => b.text === 'Remove from Home')!.onPress!());
+    expect(mockS.homeChannels.getState().tabs.map((t) => t.id)).toEqual(['']);
+    alert.mockRestore();
   });
 });
